@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+        cds-version: [latest, 8]
+    steps:
+      - uses: actions/checkout@v2
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
+      - run: npm i
+      - run: cd tests/bookshop && npm i
+      - run: npm run test
+  integration-tests:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+        cds-version: [latest, 8]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Integration tests
+        uses: ./.github/actions/integration-tests
+        with:
+          CF_API: ${{ secrets.CF_API }}
+          CF_USERNAME: ${{ secrets.CF_USERNAME }}
+          CF_PASSWORD: ${{ secrets.CF_PASSWORD }}
+          CF_ORG: ${{ secrets.CF_ORG }}
+          CF_SPACE: ${{ secrets.CF_SPACE }}
+          NODE_VERSION: ${{ matrix.node-version }}
+      - run: npm run test

@@ -1,0 +1,60 @@
+{
+  "name": "@cap-js/REPO-NAME",
+  "version": "1.0.0",
+  "description": "CAP cds-plugin REPO-DESCRIPTION",
+  "license": "Apache-2.0",
+  "author": "AUTHOR",
+  "homepage": "https://cap.cloud.sap/",
+  "main": "cds-plugin.js",
+  "scripts": {
+    "lint": "npx eslint .",
+    "test": "npx jest --silent",
+    "test:hybrid": "cds bind --exec -- npx jest",
+    "prettier": "npx -y prettier@3 --write .",
+    "prettier:check": "npx -y prettier@3 --check .",
+    "watch:sample": "cd tests/bookshop && cds watch"
+  },
+  "files": [
+    "index.cds",
+    "lib",
+    "db",
+    "srv"
+  ],
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@cap-js/cds-test": ">=0",
+    "@cap-js/sqlite": "^2"
+  },
+  "peerDependencies": {
+    "@sap/cds": ">=8"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "workspaces": [
+    "tests/bookshop/"
+  ],
+  "cds": {
+    "requires": {
+      "emojis": {
+        "[development]": {
+          "kind": "emojis-local"
+        },
+        "[hybrid]": {
+          "kind": "emojis-prod"
+        },
+        "[production]": {
+          "kind": "emojis-prod"
+        }
+      },
+      "kinds": {
+        "emojis-local": {
+          "impl": "@cap-js/REPO-NAME/srv/basic"
+        },
+        "emojis-prod": {
+          "impl": "@cap-js/REPO-NAME/srv/prod"
+        }
+      }
+    }
+  }
+}
