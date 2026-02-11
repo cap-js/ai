@@ -1,33 +1,6 @@
-# cap-js Repository Template
+[![REUSE status](https://api.reuse.software/badge/github.com/cap-js/ai)](https://api.reuse.software/info/github.com/cap-js/ai)
 
-Default templates for @cap-js open source [CAP Calesi](https://cap.cloud.sap/docs/about/best-practices#the-calesi-pattern) plugins. It includes a sample plugin and the basic setup needed to start with development. All repositories on github.com/cap-js will be created based on this template.
-
-## To-Do
-
-In case you are the maintainer of a new @cap-js open source CAP plugin, these are the steps to do with the template files:
-
-- Check if the default license (Apache 2.0) also applies to your project. A license change should only be required in exceptional cases. If this is the case, please change it.
-- Enter the correct metadata for the REUSE tool. Please replace the parts inside the single angle quotation marks < > by the specific information for your repository and be sure to run the REUSE tool to validate that the metadata is correct.
-- Adjust the contribution guidelines (e.g. add coding style guidelines, pull request checklists, different license if needed etc.)
-- Add information about your project to this README (name, description, requirements etc). Especially take care for the <your-project> placeholders - those ones need to be replaced with your project name. See the sections below the horizontal line.
-- Setup your GitHub repository:
-  - Add the GitHub protection rules for you repository:
-    - Go to Settings > Rules > Rulesets > New ruleset > Import from json
-    - Upload the file `gh_ruleset.json`. You can delete it in your repository afterwards
-  - Add collaborators to your repository:
-    - Maximilian Eckert (maxieckert-sap) as Admin
-    - `cdsmunich`-Team as Maintainer
-  - Create a label with the name `no changelog`. If you want to skip the check for changelog entries in your PR, you can add this label.
-- Adjust the name of your plugin in the needed places (Search for `REPO-NAME` and replace it with your plugin name)
-- Start developing your new CAP plugin!
-  - Adjust the sample `cds-plugin.js` file
-  - Adjust the sample service implementations in `lib`
-  - Adjust the sample test application in `tests/bookshop` to show the usage of your plugin
-- Remove all content in this README above and including the horizontal line ;)
-
----
-
-# Our new open source project
+# ai
 
 ## About this project
 
@@ -89,4 +62,4 @@ We as members, contributors, and leaders pledge to make participation in our com
 
 ## Licensing
 
-Copyright (20xx-)20xx SAP SE or an SAP affiliate company and <your-project> contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/<your-project>).
+Copyright 2026 SAP SE or an SAP affiliate company and ai contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/<your-project>).
