@@ -1,4 +1,3 @@
-import cds from '@sap/cds';
 import AICoreService from './AICoreService.js';
 
 export default class MockAICore extends AICoreService {
