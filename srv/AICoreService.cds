@@ -169,16 +169,16 @@ service AICore {
 
   action   predictRowColumns(prediction_config: {
     target_columns : array of {
-      name              : String;
+      name                   : String;
       prediction_placeholder : String;
-      task_type         : String enum {
+      task_type              : String enum {
         classification = 'classification'
       }
     }
   },
-                            index_column: String,
-                            @open
-                            rows: array of Map, );
+                             index_column: String,
+                             @open
+                             rows: array of Map, );
 
   /**
    * Returns a resource group ID for a CDS tenant ID
