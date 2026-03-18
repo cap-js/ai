@@ -22,7 +22,7 @@ export default class AICore extends cds.ApplicationService {
 	 * @returns OAuth Token
 	 */
 	async _getToken() {
-		if (this.token && this.expiration_date.toISOString() <= new Date().toISOString()) {
+		if (this.token && this.expiration_date.toISOString() > new Date().toISOString()) {
 			return this.token;
 		}
 		const aiCore = cds.env.requires['AICore'];
@@ -99,7 +99,7 @@ export default class AICore extends cds.ApplicationService {
 				req.data.resourceGroupId = cds.utils.uuid();
 			}
 			// REVISIT: map req.data.tenantId to the CDS_TENANT_ID?!
-			if (!req.data.labels || req.data.labels.some((l) => l.key === 'ext.ai.sap.com/CDS_TENANT_ID')) {
+			if (!req.data.labels || !req.data.labels.some((l) => l.key === 'ext.ai.sap.com/CDS_TENANT_ID')) {
 				req.data.labels ??= [];
 				req.data.labels.push({
 					key: 'ext.ai.sap.com/CDS_TENANT_ID',
@@ -119,7 +119,7 @@ export default class AICore extends cds.ApplicationService {
 			let resourceGroupId = getProperty(where, 'resourceGroupId');
 			if (!resourceGroupId) {
 				const tenantId = getProperty(where, 'tenantId');
-				const resourceGroup = await this.run(SELECT.from('AICore.resourceGroups').where({ tenantId }));
+				const resourceGroup = await this.run(SELECT.one.from('AICore.resourceGroups').where({ tenantId }));
 				resourceGroupId = resourceGroup.resourceGroupId;
 			}
 			response = await fetch(`${aiCore.destination.serviceurls.AI_API_URL}/v2/admin/resourceGroups/${resourceGroupId}`, {
@@ -179,10 +179,10 @@ export default class AICore extends cds.ApplicationService {
 			}
 		} else if (req.event === 'UPDATE') {
 			const where = req.query.UPDATE.entity.ref.at(-1)?.where || req.query.UPDATE.where;
-			let resourceGroupId = getProperty(req.query.UPDATE.from.ref?.at(-1)?.where ?? req.query.UPDATE.where, 'resourceGroupId');
+			let resourceGroupId = getProperty(where, 'resourceGroupId');
 			if (!resourceGroupId) {
 				const tenantId = getProperty(where, 'tenantId');
-				const resourceGroup = await this.run(SELECT.from('AICore.resourceGroups').where({ tenantId }));
+				const resourceGroup = await this.run(SELECT.one.from('AICore.resourceGroups').where({ tenantId }));
 				resourceGroupId = resourceGroup.resourceGroupId;
 			}
 			response = await fetch(`${aiCore.destination.serviceurls.AI_API_URL}/v2/admin/resourceGroups/${resourceGroupId}`, {
@@ -202,6 +202,9 @@ export default class AICore extends cds.ApplicationService {
 			if (res.resources) {
 				res.resources['$odata.count'] = res.count;
 				res = res.resources;
+			}
+			if (req.query.SELECT?.one) {
+				res = res[0];
 			}
 			return res;
 		} else {
@@ -343,6 +346,9 @@ export default class AICore extends cds.ApplicationService {
 				res.resources['$odata.count'] = res.count;
 				res = res.resources;
 			}
+			if (req.query.SELECT?.one) {
+				res = res[0];
+			}
 			return res;
 		} else {
 			LOG.error('Error when requesting deployments from AI Core for tenant: ', cds.context.tenant, req.event, req.query, response.status === '404' ? JSON.stringify(await response.json()) : response.status);
@@ -413,6 +419,9 @@ export default class AICore extends cds.ApplicationService {
 				res.resources['$odata.count'] = res.count;
 				res = res.resources;
 			}
+			if (req.query.SELECT?.one) {
+				res = res[0];
+			}
 			return res;
 		} else {
 			LOG.error('Error when requesting configurations from AI Core for tenant: ', cds.context.tenant, req.event, req.query, response.status === '404' ? JSON.stringify(await response.json()) : response.status);
@@ -427,12 +436,12 @@ export default class AICore extends cds.ApplicationService {
 		if (this.resourceRPTMappings.get(resourceGroupId)) {
 			return this.resourceRPTMappings.get(resourceGroupId);
 		}
-		const resources = await this.run(SELECT.from('AICore.deployments').where({ 'resourceGroup.resourceGroupId': resourceGroupId }));
-		let deployment = resources.find((r) => r.configurationName.match(/rpt-1/));
+		const deployments = await this.run(SELECT.from('AICore.deployments').where({ 'resourceGroup.resourceGroupId': resourceGroupId }));
+		let deployment = deployments.find((r) => r.configurationName.match(/rpt-1/));
 		if (!deployment || (deployment.status !== 'RUNNING' && deployment.status !== 'PENDING')) {
 			// Create RPT-1 deployment on demand if the resource group is missing it
-			const resources = await this.run(SELECT.from('AICore.configurations').where({ 'resourceGroup.resourceGroupId': resourceGroupId }).search('rpt-1'));
-			const configuration = resources[0];
+			const configurations = await this.run(SELECT.from('AICore.configurations').where({ 'resourceGroup.resourceGroupId': resourceGroupId }).search('rpt-1'));
+			const configuration = configurations[0];
 			deployment = await this.run(INSERT.into('AICore.deployments').entries({ configurationId: configuration.id }));
 		}
 		this.resourceRPTMappings.set(resourceGroupId, deployment.id);

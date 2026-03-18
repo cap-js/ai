@@ -1,6 +1,6 @@
 import cds from '@sap/cds';
 import path from 'path';
-import { describe, test } from 'node:test';
+import { describe, test, before } from 'node:test';
 import assert from 'node:assert';
 import cdsTest from '@cap-js/cds-test';
 import { fileURLToPath } from 'url';
@@ -14,7 +14,7 @@ describe('Embedding based search', () => {
 	axios.defaults.auth = { username: 'alice' };
 
 	let query = null;
-	beforeAll(async () => {
+	before(async () => {
 		const db = await cds.connect.to('db');
 		db.before('READ', (req) => {
 			if (req.target && req.target.name === 'CatalogService.Books') {
@@ -110,6 +110,6 @@ describe('@ai.embedding', () => {
 			}
 		}
 
-		cds.env.ai.embeddings.defaultModel = 'AI_CORE';
+		cds.env.ai.embeddings.defaultModel = 'SAP_GXY.20250407';
 	});
 });

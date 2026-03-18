@@ -161,7 +161,8 @@ build-parameters:
       commands:
         - mkdir -p resources
         - cp config/cdm.json resources/cdm.json
+        - sh -c 'TGZ_FILE="$(ls -1 | grep -E "^cap-js-ai.*\.tgz$" | head -n 1)" && npm install "./${TGZ_FILE}"'
         - npm ci
         - npx -p @sap/cds-dk cds build --production
-        - cp cap-js-ai-1.0.0.tgz gen/srv
+        - sh -c 'cp "$(ls -1 | grep -E "^cap-js-ai.*\.tgz$" | head -n 1)" ./gen/srv'
         - cp -r patches gen/srv
