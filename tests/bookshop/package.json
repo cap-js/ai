@@ -21,7 +21,7 @@
 	},
 	"devDependencies": {
 		"@cap-js/cds-types": "^0.16.0",
-		"@cap-js/sqlite": "*",
+		"@cap-js/sqlite": "file:../../cap-js-sqlite-2.1.3.tgz",
 		"@sap/cds-dk": "^9",
 		"@sap/ux-specification": "latest"
 	},
@@ -31,8 +31,7 @@
 	"scripts": {
 		"start": "cds-serve",
 		"undeploy": "cf undeploy intelligent-cap-app --delete-services --delete-service-keys --delete-service-brokers",
-		"deploy": "cf deploy mta_archives/archive.mtar --retries 1",
-		"postinstall": "patch-package"
+		"deploy": "cf deploy mta_archives/archive.mtar --retries 1"
 	},
 	"workspaces": [
 		"app/*"
