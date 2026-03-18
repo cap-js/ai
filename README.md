@@ -1,65 +1,148 @@
-[![REUSE status](https://api.reuse.software/badge/github.com/cap-js/ai)](https://api.reuse.software/info/github.com/cap-js/ai)
+# SAP Cloud Application Programming Model, AI plugin for Node.js
 
-# ai
+The SAP Cloud Application Programming Model, AI plugin for Node.js bundles a variety of AI capabilities to infuse into your CAP applications:
 
-## About this project
+> [!IMPORTANT]
+> In multi tenancy scenarios with a sidecar the plugin must be included in the sidecar for SAP AI Core handling.
 
-_Insert a short description of your project here..._
+1. Recommendations
+2. Simplified Embeddings
+3. Simplified AI Core usage
 
-## Requirements and Setup
+## 1. Recommendations
 
-_Insert a short description what is required to get your project running..._
+Recommendations are implemented leveraging SAP-RPT-1 and AI Core. This plugin generically hooks into any entity which has a value help.
 
-## Tests
-
-In `tests/bookshop/` you can find a sample application that is used to demonstrate how to use the plugin and to run tests against it.
-
-### Local Testing
-
-To execute local tests, simply run:
-
-```bash
-npm run test
+```cds 
+entity Books {
+  key ID : Integer;
+  title  : String(111);
+  descr  : String(1111);
+  genre : Association to one Genres;
+}
+annotate Genres with @cds.odata.valuelist;
 ```
 
-For tests, the `cds-test` Plugin is used to spin up the application. More information about `cds-test` can be found [here](https://cap.cloud.sap/docs/node.js/cds-test).
+![Recommendations as default values](./_assets/recommendation-default.png)
+![Recommendation in Value Help](./_assets/recommendation-value-help.png)
+![Accept recommendations](./_assets/accept-recommendations.png)
 
-### Hybrid Testing
+The genre field on the UI now automatically has recommendations. If you do not want recommendations for a specific field, it can be annotated with `@UI.RecommendationState`.
 
-#### Local
-
-In the case of hybrid tests (i.e., tests that run with a real BTP service), you can bind the service instance to the local application like this:
-
-```bash
-cds bind -2 my-service
+```cds
+annotate Books with {
+    genre @UI.RecommendationState : 0;
+}
 ```
 
-More on `cds bind` can be found [here](https://pages.github.tools.sap/cap/docs/advanced/hybrid-testing#cds-bind-usage)
+Dynamic expressions as values for `@UI.RecommendationState`, work as well!
 
-The hybrid integration tests can be run via:
-
-```bash
-npm run test:hybrid
+```cds
+annotate Books with {
+    genre @UI.RecommendationState : (price > 200 ? 0 : 1);
+}
 ```
 
-#### CI
+## 2. Simplified embeddings
 
-For CI, the service binding is added during the action run. Uncomment the _Bind against BTP services_ and _BTP Auth_ sections in the file `.github/actions/integration-tests/action.yml` and adjust the service name/names accordingly. The `cds bind` command executed there will be the almost the same as done locally before, with the difference that it will be written to package.json in CI.
+For natural language processing it is crucial to embed text data into a Vector. So far CAP only supported Vectors with HANA as a database.
 
-You can also execute the tests against a HANA Cloud instance. For that, add the commented sections in the action file and adjust accordingly.
+To improve local development, this PoC adds support for SQLite to enable local development with embeddings. Furthermore compatibility for the following HANA Vector functions is added to SQLite:
+- TO_REAL_VECTOR
+- VECTOR_EMBEDDING
+- CARDINALITY
+- cosine_similarity
+- l2distance
 
-## Support, Feedback, Contributing
+Vectors can be either manually created, like:
 
-This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/cap-js/<your-project>/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
+```cds
+entity Books {
+  key ID : Integer;
+  title  : String(111);
+  descr  : String(1111);
+  embedding : Vector = (VECTOR_EMBEDDING(descr, 'DOCUMENT', 'amazon--titan-embed-text."1.2"')) stored;
+}
+```
 
-## Security / Disclosure
+where CAPs on-write calculated element is used to ensure a vector is generated every time the description is updated.
 
-If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/cap-js/<your-project>/security/policy) on how to report it. Please do not create GitHub issues for security-related doubts or problems.
+Alternatively the plugin also allows to use `@ai.embedding` and `@ai.embedding.@ai.model`. The default model used is 'SAP_GXY.20250407' but can be overridden via `cds.env.ai.embeddings.defaultModel`.
 
-## Code of Conduct
+```cds
+entity Books {
+  key ID : Integer;
+  title  : String(111);
+  @ai.embedding
+  descr  : String(1111);
+}
+```
 
-We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone. By participating in this project, you agree to abide by its [Code of Conduct](https://github.com/cap-js/.github/blob/main/CODE_OF_CONDUCT.md) at all times.
+```cds
+entity Books {
+  key ID : Integer;
+  title  : String(111);
+  @ai.embedding
+  @ai.embedding.@ai.model : 'amazon--titan-embed-text."1.2"'
+  descr  : String(1111);
+}
+```
 
-## Licensing
+HANA Cloud has native models for text embedding when their Natural Language Processing feature is enabled: `SAP_GXY.20250407` and `SAP_NEB.20240715`. However HANA Cloud can also be connected to AI Core via a remote source, and then embedding models from OpenAI and AWS can be used as well.
 
-Copyright 2026 SAP SE or an SAP affiliate company and ai contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/<your-project>).
+Because the remote source needs to be referenced within the `VECTOR_EMBEDDING` function, but the syntax is invalid within CAP, the plugin automatically adds the configured remote source, when the model is not from SAP. The default remote source is `AI_CORE` but it can be overridden via `cds.env.ai.embeddings.remoteSource`.
+
+> [!WARNING]
+> Currently only limited support exists for non SAP embedding models on HANA Cloud!
+> The plugin does currently not create the remote source itself. Thus if non SAP embedding models shall be used, you need to create the remote source in HANA Cloud and grant the HDI RT user the reference privilege so it can use the remote source. Refer to the [documentation](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/creating-text-embeddings-with-sap-ai-core?locale=en-US).
+> In Multi-Tenancy scenarios you would have to create a remote source per tenant and assign the reference privilege to the respective tenant binding. The remote source per tenant should be done because in AI Core each tenant should have a different resource group for isolation.
+
+### SQLite Implementation
+
+For SQLite the [fork](https://github.com/vlasky/sqlite-vec?tab=readme-ov-file) of [sqlite-vec](https://alexgarcia.xyz/sqlite-vec/api-reference.html#vec_f32) is used to support vectors within SQLite. Furthermore [synckit](https://github.com/un-ts/synckit) is being leveraged for calling AI Core within the 'VECTOR_EMBEDDING' function to generate vectors when an AI core model is specified. To mock SAP HANA embedding models the package [semantic-search](https://github.tools.sap/D065023/semantic-search/blob/main/README.md) from David Kunz is being leveraged.
+
+<!-- ### Similar entities
+
+When the entity is draft enabled and has any vector column, a similar entities table is automatically added. The score column is the average cosine similarity of every vector columns compared against the opened entity.
+
+![Similar entities table](./_assets/similar-entities-table.png) -->
+
+### Open Topics
+- How to rotate the x.509 certificate from AI core?
+- How to have multiple remote sources in HANA Cloud to have a unique resource group per tenant? Because AI core recommends that every tenant should have a unique resource group.
+- How to more easily create remote sources. HDI containers do not have privileges for that and thus a [user provided service](https://community.sap.com/t5/technology-blog-posts-by-sap/step-by-step-guide-to-creating-remote-data-in-hdi/ba-p/13907315) is needed to grant the HDI container remote source access?
+
+## 3. Simplified AI Core usage
+
+The plugin introduces an `AICore` CAP service via which simplified AI Core access is possible.
+
+```js
+const aiCore = await cds.connect.to('AICore');
+const {resourceGroups, deployments, configurations} = aiCore.entities;
+const resourceGroups = await aiCore.run(SELECT.from(resourceGroups));
+await aiCore.run(SELECT.from(resourceGroups).where({tenantId: cds.context.tenantId}));
+await aiCore.run(SELECT.from(deployments).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
+await aiCore.run(SELECT.from(configurations).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
+```
+
+Currently the following operations are supported:
+
+| Operation | resourceGroups | deployments | configurations |
+|-----------|---------------|-------------|----------------|
+| **READ (list)** | ✓ | ✓ | ✓ |
+| - limit | ✓ | ✓ | ✓ |
+| - where* | `tenantId`, `resourceGroupId` | `resourceGroup.resourceGroupId` | `resourceGroup.resourceGroupId` |
+| - search | - | - | ✓ |
+| **READ (single)** | ✓ | ✓ | ✓ |
+| **CREATE** | ✓ | ✓ | - |
+| **UPDATE** | ✓ | ✓ | - |
+| - where* | `tenantId`, `resourceGroupId` | `id`, `resourceGroup.resourceGroupId` | - |
+| **UPSERT** | ✓ | ✓ | - |
+| - where* | - | `id`, `resourceGroup.resourceGroupId` | - |
+| **DELETE** | ✓ | - | - |
+
+\* Only simple equality checks against the listed properties are supported
+
+<!-- TODO:
+- Predictive API wrapper
+- Simplified versioning -->

@@ -1,0 +1,263 @@
+[
+	{
+		"_version": "3.2",
+		"identification": {
+			"id": "FERCatalogId",
+			"title": "{{title}}",
+			"entityType": "catalog"
+		},
+		"payload": {
+			"viz": [
+				{
+					"appId": "ai-bookshop",
+					"vizId": "RecommendationsManage"
+				},
+				{
+					"appId": "CARDAPP_BOOKS",
+					"vizId": "CARD_BOOKS"
+				}
+			]
+		},
+		"texts": [
+			{
+				"locale": "",
+				"textDictionary": {
+					"title": "FE Catalog"
+				}
+			}
+		]
+	},
+	{
+		"_version": "3.2",
+		"identification": {
+			"id": "FERGroupId",
+			"title": "{{title}}",
+			"entityType": "group"
+		},
+		"payload": {
+			"viz": [
+				{
+					"appId": "ai-bookshop",
+					"vizId": "RecommendationsManage"
+				}
+			]
+		},
+		"texts": [
+			{
+				"locale": "",
+				"textDictionary": {
+					"title": "ESH Test"
+				}
+			}
+		]
+	},
+	{
+		"_version": "3.2",
+		"identification": {
+			"id": "ferecommendationsRole",
+			"entityType": "role",
+			"title": "BookShop Admin"
+		},
+		"payload": {
+			"apps": [
+				{
+					"id": "ai-bookshop"
+				},
+				{
+					"id": "CARDAPP_BOOKS"
+				}
+			],
+			"catalogs": [
+				{
+					"id": "FERCatalogId"
+				}
+			],
+			"groups": [
+				{
+					"id": "FERGroupId"
+				}
+			],
+			"spaces": [
+				{
+					"id": "intelligent-cap-app-space"
+				}
+			]
+		}
+	},
+	{
+		"_version": "3.2",
+		"identification": {
+			"id": "CARDAPP_BOOKS",
+			"entityType": "businessapp",
+			"title": "Books"
+		},
+		"payload": {
+			"visualizations": {
+				"CARD_BOOKS": {
+					"vizType": "sap.card",
+					"vizConfig": {
+						"sap.app": {
+							"id": "sap.capire.card.books",
+							"type": "card",
+							"i18n": "./dynamic_dest/intelligent-cap-app-app-srv/i18n/i18n.properties",
+							"title": "{{CARD_BOOKS_TITLE}}",
+							"subtitle": "{{CARD_BOOKS_SUBTITLE}}"
+						},
+						"sap.card": {
+							"type": "List",
+							"configuration": {
+								"parameters": {
+									"top": {
+										"value": 4,
+										"type": "integer"
+									},
+									"maxItems": {
+										"value": 4
+									}
+								}
+							},
+							"header": {
+								"data": {
+									"request": {
+										"url": "/dynamic_dest/intelligent-cap-app-app-srv/odata/v4/catalog/Books",
+										"parameters": {
+											"$count": true
+										}
+									},
+									"path": "/"
+								},
+								"actions": [
+									{
+										"type": "Navigation",
+										"parameters": {
+											"ibnTarget": {
+												"semanticObject": "Recommendations",
+												"action": "Manage"
+											}
+										}
+									}
+								],
+								"title": "{{CARD_BOOKS_TITLE}}",
+								"subTitle": "{{CARD_BOOKS_SUBTITLE}}",
+								"status": {
+									"text": "{= format.text(${i18n>CARD.COUNT_X_OF_Y}, [${paginator>/skip} + ${parameters>/visibleItems}, ${@odata.count}])}"
+								}
+							},
+							"content": {
+								"data": {
+									"request": {
+										"url": "/dynamic_dest/intelligent-cap-app-app-srv/odata/v4/catalog/Books?$select=title,ID"
+									},
+									"path": "/value"
+								},
+								"maxItems": "{parameters>/maxItems/value}",
+								"item": {
+									"title": "{title}",
+									"description": "{ID}",
+									"actions": [
+										{
+											"type": "Navigation",
+											"parameters": {
+												"ibnTarget": {
+													"semanticObject": "Recommendations",
+													"action": "Manage"
+												},
+												"ibnParams": {
+													"ID": "{ID}"
+												}
+											}
+										}
+									]
+								}
+							},
+							"footer": {
+								"paginator": {
+									"totalCount": "{/@odata.count}",
+									"pageSize": "{parameters>/top/value}"
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	},
+	{
+		"_version": "3.2.0",
+		"identification": {
+			"id": "intelligent-cap-app-page2",
+			"entityType": "workpage",
+			"title": "BTP All in on AI"
+		},
+		"payload": {
+			"workpageConfig": {
+				"title": "BTP All in on AI - Intelligent Golden Path app"
+			},
+			"rows": [
+				{
+					"id": "apps",
+					"rowConfig": {
+						"fillRowHeight": false
+					},
+					"columns": [
+						{
+							"id": "apps-col2",
+							"columnConfig": {},
+							"cells": [
+								{
+									"id": "apps-cell2",
+									"cellConfig": {},
+									"widgets": [
+										{
+											"id": "widg-card-books",
+											"viz": {
+												"appId": "CARDAPP_BOOKS",
+												"vizId": "CARD_BOOKS"
+											}
+										}
+									]
+								}
+							]
+						},
+						{
+							"id": "apps-col",
+							"columnConfig": {},
+							"cells": [
+								{
+									"id": "apps-cell",
+									"cellConfig": {},
+									"widgets": [
+										{
+											"id": "widg-app-books2",
+											"viz": {
+												"appId": "ai-bookshop",
+												"vizId": "RecommendationsManage"
+											}
+										}
+									]
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	},
+	{
+		"_version": "3.2.0",
+		"identification": {
+			"id": "intelligent-cap-app-space",
+			"title": "BTP All in on AI",
+			"description": "BTP All in on AI - Intelligent Golden Path app",
+			"entityType": "space"
+		},
+		"payload": {
+			"contentNodes": [
+				{
+					"type": "page",
+					"id": "intelligent-cap-app-page2"
+				}
+			]
+		}
+	}
+]

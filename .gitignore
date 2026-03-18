@@ -2,3 +2,6 @@
 node_modules/
 gen/
 package-lock.json
+.env
+.cdsrc-private.json
+resources/

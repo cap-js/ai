@@ -1,0 +1,14 @@
+{
+  "ml_hana_pal": {   
+      "object_owner": {
+          "roles": [
+              "HC_REMOTESOURCE_GRANTOR"          
+          ]
+      },
+      "application_user": {
+          "roles": [
+            "HC_REMOTESOURCE_GRANTOR"
+          ]
+      }
+  }
+}

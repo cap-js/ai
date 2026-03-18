@@ -1,53 +1,56 @@
-const cds = require("@sap/cds")
+import cds from '@sap/cds';
+const LOG = cds.log('@cap-js/ai');
 
-// we register ourselves to the cds once served event
+import { default as enhanceModelWithRecommendations } from './lib/csn-enhancements/recommendations.js';
+import { default as enhanceModelWithEmbeddings, excludeVectors } from './lib/csn-enhancements/embeddings.js';
 
-// a one-time event, emitted when all services have been bootstrapped and added to the express app
+import registerHandlersForRecommendations from './lib/handlers/recommendations.js';
+import registerHandlersForEmbeddingSearch from './lib/handlers/embedding-search.js';
 
-cds.once("served", async () => {
-  // iterate over all services
-  const emojiService = await cds.connect.to("emojis")
+cds.on('compile.to.dbx', (model) => {
+	enhanceModelWithEmbeddings(model);
+});
 
-  for (let srv of cds.services) {
-    // iterate over all entities
+cds.on('compile.for.runtime', (model) => {
+	if (cds.cli.command !== 'build') enhanceModelWithRecommendations(model);
+	enhanceModelWithEmbeddings(model);
+});
+cds.on('compile.to.edmx', (model) => {
+	excludeVectors(model);
+	enhanceModelWithRecommendations(model);
+});
 
-    if (!srv.entities) continue
-    for (let entity of srv.entities) {
-      // iterate over all elements in the entity and collect those with @randomEmoji annotation
+cds.on('served', async (services) => {
+	for (const name in services) {
+		if (name === 'db') continue;
+		// eslint-disable-next-line no-await-in-loop
+		const srv = await cds.connect.to(name);
+		registerHandlersForRecommendations(srv);
+		registerHandlersForEmbeddingSearch(srv);
 
-      const emojiElements = []
+		// Register MTX handlers
+		if (name === 'cds.xt.DeploymentService') {
+			srv.after('subscribe', async (_, req) => {
+				const { tenant } = req.data;
+				try {
+					const aiCore = await cds.connect.to('AICore');
+					await aiCore.resourceGroupForTenant({ tenant });
+					LOG.debug(`Upsert for the AI Core resource group on subscribe for tenant ${tenant}`);
+				} catch (error) {
+					LOG.error(`Error setting up AI Core resource group for tenant - ${tenant}`, error);
+				}
+			});
 
-      for (const key in entity.elements) {
-        const element = entity.elements[key]
-
-        // check if there is an annotation called randomEmoji on the element
-
-        if (element["@randomEmoji"]) emojiElements.push(element.name)
-      }
-
-      if (emojiElements.length) {
-        // register a new handler on the service, that is called before every read operation
-
-        srv.before("READ", entity, (req) => {
-          const emoji = emojiService.getRandomEmoji()
-          // modify the request query to append the emoji to the title field
-
-          req.query.SELECT.columns = req.query.SELECT.columns.filter(
-            (col) => !(col.ref && col.ref.includes("title")),
-          )
-          req.query.SELECT.columns.push({
-            xpr: [
-              { ref: ["title"] },
-              "||",
-              {
-                xpr: ["case", "when", "true", "then", { val: emoji }, "end"],
-              },
-            ],
-            as: "title",
-            cast: { type: "cds.String" },
-          })
-        })
-      }
-    }
-  }
-})
+			srv.after('unsubscribe', async (_, req) => {
+				const { tenant } = req.data;
+				try {
+					const aiCore = await cds.connect.to('AICore');
+					await aiCore.run(DELETE.from('AICore.resourceGroups').where({ tenantId: tenant }));
+					LOG.debug(`Deleted the AI Core resource group on unsubscribe for tenant ${tenant}`);
+				} catch (error) {
+					LOG.error(`Error deleting AI Core resource group for tenant - ${tenant}`, error);
+				}
+			});
+		}
+	}
+});

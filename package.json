@@ -1,60 +1,124 @@
 {
-  "name": "@cap-js/REPO-NAME",
-  "version": "1.0.0",
-  "description": "CAP cds-plugin REPO-DESCRIPTION",
-  "license": "Apache-2.0",
-  "author": "AUTHOR",
-  "homepage": "https://cap.cloud.sap/",
-  "main": "cds-plugin.js",
-  "scripts": {
-    "lint": "npx eslint .",
-    "test": "npx jest --silent",
-    "test:hybrid": "cds bind --exec -- npx jest",
-    "prettier": "npx -y prettier@3 --write .",
-    "prettier:check": "npx -y prettier@3 --check .",
-    "watch:sample": "cd tests/bookshop && cds watch"
-  },
-  "files": [
-    "index.cds",
-    "lib",
-    "db",
-    "srv"
-  ],
-  "license": "Apache-2.0",
-  "devDependencies": {
-    "@cap-js/cds-test": ">=0",
-    "@cap-js/sqlite": "^2"
-  },
-  "peerDependencies": {
-    "@sap/cds": ">=8"
-  },
-  "engines": {
-    "node": ">=20.0.0"
-  },
-  "workspaces": [
-    "tests/bookshop/"
-  ],
-  "cds": {
-    "requires": {
-      "emojis": {
-        "[development]": {
-          "kind": "emojis-local"
-        },
-        "[hybrid]": {
-          "kind": "emojis-prod"
-        },
-        "[production]": {
-          "kind": "emojis-prod"
-        }
-      },
-      "kinds": {
-        "emojis-local": {
-          "impl": "@cap-js/REPO-NAME/srv/basic"
-        },
-        "emojis-prod": {
-          "impl": "@cap-js/REPO-NAME/srv/prod"
-        }
-      }
-    }
-  }
+	"name": "@cap-js/ai",
+	"version": "1.0.0-alpha.1",
+	"publishConfig": {
+		"access": "public",
+		"tag": "alpha"
+	},
+	"description": "CAP cds-plugin for AI capabilities",
+	"repository": "cap-js/ai",
+	"type": "module",
+	"license": "Apache-2.0",
+	"author": "SAP SE (https://www.sap.com)",
+	"homepage": "https://cap.cloud.sap/",
+	"main": "cds-plugin.js",
+	"scripts": {
+		"lint": "npx eslint .",
+		"test": "node --test '**/*.test.js'",
+		"test:hybrid": "cds bind --exec -- npx jest",
+		"format": "npx -y prettier@3 . --write && format-cds -f",
+		"format:check": "npx -y prettier@3 --check . && format-cds --check"
+	},
+	"files": [
+		"index.cds",
+		"lib",
+		"srv",
+		"CHANGELOG.md",
+		"LICENSE",
+		"README.md"
+	],
+	"devDependencies": {
+		"@cap-js/cds-test": "^0.4.1",
+		"@cap-js/cds-types": "^0.16.0",
+		"@cap-js/sqlite": "*",
+		"@eslint/js": "^9.39.4",
+		"@sap/cds-dk": "^9",
+		"@sap/cds-lsp": "^9.2.1",
+		"eslint": "^10",
+		"prettier": "^3.8.1"
+	},
+	"peerDependencies": {
+		"@sap/cds": ">=9"
+	},
+	"engines": {
+		"node": ">=20.0.0"
+	},
+	"cds": {
+		"ai": {
+			"embeddings": {
+				"remoteSource": "AI_CORE",
+				"defaultModel": "SAP_GXY.20250407"
+			}
+		},
+		"schema": {
+			"cds": {
+				"ai": {
+					"description": "CAP AI plugin configuration",
+					"type": "object",
+					"properties": {
+						"embeddings": {
+							"type": "object",
+							"properties": {
+								"remoteSource": {
+									"type": "string",
+									"description": "The remote source in HANA Cloud for AI core models"
+								},
+								"defaultModel": {
+									"type": "string",
+									"description": "The default model for the @ai.embeddings annotation. Models not by SAP requires a remote source in HANA Cloud.",
+									"enum": [
+										"SAP_GXY.20250407",
+										"SAP_NEB.20240715",
+										"amazon--titan-embed-text.\"2\"",
+										"amazon--titan-embed-text.\"1.2\"",
+										"text-embedding-ada-002",
+										"text-embedding-3-small",
+										"text-embedding-3-large"
+									]
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"requires": {
+			"AICore": {
+				"vcap": {
+					"label": "aicore"
+				}
+			},
+			"kinds": {
+				"AICore-mocked": {
+					"model": "@cap-js/ai/srv/MockAICoreService"
+				},
+				"AICore-btp": {
+					"model": "@cap-js/ai/srv/AICoreService"
+				}
+			},
+			"[development]": {
+				"AICore": {
+					"kind": "AICore-mocked"
+				}
+			},
+			"[test]": {
+				"AICore": {
+					"kind": "AICore-mocked"
+				}
+			},
+			"[production]": {
+				"AICore": {
+					"kind": "AICore-btp"
+				}
+			},
+			"[hybrid]": {
+				"AICore": {
+					"kind": "AICore-btp"
+				}
+			}
+		}
+	},
+	"dependencies": {
+		"@cap-js/db-service": "^2.8.2"
+	}
 }

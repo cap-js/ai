@@ -1,15 +1,78 @@
 {
-  "name": "bookshop",
-  "version": "1.0.0",
-  "description": "A simple CAP project.",
-  "dependencies": {
-    "@cap-js/REPO-NAME": "file:../../."
-  },
-  "devDependencies": {
-    "cds-launchpad-plugin": "^2.2.0"
-  },
-  "sapux": [
-    "app/admin-books",
-    "app/browse"
-  ]
+	"name": "intelligent-cap-app",
+	"version": "1.0.0",
+	"description": "A simple CAP project.",
+	"repository": "https://github.tools.sap/I538919/intelligent-cap-app",
+	"license": "UNLICENSED",
+	"private": true,
+	"type": "module",
+	"dependencies": {
+		"@cap-js/ai": "file:../../",
+		"@cap-js/hana": "^2",
+		"@sap-ai-sdk/orchestration": "^2.5.0",
+		"@sap-ai-sdk/prompt-registry": "^2.5.0",
+		"@sap-cloud-sdk/connectivity": "^4",
+		"@sap-cloud-sdk/http-client": "^4",
+		"@sap-cloud-sdk/resilience": "^4.3.1",
+		"@sap/cds": "^9",
+		"@sap/cds-common-content": "^3.1.0",
+		"@sap/xssec": "^4",
+		"express": "^5"
+	},
+	"devDependencies": {
+		"@cap-js/cds-types": "^0.16.0",
+		"@cap-js/sqlite": "*",
+		"@sap/cds-dk": "^9",
+		"@sap/ux-specification": "latest"
+	},
+	"engines": {
+		"node": "^22.11.0"
+	},
+	"scripts": {
+		"start": "cds-serve",
+		"undeploy": "cf undeploy intelligent-cap-app --delete-services --delete-service-keys --delete-service-brokers",
+		"deploy": "cf deploy mta_archives/archive.mtar --retries 1",
+		"postinstall": "patch-package"
+	},
+	"workspaces": [
+		"app/*"
+	],
+	"sapux": [
+		"app/ai-bookshop"
+	],
+	"cds": {
+		"launchpad": {
+			"version": "https://sapui5nightly.int.sap.eu2.hana.ondemand.com"
+		},
+		"ai": {
+			"embeddings": {
+				"remoteSource": "MY_SERVICE_INSTANCE"
+			}
+		},
+		"requires": {
+			"[production]": {
+				"auth": "xsuaa",
+				"db": {
+					"kind": "sql",
+					"connection_attempts": 3,
+					"pool": {
+						"max": 100000,
+						"acquireTimeoutMillis": 5000
+					}
+				}
+			},
+			"[hybrid]": {
+				"db": "hana"
+			},
+			"destinations": true,
+			"html5-repo": true,
+			"application-logging": true,
+			"ai-core": {
+				"kind": "rest",
+				"vcap": {
+					"label": "aicore"
+				}
+			}
+		}
+	}
 }
