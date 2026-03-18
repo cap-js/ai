@@ -167,10 +167,10 @@ service AICore {
                             @open
                             rows: array of Map, );
 
-  action   predictRowValues(prediction_config: {
+  action   predictRowColumns(prediction_config: {
     target_columns : array of {
       name              : String;
-      placeholder_value : String;
+      prediction_placeholder : String;
       task_type         : String enum {
         classification = 'classification'
       }
