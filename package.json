@@ -14,8 +14,8 @@
 	"main": "cds-plugin.js",
 	"scripts": {
 		"lint": "npx eslint .",
-		"test": "node --test '**/*.test.js'",
-		"test:hybrid": "cds bind --exec -- npx jest",
+		"test": "node --test **/*.test.js",
+		"test:hybrid": "cds bind --exec -- node --test **/*.test.js",
 		"format": "npx -y prettier@3 . --write && format-cds -f",
 		"format:check": "npx -y prettier@3 --check . && format-cds --check"
 	},
