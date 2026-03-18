@@ -41,6 +41,9 @@
 	"peerDependencies": {
 		"@sap/cds": ">=9"
 	},
+  "dependencies": {
+		"@cap-js/db-service": "^2.8.2"
+	},
 	"engines": {
 		"node": ">=20.0.0"
 	},
@@ -119,7 +122,7 @@
 			}
 		}
 	},
-	"dependencies": {
-		"@cap-js/db-service": "^2.8.2"
-	}
+  "workspaces": [
+		"tests/*"
+	]
 }
