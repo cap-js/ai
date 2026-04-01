@@ -60,7 +60,7 @@ annotate Books with {
 For natural language processing it is crucial to embed text data into a Vector. HANA Cloud offers a `VECTOR_EMBEDDING` function via which an embedding can be generated. The model which can be specified can either be an SAP model, when [HANA Cloud NLP](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/creating-text-embeddings-with-nlp-51eb170d038d4099a9bbb85c08fda888?locale=en-US) is enabled or a [model provided in SAP AI Core](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/creating-text-embeddings-with-sap-ai-core?locale=en-US), like the ones from OpenAI or AWS.
 
 > [!HINT]
-> cds.Vector support and standardized vector functions on other databases is work in progress. You can use the `cap-js-sqlite-2.1.3.tgz` file as part of this plugin to already try out the sqlite support. HANA Cloud functions like `vector_embedding`, `cosine_similarity`, `l2distance` or `cardinality` will work with this as well on SQLite.
+> cds.Vector support and standardized vector functions on other databases is work in progress. You can use the `cap-js-sqlite-2.2.0.tgz` file as part of this plugin to already try out the sqlite support. HANA Cloud functions like `vector_embedding`, `cosine_similarity`, `l2distance` or `cardinality` will work with this as well on SQLite.
 
 Use `@ai.embedding` and `@ai.embedding.@ai.model` to easily generate a vector column and automatically fill it with embeddings. The default model used is 'SAP_GXY.20250407' but can be overridden via `cds.env.ai.embeddings.defaultModel`.
 
