@@ -2,7 +2,10 @@ import cds from '@sap/cds';
 const LOG = cds.log('@cap-js/ai');
 
 import { default as enhanceModelWithRecommendations } from './lib/csn-enhancements/recommendations.js';
-import { default as enhanceModelWithEmbeddings, excludeVectors } from './lib/csn-enhancements/embeddings.js';
+import {
+	default as enhanceModelWithEmbeddings,
+	excludeVectors
+} from './lib/csn-enhancements/embeddings.js';
 
 import registerHandlersForRecommendations from './lib/handlers/recommendations.js';
 import registerHandlersForEmbeddingSearch from './lib/handlers/embedding-search.js';

@@ -17,7 +17,15 @@ export default class MockAICore extends AICoreService {
 			for (const { name, prediction_placeholder } of target_columns) {
 				if (row[name] === prediction_placeholder) {
 					addPrediction = true;
-					newPrediction[name] = [{ prediction: rows.find((r) => r[name] !== prediction_placeholder && r[name] !== null && r[name] !== undefined)?.[name] ?? rows.find((r) => r[name] !== prediction_placeholder)?.[name] }];
+					newPrediction[name] = [
+						{
+							prediction:
+								rows.find(
+									(r) =>
+										r[name] !== prediction_placeholder && r[name] !== null && r[name] !== undefined
+								)?.[name] ?? rows.find((r) => r[name] !== prediction_placeholder)?.[name]
+						}
+					];
 				}
 			}
 			if (addPrediction) {

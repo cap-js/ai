@@ -42,7 +42,12 @@ describe('Embedding based search', () => {
 		const { status } = await GET(`/odata/v4/catalog/Books?$search=Jane`);
 		assert.strictEqual(status, 200);
 		assert.ok(query.SELECT.where.at(-1).func);
-		const similarityScore = query.SELECT.where.find((ele, idx) => ele.val && query.SELECT.where[idx - 2]?.func === 'cosine_similarity' && query.SELECT.where[idx - 2]?.args[0]?.ref[0] === 'defaultDescr_embedding');
+		const similarityScore = query.SELECT.where.find(
+			(ele, idx) =>
+				ele.val &&
+				query.SELECT.where[idx - 2]?.func === 'cosine_similarity' &&
+				query.SELECT.where[idx - 2]?.args[0]?.ref[0] === 'defaultDescr_embedding'
+		);
 		assert.strictEqual(similarityScore?.val, 0.5);
 	});
 
@@ -51,7 +56,12 @@ describe('Embedding based search', () => {
 		const { status } = await GET(`/odata/v4/catalog/Books?$search=Jane`);
 		assert.strictEqual(status, 200);
 		assert.ok(query.SELECT.where.at(-1).func);
-		const similarityScore = query.SELECT.where.find((ele, idx) => ele.val && query.SELECT.where[idx - 2]?.func === 'cosine_similarity' && query.SELECT.where[idx - 2]?.args[0]?.ref[0] === 'descr_embedding');
+		const similarityScore = query.SELECT.where.find(
+			(ele, idx) =>
+				ele.val &&
+				query.SELECT.where[idx - 2]?.func === 'cosine_similarity' &&
+				query.SELECT.where[idx - 2]?.args[0]?.ref[0] === 'descr_embedding'
+		);
 		assert.strictEqual(similarityScore?.val, 0.2);
 
 		delete cds.env.hana.fuzzy;
@@ -73,19 +83,37 @@ describe('@ai.embedding', () => {
 		assert.ok(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr['@ai.embedding']);
 
 		assert.ok(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding);
-		assert.strictEqual(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.type, 'cds.Vector');
-		assert.strictEqual(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.value.stored, true);
-		assert.strictEqual(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.value.func, 'VECTOR_EMBEDDING');
-		assert.strictEqual(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.value.args[0].ref[0], 'descr');
+		assert.strictEqual(
+			cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.type,
+			'cds.Vector'
+		);
+		assert.strictEqual(
+			cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.value.stored,
+			true
+		);
+		assert.strictEqual(
+			cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.value.func,
+			'VECTOR_EMBEDDING'
+		);
+		assert.strictEqual(
+			cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.value.args[0]
+				.ref[0],
+			'descr'
+		);
 	});
 
 	test('@ai.embedding.@ai.model specifies the model', async () => {
 		assert.ok(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr);
 		assert.ok(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr['@ai.embedding']);
-		assert.ok(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr['@ai.embedding.@ai.model']);
+		assert.ok(
+			cds.model.definitions['sap.capire.bookshop.Books'].elements.descr['@ai.embedding.@ai.model']
+		);
 
 		assert.ok(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding);
-		assert.strictEqual(cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.value.args[2].val, cds.model.definitions['sap.capire.bookshop.Books'].elements.descr['@ai.embedding.@ai.model']);
+		assert.strictEqual(
+			cds.model.definitions['sap.capire.bookshop.Books'].elements.descr_embedding.value.args[2].val,
+			cds.model.definitions['sap.capire.bookshop.Books'].elements.descr['@ai.embedding.@ai.model']
+		);
 	});
 
 	test('cds.env.ai.embeddings.defaultModel is the default model for generated columns', async () => {
@@ -94,7 +122,11 @@ describe('@ai.embedding', () => {
 		csn = cds.compile.for.nodejs(csn);
 
 		assert.ok(csn.definitions['sap.capire.bookshop.Books'].elements.defaultDescr_embedding);
-		assert.strictEqual(csn.definitions['sap.capire.bookshop.Books'].elements.defaultDescr_embedding.value.args[2].val, cds.env.ai.embeddings.defaultModel);
+		assert.strictEqual(
+			csn.definitions['sap.capire.bookshop.Books'].elements.defaultDescr_embedding.value.args[2]
+				.val,
+			cds.env.ai.embeddings.defaultModel
+		);
 
 		cds.env.ai.embeddings.defaultModel = 'SAP_GXY.20250407';
 	});
@@ -105,7 +137,11 @@ describe('@ai.embedding', () => {
 		const hdbArtefacts = cds.compile.to.hana(csn);
 		for (const [artefact, { file }] of hdbArtefacts) {
 			if (file.startsWith('sap.capire.bookshop.Books')) {
-				assert.ok(artefact.match(/embedding REAL_VECTOR GENERATED ALWAYS AS \(VECTOR_EMBEDDING\(descr, 'DOCUMENT', 'text-embedding-ada-002', TEST_REMOTE_SOURCE\)\)/));
+				assert.ok(
+					artefact.match(
+						/embedding REAL_VECTOR GENERATED ALWAYS AS \(VECTOR_EMBEDDING\(descr, 'DOCUMENT', 'text-embedding-ada-002', TEST_REMOTE_SOURCE\)\)/
+					)
+				);
 				break;
 			}
 		}
