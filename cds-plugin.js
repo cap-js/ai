@@ -15,7 +15,7 @@ cds.on('compile.to.dbx', (model) => {
 });
 
 cds.on('compile.for.runtime', (model) => {
-	if (cds.cli.command !== 'build') enhanceModelWithRecommendations(model);
+	enhanceModelWithRecommendations(model);
 	enhanceModelWithEmbeddings(model);
 });
 cds.on('compile.to.edmx', (model) => {
