@@ -86,12 +86,13 @@ Currently the following `cds.ql` operations are supported:
 | - where* | `tenantId`, `resourceGroupId` | `resourceGroup.resourceGroupId` | `resourceGroup.resourceGroupId` |
 | - search | - | - | ✓ |
 | **READ (single)** | ✓ | ✓ | ✓ |
-| **CREATE** | ✓ | ✓ | - |
+| **CREATE** | ✓ | ✓ | ✓ |
 | **UPDATE** | ✓ | ✓ | - |
 | - where* | `tenantId`, `resourceGroupId` | `id`, `resourceGroup.resourceGroupId` | - |
 | **UPSERT** | ✓ | ✓ | - |
 | - where* | - | `id`, `resourceGroup.resourceGroupId` | - |
-| **DELETE** | ✓ | - | - |
+| **DELETE** | ✓ | ✓ | - |
+| - where* | `tenantId`, `resourceGroupId` | `id`, `resourceGroup.resourceGroupId` | - |
 
 \* Only simple equality checks against the listed properties are supported
 
