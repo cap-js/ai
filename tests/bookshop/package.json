@@ -43,11 +43,6 @@
 		"launchpad": {
 			"version": "https://sapui5nightly.int.sap.eu2.hana.ondemand.com"
 		},
-		"ai": {
-			"embeddings": {
-				"remoteSource": "MY_SERVICE_INSTANCE"
-			}
-		},
 		"requires": {
 			"[production]": {
 				"auth": "xsuaa",

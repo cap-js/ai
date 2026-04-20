@@ -2,24 +2,13 @@ import cds from '@sap/cds';
 const LOG = cds.log('@cap-js/ai');
 
 import { default as enhanceModelWithRecommendations } from './lib/csn-enhancements/recommendations.js';
-import {
-	default as enhanceModelWithEmbeddings,
-	excludeVectors
-} from './lib/csn-enhancements/embeddings.js';
 
 import registerHandlersForRecommendations from './lib/handlers/recommendations.js';
-import registerHandlersForEmbeddingSearch from './lib/handlers/embedding-search.js';
-
-cds.on('compile.to.dbx', (model) => {
-	enhanceModelWithEmbeddings(model);
-});
 
 cds.on('compile.for.runtime', (model) => {
 	enhanceModelWithRecommendations(model);
-	enhanceModelWithEmbeddings(model);
 });
 cds.on('compile.to.edmx', (model) => {
-	excludeVectors(model);
 	enhanceModelWithRecommendations(model);
 });
 
@@ -29,7 +18,6 @@ cds.on('served', async (services) => {
 		// eslint-disable-next-line no-await-in-loop
 		const srv = await cds.connect.to(name);
 		registerHandlersForRecommendations(srv);
-		registerHandlersForEmbeddingSearch(srv);
 
 		// Register MTX handlers
 		if (name === 'cds.xt.DeploymentService') {

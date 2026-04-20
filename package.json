@@ -48,44 +48,6 @@
 		"node": ">=20.0.0"
 	},
 	"cds": {
-		"ai": {
-			"embeddings": {
-				"remoteSource": "AI_CORE",
-				"defaultModel": "SAP_GXY.20250407"
-			}
-		},
-		"schema": {
-			"cds": {
-				"ai": {
-					"description": "CAP AI plugin configuration",
-					"type": "object",
-					"properties": {
-						"embeddings": {
-							"type": "object",
-							"properties": {
-								"remoteSource": {
-									"type": "string",
-									"description": "The remote source in HANA Cloud for AI core models"
-								},
-								"defaultModel": {
-									"type": "string",
-									"description": "The default model for the @ai.embeddings annotation. Models not by SAP requires a remote source in HANA Cloud.",
-									"enum": [
-										"SAP_GXY.20250407",
-										"SAP_NEB.20240715",
-										"amazon--titan-embed-text.\"2\"",
-										"amazon--titan-embed-text.\"1.2\"",
-										"text-embedding-ada-002",
-										"text-embedding-3-small",
-										"text-embedding-3-large"
-									]
-								}
-							}
-						}
-					}
-				}
-			}
-		},
 		"requires": {
 			"AICore": {
 				"vcap": {

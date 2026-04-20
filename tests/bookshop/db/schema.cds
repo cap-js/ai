@@ -13,11 +13,10 @@ entity Books : managed {
       @mandatory
       title                         : String(20) @title: '{i18n>Title}';
 
-      @ai.embedding
-      @ai.embedding.@ai.model: 'SAP_GXY.20250407'
+      
       descr                         : String(1111) @title: '{i18n>DESCR}';
 
-      @ai.embedding
+      
       @Search.fuzzinessThreshold: 0.5
       defaultDescr                  : String(1111);
 
@@ -45,11 +44,7 @@ entity Books : managed {
       chapters                      : Composition of many Chapters
                                         on chapters.book = $self;
       image                         : LargeBinary @Core.MediaType: 'image/png';
-      embedding                     : Vector = (
-        VECTOR_EMBEDDING(
-          descr, 'DOCUMENT', 'text-embedding-ada-002'
-        )
-      ) stored;
+      embedding                     : Vector;
 
       authorWORecommendations       : Association to Authors  @title: 'Author without field recommendations'  @Common.Text: author.name  @Common.TextArrangement: #TextFirst  @Common.ValueList: {
                                         CollectionPath: 'Authors',
