@@ -5,7 +5,6 @@ service AICore {
   @cds.persistence.skip
   entity resourceGroups {
         @description: 'resource group id'
-        @mandatory: true
     key resourceGroupId : String;
 
         @description: 'tenant id'
@@ -15,13 +14,13 @@ service AICore {
         zoneId          : String;
 
         @description: 'Timestamp of resource group creation'
-        @mandatory: true
+        @readonly
         createdAt       : Timestamp;
         labels          : BckndResourceGroupLabels;
 
         @description: 'aggregated status of the onboarding process'
         @assert.range: true
-        @mandatory: true
+        @readonly
         status          : String enum {
           PROVISIONED;
           ERROR;
@@ -65,6 +64,7 @@ service AICore {
         @assert.format: '^[\w.-]{4,64}$'
         scenarioId                   : String;
 
+        @readonly
         status                       : String enum {
           PENDING;
           RUNNING;
@@ -100,6 +100,7 @@ service AICore {
         details                      : AiDeploymentDetails;
 
         @description: 'Timestamp of resource creation'
+        @readonly
         createdAt                    : Timestamp;
 
         @description: 'Timestamp of latest resource modification'
@@ -145,6 +146,7 @@ service AICore {
     key id                    : String;
 
         @description: 'Timestamp of resource creation'
+        @readonly
         createdAt             : Timestamp;
 
         @openapi.anyOf: '[{"$ref":"#/components/schemas/AiScenario"},{}]'

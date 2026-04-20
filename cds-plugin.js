@@ -25,8 +25,10 @@ cds.on('served', async (services) => {
 				const { tenant } = req.data;
 				try {
 					const aiCore = await cds.connect.to('AICore');
-					await aiCore.resourceGroupForTenant({ tenant });
-					LOG.debug(`Upsert for the AI Core resource group on subscribe for tenant ${tenant}`);
+					const id = await aiCore.resourceGroupForTenant({ tenant });
+					LOG.debug(
+						`Upsert for the AI Core resource group ${id} on subscribe for tenant ${tenant}`
+					);
 				} catch (error) {
 					LOG.error(`Error setting up AI Core resource group for tenant - ${tenant}`, error);
 				}

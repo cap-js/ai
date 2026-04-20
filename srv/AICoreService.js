@@ -299,7 +299,8 @@ export default class AICore extends cds.ApplicationService {
 
 	async handleResourceGroupsForTenant(req) {
 		// Early return if multi tenancy is disabled
-		if (!cds.env.requires.multitenancy) return cds.env.requires['AICore']?.resourceGroup;
+		if (!cds.env.requires.multitenancy && !cds.env.profiles.includes('mtx-sidecar'))
+			return cds.env.requires['AICore']?.resourceGroup;
 
 		const tenantId = req.data.tenant;
 		if (this.tenantResourceGroups.get(tenantId)) {

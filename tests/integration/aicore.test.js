@@ -55,22 +55,14 @@ describe('AICore Service - cds.ql integration', { concurrency: false }, () => {
 
 		test('INSERT creates a new resource group', async () => {
 			const rgId = cds.utils.uuid();
-			// Must provide @mandatory fields to pass CDS validation.
-			// Handler sends full req.data to AI Core — createdAt/status are
-			// server-only but CDS requires them. AI Core ignores them gracefully
-			// for the resourceGroupId-based POST.
 			const result = await withTenant('t0', () =>
 				aiCore.run(
 					INSERT.into('AICore.resourceGroups').entries({
 						resourceGroupId: rgId,
-						createdAt: new Date().toISOString(),
-						status: 'PROVISIONED',
 						labels: [{ key: 'ext.ai.sap.com/CDS_TENANT_ID', value: testTenantId }]
 					})
 				)
 			);
-			// AI Core may return {} on 400 when extra fields are sent.
-			// Track the ID we generated for cleanup either way.
 			insertedResourceGroupId = result?.resourceGroupId || rgId;
 			createdResourceGroupIds.push(insertedResourceGroupId);
 		});
