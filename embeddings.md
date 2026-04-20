@@ -51,40 +51,38 @@ Currently the setup is not ideal when models provided by SAP AI Core shall be us
 1. Follow the [Creating Text Embeddings with SAP AI Core](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/creating-text-embeddings-with-sap-ai-core?locale=en-US) documentation in SAP Help.
 2. After creating the PSE and the remote source in HANA Cloud, you need to grant the privileges for referencing the remote source to a user, which in turn can grant it to the HDI user for your CAP application. The following SQL creates a user group which can send requests to the remote source, creates a user and grants the user permissions to grant other users permissions to send requests to the remote source.
 
-    ```sql
-    CREATE ROLEGROUP HDI_GRANTOR_GROUP;
+   ```sql
+   CREATE ROLEGROUP HDI_GRANTOR_GROUP;
 
-    CREATE ROLE HC_REMOTESOURCE_GRANTOR SET ROLEGROUP HDI_GRANTOR_GROUP;
+   CREATE ROLE HC_REMOTESOURCE_GRANTOR SET ROLEGROUP HDI_GRANTOR_GROUP;
 
-    GRANT EXECUTE ON REMOTE SOURCE <REMOTE_SOURCE_NAME> TO HC_REMOTESOURCE_GRANTOR WITH GRANT OPTION;
+   GRANT EXECUTE ON REMOTE SOURCE <REMOTE_SOURCE_NAME> TO HC_REMOTESOURCE_GRANTOR WITH GRANT OPTION;
 
-    -- Choose a unique password
-    ALTER USER HDI_GRANT_USER PASSWORD <password_for_user> NO FORCE_FIRST_PASSWORD_CHANGE;
-    GRANT HC_REMOTESOURCE_GRANTOR TO HDI_GRANT_USER WITH GRANT OPTION;
-    ```
+   -- Choose a unique password
+   ALTER USER HDI_GRANT_USER PASSWORD <password_for_user> NO FORCE_FIRST_PASSWORD_CHANGE;
+   GRANT HC_REMOTESOURCE_GRANTOR TO HDI_GRANT_USER WITH GRANT OPTION;
+   ```
+
 3. Create a user provided service on BTP with the credentials for the user:
 
-    ```ssh
-    cf cups hana_ai -p '{"username":"HDI_GRANT_USER","password":"<password_for_user>", "tags": ["hana"]}'
-    ```
+   ```ssh
+   cf cups hana_ai -p '{"username":"HDI_GRANT_USER","password":"<password_for_user>", "tags": ["hana"]}'
+   ```
+
 4. Create an `.hdbgrants` file in `db/src`. HDI will pick this up during deployment and use the permissions of the user to grant its permissions to the HDI users.
 
-    ```json
-    {
-    "hana_ai": {   
-        "object_owner": {
-            "roles": [
-                "HC_REMOTESOURCE_GRANTOR"          
-            ]
-        },
-        "application_user": {
-            "roles": [
-                "HC_REMOTESOURCE_GRANTOR"
-            ]
-        }
-    }
-    }
-    ```
+   ```json
+   {
+   	"hana_ai": {
+   		"object_owner": {
+   			"roles": ["HC_REMOTESOURCE_GRANTOR"]
+   		},
+   		"application_user": {
+   			"roles": ["HC_REMOTESOURCE_GRANTOR"]
+   		}
+   	}
+   }
+   ```
 
 > [!WARNING]
 > In Multi-Tenancy scenarios you would have to create a remote source per tenant and assign the reference privilege to the respective tenant binding. The remote source per tenant should be done because in AI Core each tenant should have a different resource group for isolation.

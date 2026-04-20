@@ -13,10 +13,10 @@ entity Books : managed {
       @mandatory
       title                         : String(20) @title: '{i18n>Title}';
 
-      
+
       descr                         : String(1111) @title: '{i18n>DESCR}';
 
-      
+
       @Search.fuzzinessThreshold: 0.5
       defaultDescr                  : String(1111);
 
@@ -44,6 +44,8 @@ entity Books : managed {
       chapters                      : Composition of many Chapters
                                         on chapters.book = $self;
       image                         : LargeBinary @Core.MediaType: 'image/png';
+
+      @cds.api.ignore
       embedding                     : Vector;
 
       authorWORecommendations       : Association to Authors  @title: 'Author without field recommendations'  @Common.Text: author.name  @Common.TextArrangement: #TextFirst  @Common.ValueList: {

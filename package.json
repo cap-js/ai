@@ -14,8 +14,8 @@
 	"main": "cds-plugin.js",
 	"scripts": {
 		"lint": "npx eslint .",
-		"test": "node --test **/*.test.js",
-		"test:hybrid": "cds bind --exec -- node --test **/*.test.js",
+		"test": "node --test tests/*.test.js",
+		"test:hybrid": "cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
 		"format": "npx -y prettier@3 . --write && format-cds -f",
 		"format:check": "npx -y prettier@3 --check . && format-cds --check"
 	},
@@ -50,6 +50,7 @@
 	"cds": {
 		"requires": {
 			"AICore": {
+				"resourceGroup": "default",
 				"vcap": {
 					"label": "aicore"
 				}

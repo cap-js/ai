@@ -2,6 +2,29 @@ import cds from '@sap/cds';
 import { getProperty } from '../lib/handlers/utils.js';
 const LOG = cds.log('@cap-js/ai');
 
+const CDS_TO_PYTHON_DTYPE = {
+	'cds.String': 'string',
+	'cds.LargeString': 'string',
+	'cds.UUID': 'string',
+	'cds.Integer': 'numeric',
+	'cds.Integer64': 'numeric',
+	'cds.Int16': 'numeric',
+	'cds.Int32': 'numeric',
+	'cds.Int64': 'numeric',
+	'cds.UInt8': 'numeric',
+	'cds.Decimal': 'numeric',
+	'cds.Double': 'numeric',
+	'cds.Boolean': 'bool',
+	'cds.Date': 'date',
+	'cds.Time': 'string',
+	'cds.DateTime': 'datetime',
+	'cds.Timestamp': 'datetime'
+};
+
+function cdsToPythonDtype(cdsType) {
+	return CDS_TO_PYTHON_DTYPE[cdsType];
+}
+
 export default class AICore extends cds.ApplicationService {
 	init() {
 		this.on('fetchPredictions', this._fetchPrediction);
@@ -45,9 +68,23 @@ export default class AICore extends cds.ApplicationService {
 	}
 
 	async _fetchPrediction(req) {
-		const { rows, predictionColumns } = req.data;
+		const { rows, entity: entityName, predictionColumns } = req.data;
+		const entity = (cds.context?.model ?? cds.model).definitions[entityName];
+		const dataSchema = entity
+			? Object.keys(entity.elements).reduce((acc, ele) => {
+					if (rows[0][ele] !== undefined) {
+						const dtype = cdsToPythonDtype(entity.elements[ele].type);
+						if (dtype) acc[ele] = { dtype };
+					}
+					return acc;
+				}, {})
+			: undefined;
+		if (dataSchema && rows[0].SAP_RECOMMENDATIONS_ID) {
+			dataSchema['SAP_RECOMMENDATIONS_ID'] = { dtype: 'string' };
+		}
 		const response = await this._predictRowColumns({
 			data: {
+				data_schema: dataSchema,
 				prediction_config: {
 					target_columns: predictionColumns.map((c) => ({
 						name: c,
@@ -68,7 +105,7 @@ export default class AICore extends cds.ApplicationService {
 		const aiCore = await cds.connect.to('ai-core');
 		const resourceGroup = cds.env.requires.multitenancy
 			? await this.resourceGroupForTenant({ tenant: cds.context.tenant })
-			: 'default';
+			: cds.env.requires['AICore']?.resourceGroup;
 		const deploymentID = await this.rpt1DeploymentId(this.entities.resourceGroups, resourceGroup);
 		LOG.debug(
 			`Fetching predictions from ${aiCore.destination.serviceurls.AI_API_URL} for deployment ${deploymentID} and resource group ${resourceGroup}`
@@ -91,7 +128,9 @@ export default class AICore extends cds.ApplicationService {
 			LOG.error(
 				'Error when fetching predictions: ',
 				response.status,
-				response.status == 400 ? JSON.stringify(await response.json()) : response.status
+				response.headers.get('content-type').match('json')
+					? JSON.stringify(await response.json())
+					: response.status
 			);
 			return {};
 		}
@@ -128,7 +167,10 @@ export default class AICore extends cds.ApplicationService {
 						Authorization: `Bearer ${token}`,
 						'Content-Type': 'application/json'
 					},
-					body: JSON.stringify(req.data)
+					body: JSON.stringify({
+						resourceGroupId: req.data.resourceGroupId,
+						labels: req.data.labels
+					})
 				}
 			);
 		} else if (req.event === 'DELETE') {
@@ -236,7 +278,7 @@ export default class AICore extends cds.ApplicationService {
 				res = res.resources;
 			}
 			if (req.query.SELECT?.one) {
-				res = res[0];
+				res = Array.isArray(res) ? res[0] : res;
 			}
 			return res;
 		} else {
@@ -245,7 +287,9 @@ export default class AICore extends cds.ApplicationService {
 				cds.context.tenant,
 				req.event,
 				req.query,
-				response.status === '404' ? JSON.stringify(await response.json()) : response.status
+				response.headers.get('content-type').match('json')
+					? JSON.stringify(await response.json())
+					: response.status
 			);
 			return {};
 		}
@@ -254,6 +298,9 @@ export default class AICore extends cds.ApplicationService {
 	tenantResourceGroups = new Map();
 
 	async handleResourceGroupsForTenant(req) {
+		// Early return if multi tenancy is disabled
+		if (!cds.env.requires.multitenancy) return cds.env.requires['AICore']?.resourceGroup;
+
 		const tenantId = req.data.tenant;
 		if (this.tenantResourceGroups.get(tenantId)) {
 			return this.tenantResourceGroups.get(tenantId);
@@ -376,6 +423,12 @@ export default class AICore extends cds.ApplicationService {
 				req.data = {
 					targetStatus: 'STOPPED'
 				};
+				req.query = {
+					UPDATE: {
+						entity: { ref: [req.target.name] },
+						where: [{ ref: ['id'] }, '=', { val: req.params[0].id }]
+					}
+				};
 			}
 			const where = req.query.UPDATE.entity.ref.at(-1)?.where || req.query.UPDATE.where;
 			const resourceGroupId =
@@ -394,6 +447,23 @@ export default class AICore extends cds.ApplicationService {
 					body: JSON.stringify(req.data)
 				}
 			);
+		} else if (req.event === 'DELETE') {
+			const where = req.query.DELETE.from.ref.at(-1)?.where || req.query.DELETE.where;
+			const resourceGroupId =
+				getProperty(where, 'resourceGroup') ??
+				(await this.resourceGroupForTenant({ tenant: cds.context.tenant }));
+			let deploymentId = getProperty(where, 'id');
+			response = await fetch(
+				`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
+				{
+					method: 'DELETE',
+					headers: {
+						Authorization: `Bearer ${token}`,
+						'Content-Type': 'application/json',
+						'AI-Resource-Group': resourceGroupId
+					}
+				}
+			);
 		} else {
 			return next();
 		}
@@ -405,7 +475,7 @@ export default class AICore extends cds.ApplicationService {
 				res = res.resources;
 			}
 			if (req.query.SELECT?.one) {
-				res = res[0];
+				res = Array.isArray(res) ? res[0] : res;
 			}
 			return res;
 		} else {
@@ -414,7 +484,9 @@ export default class AICore extends cds.ApplicationService {
 				cds.context.tenant,
 				req.event,
 				req.query,
-				response.status === '404' ? JSON.stringify(await response.json()) : response.status
+				response.headers.get('content-type').match('json')
+					? JSON.stringify(await response.json())
+					: response.status
 			);
 			return {};
 		}
@@ -489,7 +561,7 @@ export default class AICore extends cds.ApplicationService {
 				res = res.resources;
 			}
 			if (req.query.SELECT?.one) {
-				res = res[0];
+				res = Array.isArray(res) ? res[0] : res;
 			}
 			return res;
 		} else {
@@ -498,9 +570,13 @@ export default class AICore extends cds.ApplicationService {
 				cds.context.tenant,
 				req.event,
 				req.query,
-				response.status === '404' ? JSON.stringify(await response.json()) : response.status
+				response.headers.get('content-type').match('json')
+					? JSON.stringify(await response.json())
+					: response.status
 			);
-			return response.status === '404' ? JSON.stringify(await response.json()) : response.status;
+			return response.headers.get('content-type').match('json')
+				? JSON.stringify(await response.json())
+				: response.status;
 		}
 	}
 
@@ -516,7 +592,7 @@ export default class AICore extends cds.ApplicationService {
 		const deployments = await this.run(
 			SELECT.from('AICore.deployments').where({ 'resourceGroup.resourceGroupId': resourceGroupId })
 		);
-		let deployment = deployments.find((r) => r.configurationName.match(/rpt-1/));
+		let deployment = deployments?.find((r) => r.configurationName.match(/rpt-1/));
 		if (!deployment || (deployment.status !== 'RUNNING' && deployment.status !== 'PENDING')) {
 			// Create RPT-1 deployment on demand if the resource group is missing it
 			const configurations = await this.run(
@@ -524,10 +600,41 @@ export default class AICore extends cds.ApplicationService {
 					.where({ 'resourceGroup.resourceGroupId': resourceGroupId })
 					.search('rpt-1')
 			);
-			const configuration = configurations[0];
+			let configuration = configurations[0];
+			if (!configuration) {
+				configuration = await this.run(
+					INSERT.into('AICore.configurations').entries({
+						scenarioId: 'foundation-models',
+						name: 'sap-rpt-1-small',
+						executableId: 'aicore-sap',
+						parameterBindings: [
+							{ key: 'modelName', value: 'sap-rpt-1-small' },
+							{ key: 'modelVersion', value: 'latest' }
+						]
+					})
+				);
+			}
 			deployment = await this.run(
 				INSERT.into('AICore.deployments').entries({ configurationId: configuration.id })
 			);
+			// Poll until the deployment reaches RUNNING status
+			for (let i = 0; i < 10 && deployment.status !== 'RUNNING'; i++) {
+				const delay = 300 * Math.pow(2, i);
+				LOG.debug(
+					`Waiting for RPT-1 deployment ${deployment.id} to reach RUNNING (current: ${deployment.status}, retry ${i + 1}/5, next in ${delay}ms)`
+				);
+				// eslint-disable-next-line no-await-in-loop
+				await new Promise((resolve) => setTimeout(resolve, delay));
+				// eslint-disable-next-line no-await-in-loop
+				const getDeployment = await this.run(
+					SELECT.one
+						.from('AICore.deployments')
+						.where({ 'resourceGroup.resourceGroupId': resourceGroupId, id: deployment.id })
+				);
+				if (getDeployment?.id) {
+					deployment = getDeployment;
+				}
+			}
 		}
 		this.resourceRPTMappings.set(resourceGroupId, deployment.id);
 		return deployment.id;

@@ -44,7 +44,6 @@ service AICore {
   @description: 'Detailed data about a deployment'
   @cds.persistence.skip
   entity deployments {
-        @mandatory: true
         @description: 'ID of the deployment'
         @assert.format: '^[\w.-]{4,64}$'
     key id                           : String;
@@ -66,7 +65,6 @@ service AICore {
         @assert.format: '^[\w.-]{4,64}$'
         scenarioId                   : String;
 
-        @mandatory: true
         status                       : String enum {
           PENDING;
           RUNNING;
@@ -102,11 +100,9 @@ service AICore {
         details                      : AiDeploymentDetails;
 
         @description: 'Timestamp of resource creation'
-        @mandatory: true
         createdAt                    : Timestamp;
 
         @description: 'Timestamp of latest resource modification'
-        @mandatory: true
         modifiedAt                   : Timestamp;
 
         @description: 'Timestamp of job submitted'
@@ -125,7 +121,6 @@ service AICore {
     action stop();
   };
 
-  @readonly
   @cds.persistence.skip
   entity configurations {
         @mandatory: true
@@ -145,13 +140,11 @@ service AICore {
         parameterBindings     : ParameterArgumentBindingList;
         inputArtifactBindings : ArtifactArgumentBindingList;
 
-        @mandatory: true
         @description: 'ID of the configuration'
         @assert.format: '^[\w.-]{4,64}$'
     key id                    : String;
 
         @description: 'Timestamp of resource creation'
-        @mandatory: true
         createdAt             : Timestamp;
 
         @openapi.anyOf: '[{"$ref":"#/components/schemas/AiScenario"},{}]'
@@ -164,6 +157,8 @@ service AICore {
   };
 
   action   fetchPredictions(predictionColumns: array of String,
+                            @description: 'CDS Entity name used for the data schema parameter for RPT-1'
+                            entity: String,
                             @open
                             rows: array of Map, );
 

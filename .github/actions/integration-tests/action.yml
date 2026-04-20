@@ -87,7 +87,11 @@ runs:
       shell: bash
 
     # Bind against BTP services
-    - run: cds bind db -2 cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION -o package.json
+    - name: Bind HANA
+      run: cds bind db -2 cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION -o package.json
+      shell: bash
+    - name: Bind AI Core
+      run: cds bind ai-core -2 cap-js-ai-core -o package.json
       shell: bash
 
     # Run tests in hybrid mode
