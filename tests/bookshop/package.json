@@ -22,7 +22,7 @@
 	},
 	"devDependencies": {
 		"@cap-js/cds-types": "^0.16.0",
-		"@cap-js/sqlite": "file:../../cap-js-sqlite-2.2.0.tgz",
+		"@cap-js/sqlite": "*",
 		"@sap/cds-dk": "^9",
 		"@sap/ux-specification": "latest"
 	},

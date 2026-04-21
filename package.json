@@ -25,8 +25,7 @@
 		"srv",
 		"CHANGELOG.md",
 		"LICENSE",
-		"README.md",
-		"cap-js/sqlite-2.2.0.tgz"
+		"README.md"
 	],
 	"devDependencies": {
 		"@cap-js/cds-test": "^0.4.1",
