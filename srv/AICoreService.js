@@ -566,18 +566,15 @@ export default class AICore extends cds.ApplicationService {
 			}
 			return res;
 		} else {
+			const body = JSON.stringify(await response.json());
 			LOG.error(
 				'Error when requesting configurations from AI Core for tenant: ',
 				cds.context.tenant,
 				req.event,
 				req.query,
-				response.headers.get('content-type').match('json')
-					? JSON.stringify(await response.json())
-					: response.status
+				response.headers.get('content-type').match('json') ? body : response.status
 			);
-			return response.headers.get('content-type').match('json')
-				? JSON.stringify(await response.json())
-				: response.status;
+			return response.headers.get('content-type').match('json') ? body : response.status;
 		}
 	}
 
