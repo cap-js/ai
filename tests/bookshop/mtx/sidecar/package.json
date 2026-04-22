@@ -1,25 +1,25 @@
 {
-	"name": "bookshop-mtx",
-	"dependencies": {
-		"@cap-js/ai": "file:../../../../",
-		"@sap/cds": "^9",
-		"@sap/cds-mtxs": "^3"
-	},
-	"devDependencies": {
-		"@cap-js/sqlite": "^2"
-	},
-	"engines": {
-		"node": ">=20"
-	},
-	"scripts": {
-		"start": "cds-serve"
-	},
-	"cds": {
-		"profile": "mtx-sidecar",
-		"log": {
-			"levels": {
-				"@cap-js/ai": "debug"
-			}
-		}
-	}
+  "name": "bookshop-mtx",
+  "dependencies": {
+    "@cap-js/ai": "file:../../../../",
+    "@sap/cds": "^9",
+    "@sap/cds-mtxs": "^3"
+  },
+  "devDependencies": {
+    "@cap-js/sqlite": "^2"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "cds-serve"
+  },
+  "cds": {
+    "profile": "mtx-sidecar",
+    "log": {
+      "levels": {
+        "@cap-js/ai": "debug"
+      }
+    }
+  }
 }

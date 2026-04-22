@@ -51,14 +51,14 @@ Currently the setup is not ideal when models provided by SAP AI Core shall be us
 
    ```json
    {
-   	"hana_ai": {
-   		"object_owner": {
-   			"roles": ["HC_REMOTESOURCE_GRANTOR"]
-   		},
-   		"application_user": {
-   			"roles": ["HC_REMOTESOURCE_GRANTOR"]
-   		}
-   	}
+     "hana_ai": {
+       "object_owner": {
+         "roles": ["HC_REMOTESOURCE_GRANTOR"]
+       },
+       "application_user": {
+         "roles": ["HC_REMOTESOURCE_GRANTOR"]
+       }
+     }
    }
    ```
 

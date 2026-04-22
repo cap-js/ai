@@ -1,87 +1,87 @@
 {
-	"name": "@cap-js/ai",
-	"version": "1.0.0-alpha.1",
-	"publishConfig": {
-		"access": "public",
-		"tag": "alpha"
-	},
-	"description": "CAP cds-plugin for AI capabilities",
-	"repository": "cap-js/ai",
-	"type": "module",
-	"license": "Apache-2.0",
-	"author": "SAP SE (https://www.sap.com)",
-	"homepage": "https://cap.cloud.sap/",
-	"main": "cds-plugin.js",
-	"scripts": {
-		"lint": "npx eslint .",
-		"test": "node --test tests/*.test.js",
-		"test:hybrid": "cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
-		"format": "npx -y prettier@3 . --write && format-cds -f",
-		"format:check": "npx -y prettier@3 --check . && format-cds --check"
-	},
-	"files": [
-		"index.cds",
-		"lib",
-		"srv",
-		"CHANGELOG.md",
-		"LICENSE",
-		"README.md"
-	],
-	"devDependencies": {
-		"@cap-js/cds-test": "^0.4.1",
-		"@cap-js/cds-types": "^0.16.0",
-		"@cap-js/sqlite": "*",
-		"@eslint/js": "^9.39.4",
-		"@sap/cds-dk": "^9",
-		"@sap/cds-lsp": "^9.2.1",
-		"eslint": "^10",
-		"prettier": "^3.8.1"
-	},
-	"peerDependencies": {
-		"@sap/cds": ">=9"
-	},
-	"engines": {
-		"node": ">=20.0.0"
-	},
-	"cds": {
-		"requires": {
-			"AICore": {
-				"resourceGroup": "default",
-				"vcap": {
-					"label": "aicore"
-				}
-			},
-			"kinds": {
-				"AICore-mocked": {
-					"model": "@cap-js/ai/srv/MockAICoreService"
-				},
-				"AICore-btp": {
-					"model": "@cap-js/ai/srv/AICoreService"
-				}
-			},
-			"[development]": {
-				"AICore": {
-					"kind": "AICore-mocked"
-				}
-			},
-			"[test]": {
-				"AICore": {
-					"kind": "AICore-mocked"
-				}
-			},
-			"[production]": {
-				"AICore": {
-					"kind": "AICore-btp"
-				}
-			},
-			"[hybrid]": {
-				"AICore": {
-					"kind": "AICore-btp"
-				}
-			}
-		}
-	},
-	"workspaces": [
-		"tests/*"
-	]
+  "name": "@cap-js/ai",
+  "version": "1.0.0-alpha.1",
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
+  "description": "CAP cds-plugin for AI capabilities",
+  "repository": "cap-js/ai",
+  "type": "module",
+  "license": "Apache-2.0",
+  "author": "SAP SE (https://www.sap.com)",
+  "homepage": "https://cap.cloud.sap/",
+  "main": "cds-plugin.js",
+  "scripts": {
+    "lint": "npx eslint .",
+    "test": "node --test tests/*.test.js",
+    "test:hybrid": "cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
+    "format": "npx -y prettier@3 . --write && format-cds -f",
+    "format:check": "npx -y prettier@3 --check . && format-cds --check"
+  },
+  "files": [
+    "index.cds",
+    "lib",
+    "srv",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
+  ],
+  "devDependencies": {
+    "@cap-js/cds-test": "^0.4.1",
+    "@cap-js/cds-types": "^0.16.0",
+    "@cap-js/sqlite": "*",
+    "@eslint/js": "^9.39.4",
+    "@sap/cds-dk": "^9",
+    "@sap/cds-lsp": "^9.2.1",
+    "eslint": "^10",
+    "prettier": "^3.8.1"
+  },
+  "peerDependencies": {
+    "@sap/cds": ">=9"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "cds": {
+    "requires": {
+      "AICore": {
+        "resourceGroup": "default",
+        "vcap": {
+          "label": "aicore"
+        }
+      },
+      "kinds": {
+        "AICore-mocked": {
+          "model": "@cap-js/ai/srv/MockAICoreService"
+        },
+        "AICore-btp": {
+          "model": "@cap-js/ai/srv/AICoreService"
+        }
+      },
+      "[development]": {
+        "AICore": {
+          "kind": "AICore-mocked"
+        }
+      },
+      "[test]": {
+        "AICore": {
+          "kind": "AICore-mocked"
+        }
+      },
+      "[production]": {
+        "AICore": {
+          "kind": "AICore-btp"
+        }
+      },
+      "[hybrid]": {
+        "AICore": {
+          "kind": "AICore-btp"
+        }
+      }
+    }
+  },
+  "workspaces": [
+    "tests/*"
+  ]
 }
