@@ -37,12 +37,12 @@ jobs:
   publish-npm:
     needs: test
     runs-on: ubuntu-latest
-    environment: npm
+    environment: npm:@cap-js/ai
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           registry-url: https://registry.npmjs.org/
       - run: npm install
       - name: get-version
