@@ -102,16 +102,16 @@ export default class AICore extends cds.ApplicationService {
 
 	async _predictRowColumns(req) {
 		const token = await this._getToken();
-		const aiCore = await cds.connect.to('ai-core');
+		const aiCore = cds.env.requires.AICore
 		const resourceGroup = cds.env.requires.multitenancy
 			? await this.resourceGroupForTenant({ tenant: cds.context.tenant })
 			: cds.env.requires['AICore']?.resourceGroup;
 		const deploymentID = await this.rpt1DeploymentId(this.entities.resourceGroups, resourceGroup);
 		LOG.debug(
-			`Fetching predictions from ${aiCore.destination.serviceurls.AI_API_URL} for deployment ${deploymentID} and resource group ${resourceGroup}`
+			`Fetching predictions from ${aiCore.credentials.serviceurls.AI_API_URL} for deployment ${deploymentID} and resource group ${resourceGroup}`
 		);
 		const response = await fetch(
-			`${aiCore.destination.serviceurls.AI_API_URL}/v2/inference/deployments/${deploymentID}/predict`,
+			`${aiCore.credentials.serviceurls.AI_API_URL}/v2/inference/deployments/${deploymentID}/predict`,
 			{
 				method: 'POST',
 				headers: {
@@ -142,7 +142,7 @@ export default class AICore extends cds.ApplicationService {
 
 	async handleResourceGroups(req, next) {
 		const token = await this._getToken();
-		const aiCore = await cds.connect.to('ai-core');
+		const aiCore = cds.env.requires.AICore
 		let response;
 		if (req.event === 'CREATE') {
 			if (!req.data.resourceGroupId) {
@@ -160,7 +160,7 @@ export default class AICore extends cds.ApplicationService {
 				});
 			}
 			response = await fetch(
-				`${aiCore.destination.serviceurls.AI_API_URL}/v2/admin/resourceGroups`,
+				`${aiCore.credentials.serviceurls.AI_API_URL}/v2/admin/resourceGroups`,
 				{
 					method: 'POST',
 					headers: {
@@ -184,7 +184,7 @@ export default class AICore extends cds.ApplicationService {
 				resourceGroupId = resourceGroup.resourceGroupId;
 			}
 			response = await fetch(
-				`${aiCore.destination.serviceurls.AI_API_URL}/v2/admin/resourceGroups/${resourceGroupId}`,
+				`${aiCore.credentials.serviceurls.AI_API_URL}/v2/admin/resourceGroups/${resourceGroupId}`,
 				{
 					method: 'DELETE',
 					headers: {
@@ -198,7 +198,7 @@ export default class AICore extends cds.ApplicationService {
 			let resourceGroupId = getProperty(where, 'resourceGroupId');
 			if (resourceGroupId) {
 				response = await fetch(
-					`${aiCore.destination.serviceurls.AI_API_URL}/v2/admin/resourceGroups/${resourceGroupId}`,
+					`${aiCore.credentials.serviceurls.AI_API_URL}/v2/admin/resourceGroups/${resourceGroupId}`,
 					{
 						method: 'GET',
 						headers: {
@@ -220,7 +220,7 @@ export default class AICore extends cds.ApplicationService {
 					queryOptions.push(`labelSelector=ext.ai.sap.com/CDS_TENANT_ID=${tenantId}`);
 				}
 				// TODO: support labelSelector for where clause (e.g. exists on labels)
-				let url = `${aiCore.destination.serviceurls.AI_API_URL}/v2/admin/resourceGroups`;
+				let url = `${aiCore.credentials.serviceurls.AI_API_URL}/v2/admin/resourceGroups`;
 				if (queryOptions.length) {
 					url += `?${queryOptions.join('&')}`;
 				}
@@ -257,7 +257,7 @@ export default class AICore extends cds.ApplicationService {
 				resourceGroupId = resourceGroup.resourceGroupId;
 			}
 			response = await fetch(
-				`${aiCore.destination.serviceurls.AI_API_URL}/v2/admin/resourceGroups/${resourceGroupId}`,
+				`${aiCore.credentials.serviceurls.AI_API_URL}/v2/admin/resourceGroups/${resourceGroupId}`,
 				{
 					method: 'PATCH',
 					headers: {
@@ -320,7 +320,7 @@ export default class AICore extends cds.ApplicationService {
 
 	async handleDeployments(req, next) {
 		const token = await this._getToken();
-		const aiCore = await cds.connect.to('ai-core');
+		const aiCore = cds.env.requires.AICore
 		let response;
 		if (req.event === 'UPSERT') {
 			const where = req.query.UPSERT.entity.ref.at(-1)?.where || req.query.UPSERT.where || [];
@@ -330,7 +330,7 @@ export default class AICore extends cds.ApplicationService {
 			let deploymentId = getProperty(where, 'id') ?? req.data.id;
 			if (deploymentId) {
 				response = await fetch(
-					`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
+					`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
 					{
 						method: 'GET',
 						headers: {
@@ -342,7 +342,7 @@ export default class AICore extends cds.ApplicationService {
 				);
 				if (response.ok) {
 					response = await fetch(
-						`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
+						`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
 						{
 							method: 'PATCH',
 							headers: {
@@ -358,7 +358,7 @@ export default class AICore extends cds.ApplicationService {
 				}
 			}
 			if (!response) {
-				response = await fetch(`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments`, {
+				response = await fetch(`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments`, {
 					method: 'POST',
 					headers: {
 						Authorization: `Bearer ${token}`,
@@ -370,7 +370,7 @@ export default class AICore extends cds.ApplicationService {
 			}
 		} else if (req.event === 'CREATE') {
 			const resourceGroupId = await this.resourceGroupForTenant({ tenant: cds.context.tenant });
-			response = await fetch(`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments`, {
+			response = await fetch(`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments`, {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${token}`,
@@ -387,7 +387,7 @@ export default class AICore extends cds.ApplicationService {
 			let deploymentId = getProperty(where, 'id');
 			if (deploymentId) {
 				response = await fetch(
-					`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
+					`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
 					{
 						method: 'GET',
 						headers: {
@@ -406,7 +406,7 @@ export default class AICore extends cds.ApplicationService {
 					queryOptions.push(`$skip=${req.query.SELECT.limit.offset.val}`);
 				}
 				// TODO: support other query options
-				let url = `${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments`;
+				let url = `${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments`;
 				if (queryOptions.length) {
 					url += `?${queryOptions.join('&')}`;
 				}
@@ -437,7 +437,7 @@ export default class AICore extends cds.ApplicationService {
 				(await this.resourceGroupForTenant({ tenant: cds.context.tenant }));
 			let deploymentId = getProperty(where, 'id');
 			response = await fetch(
-				`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
+				`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
 				{
 					method: 'PATCH',
 					headers: {
@@ -455,7 +455,7 @@ export default class AICore extends cds.ApplicationService {
 				(await this.resourceGroupForTenant({ tenant: cds.context.tenant }));
 			let deploymentId = getProperty(where, 'id');
 			response = await fetch(
-				`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
+				`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments/${deploymentId}`,
 				{
 					method: 'DELETE',
 					headers: {
@@ -495,7 +495,7 @@ export default class AICore extends cds.ApplicationService {
 
 	async handleConfigurations(req, next) {
 		const token = await this._getToken();
-		const aiCore = await cds.connect.to('ai-core');
+		const aiCore = cds.env.requires.AICore
 		let response;
 		if (req.event === 'READ') {
 			const where = req.query.SELECT.from.ref.at(-1)?.where || req.query.SELECT.where;
@@ -505,7 +505,7 @@ export default class AICore extends cds.ApplicationService {
 			let deploymentId = getProperty(where, 'id');
 			if (deploymentId) {
 				response = await fetch(
-					`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/configurations/${deploymentId}`,
+					`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/configurations/${deploymentId}`,
 					{
 						method: 'GET',
 						headers: {
@@ -527,7 +527,7 @@ export default class AICore extends cds.ApplicationService {
 					queryOptions.push(`$search=${req.query.SELECT.search[0].val}`);
 				}
 				// TODO: support other query options
-				let url = `${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/configurations`;
+				let url = `${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/configurations`;
 				if (queryOptions.length) {
 					url += `?${queryOptions.join('&')}`;
 				}
@@ -542,7 +542,7 @@ export default class AICore extends cds.ApplicationService {
 			}
 		} else if (req.event === 'CREATE') {
 			const resourceGroupId = await this.resourceGroupForTenant({ tenant: cds.context.tenant });
-			response = await fetch(`${aiCore.destination.serviceurls.AI_API_URL}/v2/lm/configurations`, {
+			response = await fetch(`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/configurations`, {
 				method: 'POST',
 				headers: {
 					Authorization: `Bearer ${token}`,

@@ -64,13 +64,7 @@
 			},
 			"destinations": true,
 			"html5-repo": true,
-			"application-logging": true,
-			"ai-core": {
-				"kind": "rest",
-				"vcap": {
-					"label": "aicore"
-				}
-			}
+			"application-logging": true
 		},
 		"profile": "with-mtx-sidecar"
 	}

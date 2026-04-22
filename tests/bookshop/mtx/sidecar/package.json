@@ -20,14 +20,6 @@
 			"levels": {
 				"@cap-js/ai": "debug"
 			}
-		},
-		"requires": {
-			"ai-core": {
-				"kind": "rest",
-				"vcap": {
-					"label": "aicore"
-				}
-			}
 		}
 	}
 }
