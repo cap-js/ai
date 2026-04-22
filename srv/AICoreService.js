@@ -16,10 +16,7 @@ import {
 	deleteDeployment,
 	rpt1ForResourceGroup
 } from './ai-core/deployments.js';
-import {
-	createConfiguration,
-	readConfigurations
-} from './ai-core/configurations.js';
+import { createConfiguration, readConfigurations } from './ai-core/configurations.js';
 
 const LOG = cds.log('@cap-js/ai');
 
@@ -140,7 +137,7 @@ export default class AICore extends cds.ApplicationService {
 	async _predictRowColumns(req) {
 		const { resourceGroups } = this.entities;
 		const token = await this._getToken();
-		const aiCore = cds.env.requires.AICore
+		const aiCore = cds.env.requires.AICore;
 		const resourceGroup = cds.env.requires.multitenancy
 			? await this.resourceGroupForTenant({ tenant: cds.context.tenant })
 			: cds.env.requires['AICore']?.resourceGroup;

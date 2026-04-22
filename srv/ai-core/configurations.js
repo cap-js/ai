@@ -3,7 +3,7 @@ import { getProperty, parseResponse } from '../../lib/handlers/utils.js';
 
 export async function readConfigurations(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const where = req.query.SELECT.from.ref.at(-1)?.where || req.query.SELECT.where;
 	const resourceGroupId =
 		getProperty(where, 'resourceGroup') ??
@@ -52,16 +52,19 @@ export async function readConfigurations(req) {
 
 export async function createConfiguration(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const resourceGroupId = await this.resourceGroupForTenant({ tenant: cds.context.tenant });
-	const response = await fetch(`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/configurations`, {
-		method: 'POST',
-		headers: {
-			Authorization: `Bearer ${token}`,
-			'Content-Type': 'application/json',
-			'AI-Resource-Group': resourceGroupId
-		},
-		body: JSON.stringify(req.data)
-	});
+	const response = await fetch(
+		`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/configurations`,
+		{
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${token}`,
+				'Content-Type': 'application/json',
+				'AI-Resource-Group': resourceGroupId
+			},
+			body: JSON.stringify(req.data)
+		}
+	);
 	return parseResponse(req, response);
 }

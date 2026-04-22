@@ -4,7 +4,7 @@ const LOG = cds.log('@cap-js/ai');
 
 export async function createDeployment(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const resourceGroupId = await this.resourceGroupForTenant({ tenant: cds.context.tenant });
 	const response = await fetch(`${aiCore.credentials.serviceurls.AI_API_URL}/v2/lm/deployments`, {
 		method: 'POST',
@@ -20,7 +20,7 @@ export async function createDeployment(req) {
 
 export async function readDeployments(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const where = req.query.SELECT.from.ref.at(-1)?.where || req.query.SELECT.where;
 	const resourceGroupId =
 		getProperty(where, 'resourceGroup') ??
@@ -66,7 +66,7 @@ export async function readDeployments(req) {
 
 export async function upsertDeployment(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const where = req.query.UPSERT.entity.ref.at(-1)?.where || req.query.UPSERT.where || [];
 	const resourceGroupId =
 		getProperty(where, 'resourceGroup') ??
@@ -118,7 +118,7 @@ export async function upsertDeployment(req) {
 
 export async function updateDeployment(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const where = req.query.UPDATE.entity.ref.at(-1)?.where || req.query.UPDATE.where;
 	const resourceGroupId =
 		getProperty(where, 'resourceGroup') ??
@@ -154,7 +154,7 @@ export async function stopDeployment(req) {
 
 export async function deleteDeployment(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const where = req.query.DELETE.from.ref.at(-1)?.where || req.query.DELETE.where;
 	const resourceGroupId =
 		getProperty(where, 'resourceGroup') ??

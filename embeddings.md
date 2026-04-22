@@ -41,7 +41,6 @@ Currently the setup is not ideal when models provided by SAP AI Core shall be us
 > [!NOTE]
 > If all HDI containers are allowed to access this remote source, you can run `GRANT EXECUTE ON REMOTE SOURCE <REMOTE_SOURCE_NAME> TO _SYS_DI#BROKER_CG._SYS_DI_OO_DEFAULTS` instead of doing steps 2-4, because this grants the remote execute privileges to the role which is granted to all HDI containers.
 
-
 3. Create a user provided service on BTP with the credentials for the user:
 
    ```ssh

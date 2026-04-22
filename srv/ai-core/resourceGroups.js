@@ -3,15 +3,12 @@ import { getProperty, parseResponse } from '../../lib/handlers/utils.js';
 
 export async function createResourceGroup(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	if (!req.data.resourceGroupId) {
 		req.data.resourceGroupId = cds.utils.uuid();
 	}
 	// REVISIT: map req.data.tenantId to the CDS_TENANT_ID?!
-	if (
-		!req.data.labels ||
-		!req.data.labels.some((l) => l.key === 'ext.ai.sap.com/CDS_TENANT_ID')
-	) {
+	if (!req.data.labels || !req.data.labels.some((l) => l.key === 'ext.ai.sap.com/CDS_TENANT_ID')) {
 		req.data.labels ??= [];
 		req.data.labels.push({
 			key: 'ext.ai.sap.com/CDS_TENANT_ID',
@@ -37,7 +34,7 @@ export async function createResourceGroup(req) {
 
 export async function readResourceGroups(req) {
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const where = req.query.SELECT.from.ref.at(-1)?.where || req.query.SELECT.where;
 	let resourceGroupId = getProperty(where, 'resourceGroupId');
 	let response;
@@ -86,9 +83,7 @@ export async function upsertResourceGroup(req) {
 	if (resourceGroupId) {
 		const resourceGroup = await this.run(SELECT.from(resourceGroups, resourceGroupId));
 		if (resourceGroup) {
-			return await this.run(
-				UPDATE.entity(resourceGroups, resourceGroupId).with(req.data)
-			);
+			return await this.run(UPDATE.entity(resourceGroups, resourceGroupId).with(req.data));
 		} else {
 			return await this.run(INSERT.into(resourceGroups).entries(req.data));
 		}
@@ -100,14 +95,12 @@ export async function upsertResourceGroup(req) {
 export async function updateResourceGroup(req) {
 	const { resourceGroups } = this.entities;
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const where = req.query.UPDATE.entity.ref.at(-1)?.where || req.query.UPDATE.where;
 	let resourceGroupId = getProperty(where, 'resourceGroupId');
 	if (!resourceGroupId) {
 		const tenantId = getProperty(where, 'tenantId');
-		const resourceGroup = await this.run(
-			SELECT.one.from(resourceGroups).where({ tenantId })
-		);
+		const resourceGroup = await this.run(SELECT.one.from(resourceGroups).where({ tenantId }));
 		resourceGroupId = resourceGroup.resourceGroupId;
 	}
 	const response = await fetch(
@@ -127,14 +120,12 @@ export async function updateResourceGroup(req) {
 export async function deleteResourceGroup(req) {
 	const { resourceGroups } = this.entities;
 	const token = await this._getToken();
-	const aiCore = cds.env.requires.AICore
+	const aiCore = cds.env.requires.AICore;
 	const where = req.query.DELETE.from.ref.at(-1)?.where || req.query.DELETE.where;
 	let resourceGroupId = getProperty(where, 'resourceGroupId');
 	if (!resourceGroupId) {
 		const tenantId = getProperty(where, 'tenantId');
-		const resourceGroup = await this.run(
-			SELECT.one.from(resourceGroups).where({ tenantId })
-		);
+		const resourceGroup = await this.run(SELECT.one.from(resourceGroups).where({ tenantId }));
 		resourceGroupId = resourceGroup.resourceGroupId;
 	}
 	const response = await fetch(
@@ -165,9 +156,7 @@ export async function handleResourceGroupsForTenant(req) {
 		this.tenantResourceGroups.set(tenantId, resources[0].resourceGroupId);
 		return resources[0].resourceGroupId;
 	} else {
-		const { resourceGroupId } = await this.run(
-			INSERT.into(resourceGroups).entries({ tenantId })
-		);
+		const { resourceGroupId } = await this.run(INSERT.into(resourceGroups).entries({ tenantId }));
 		return resourceGroupId;
 	}
 }
