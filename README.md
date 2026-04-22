@@ -121,7 +121,7 @@ await aiCore.stop(deployments, {id: '<deployment id>'})
 
 ## Requirements and Setup
 
-To use the plugin in production scenarios you need an AI Core service binding. The plugin will automatically create resource groups per tenant in multi-tenancy scenarios and create an RPT-1 deployment in each for the recommendations feature. In single-tenant setups the plugin uses the 'default' resource group and creates an RPT-1 deployment as well if none exists.
+To use the plugin in production scenarios you need an [SAP AI Core](https://help.sap.com/docs/sap-ai-core) service binding. The plugin will automatically create resource groups per tenant in multi-tenancy scenarios and create an RPT-1 deployment in each for the recommendations feature. In single-tenant setups the plugin uses the 'default' resource group and creates an RPT-1 deployment as well if none exists.
 
 For single-tenant deployments you can change the resource group as follows:
 
