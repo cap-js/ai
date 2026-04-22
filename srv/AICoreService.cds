@@ -34,8 +34,8 @@ service AICore {
         servicePlan     : String;
   } actions {
     /**
-     * Returns the resource group If no RPT-1 deployment exists, creates one for the
-     * resource group
+     * Returns the deployment ID for RPT-1. If no RPT-1 deployment exists, creates one
+     * for the resource group
      */
     function rpt1DeploymentId() returns String;
   }

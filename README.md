@@ -56,7 +56,7 @@ annotate Books with {
 
 ## 2. Simplified AI Core usage
 
-The plugin introduces an `AICore` CAP service via which automatically performs some administrative tasks and offers a simplified AI Core access. 
+The plugin introduces an `AICore` CAP service that automatically performs some administrative tasks and offers simplified access to AI Core.
 
 ### Automatic operations
 
@@ -72,12 +72,9 @@ const resourceGroups = await aiCore.run(SELECT.from(resourceGroups));
 await aiCore.run(SELECT.from(resourceGroups).where({tenantId: cds.context.tenantId}));
 await aiCore.run(SELECT.from(deployments).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
 await aiCore.run(SELECT.from(configurations).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
-
-// Fetch a resource group for a CDS tenant ID
-await aiCore.resourceGroupForTenant(cds.context.tenant)
 ```
 
-Currently the following `cds.ql` operations are supported:
+Currently, the following `cds.ql` operations are supported:
 
 | Operation | resourceGroups | deployments | configurations |
 |-----------|---------------|-------------|----------------|
@@ -109,13 +106,11 @@ const resourceGroupId = await aiCore.resourceGroupForTenant(cds.context.tenant)
 const resourceGroupId = await aiCore.predictRowColumns(/** RPT-1 payload */)
 
 /**
- * Returns the resource group If no RPT-1 deployment exists, creates one for the
+ * Returns the deployment ID for RPT-1. If no RPT-1 deployment exists, creates one for the
  * resource group
 */
 const rpt1DeploymentId = await aiCore.rpt1DeploymentId(resourceGroups, {resourceGroupId})
 
-/**
- * Stop an AI Core deployment
- */
-await aiCore.stop(deployments, {id: '<deployment id'})
+// Stops an AI Core deployment
+await aiCore.stop(deployments, {id: '<deployment id>'})
 ```
