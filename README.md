@@ -69,7 +69,7 @@ The plugin introduces an `AICore` CAP service that automatically performs some a
 const aiCore = await cds.connect.to('AICore');
 const {resourceGroups, deployments, configurations} = aiCore.entities;
 await aiCore.run(SELECT.from(resourceGroups));
-await aiCore.run(SELECT.from(resourceGroups).where({tenantId: cds.context.tenantId}));
+await aiCore.run(SELECT.from(resourceGroups).where({tenantId: cds.context.tenant}));
 await aiCore.run(SELECT.from(deployments).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
 await aiCore.run(SELECT.from(configurations).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
 ```
