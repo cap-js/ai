@@ -38,7 +38,7 @@ cds.on('served', async (services) => {
 				const { tenant } = req.data;
 				try {
 					const aiCore = await cds.connect.to('AICore');
-					await aiCore.run(DELETE.from('AICore.resourceGroups').where({ tenantId: tenant }));
+					await aiCore.run(DELETE.from(aiCore.entities.resourceGroups).where({ tenantId: tenant }));
 					LOG.debug(`Deleted the AI Core resource group on unsubscribe for tenant ${tenant}`);
 				} catch (error) {
 					LOG.error(`Error deleting AI Core resource group for tenant - ${tenant}`, error);
