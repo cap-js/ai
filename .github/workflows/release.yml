@@ -37,7 +37,7 @@ jobs:
   publish-npm:
     needs: test
     runs-on: ubuntu-latest
-    environment: npm
+    environment: npm:@cap-js/ai
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
