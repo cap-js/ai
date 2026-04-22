@@ -2,14 +2,16 @@
 
 # SAP Cloud Application Programming Model, AI plugin for Node.js
 
-The SAP Cloud Application Programming Model, AI plugin for Node.js bundles a variety of AI capabilities to infuse into your CAP applications:
-1. Recommendations
+## About this project
+
+The SAP Cloud Application Programming Model, AI plugin for Node.js bundles two AI capabilities to infuse into your CAP applications:
+1. UI Recommendations
 2. Simplified AI Core usage
 
 > [!IMPORTANT]
 > In multi tenancy scenarios with a sidecar the plugin must be included in the sidecar for SAP AI Core handling.
 
-## 1. Recommendations
+### 1. Use case: Recommendations
 
 Recommendations are implemented leveraging SAP-RPT-1 and AI Core. This plugin generically hooks into any entity which has properties with a value help (detected via `@Common.ValueList` on the property or `@cds.odata.valuelist` on the association target).
 
@@ -56,16 +58,16 @@ annotate Books with {
 }
 ```
 
-## 2. Simplified AI Core usage
+### 2. Use case: Simplified AI Core usage
 
 The plugin introduces an `AICore` CAP service that automatically performs some administrative tasks and offers simplified access to AI Core.
 
-### Automatic operations
+#### Automatic operations
 
 - The plugin automatically creates a new SAP AI Core resource group per tenant during tenant onboarding and deletes it during offboarding.
 - The plugin automatically creates an RPT-1 deployment per resource group for the recommendations feature.
 
-### Simplified AI Core API access
+#### Simplified AI Core API access
 
 ```js
 const aiCore = await cds.connect.to('AICore');
@@ -117,6 +119,39 @@ const rpt1DeploymentId = await aiCore.rpt1DeploymentId(resourceGroups, {resource
 await aiCore.stop(deployments, {id: '<deployment id>'})
 ```
 
+## Requirements and Setup
+
+To use the plugin in production scenarios you need an AI Core service binding. The plugin will automatically create resource groups per tenant in multi-tenancy scenarios and create an RPT-1 deployment in each for the recommendations feature. In single-tenant setups the plugin uses the 'default' resource group and creates an RPT-1 deployment as well if none exists.
+
+For single-tenant deployments you can change the resource group as follows:
+
+```json
+{
+    "cds": {
+        "requires": {
+            "AICore": {
+                "resourceGroup": "CUSTOM_SINGLE_TENANT_RESOURCE_GROUP"
+            }
+        }
+    }
+}
+```
+
+For Cloud Foundry apps an example config could look like this:
+
+```yaml
+modules:
+  - name: incidents-srv
+    type: nodejs
+    path: gen/srv
+    requires:
+      - name: incidents-ai-core
+resources:
+  - name: incidents-ai-core
+    type: org.cloudfoundry.managed-service
+```
+
+
 ## Test the plugin locally
 
 In `tests/bookshop-app/` you can find a sample application that is used to demonstrate how to use the plugin and to run tests against it.
@@ -130,6 +165,13 @@ npm run test
 ```
 
 For tests, the `cds-test` Plugin is used to spin up the application. More information about `cds-test` can be found [here](https://cap.cloud.sap/docs/node.js/cds-test).
+
+For integration tests you need an AI Core binding.
+
+```bash
+cds bind ai-core -2 <your-ai-core-service-instance>
+npm run test:hybrid
+```
 
 ## Support, Feedback, Contributing
 
