@@ -620,7 +620,7 @@ export default class AICore extends cds.ApplicationService {
 			for (let i = 0; i < 10 && deployment.status !== 'RUNNING'; i++) {
 				const delay = 300 * Math.pow(2, i);
 				LOG.debug(
-					`Waiting for RPT-1 deployment ${deployment.id} to reach RUNNING (current: ${deployment.status}, retry ${i + 1}/5, next in ${delay}ms)`
+					`Waiting for RPT-1 deployment ${deployment.id} to reach RUNNING (current: ${deployment.status}, retry ${i + 1}/10, next in ${delay}ms)`
 				);
 				// eslint-disable-next-line no-await-in-loop
 				await new Promise((resolve) => setTimeout(resolve, delay));
