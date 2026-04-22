@@ -33,42 +33,27 @@ runs:
         sudo mv cf8 /usr/local/bin/
         cf --version
 
-    # BTP Auth
-    # Uncomment when you want to run hybrid integration tests
-    # - name: Authenticate with Cloud Foundry
-    #   shell: bash
-    #   run: |
-    #     echo "::debug::CF_API=${{ inputs.CF_API }}"
-    #     for i in {1..3}; do
-    #       cf login -a ${{ inputs.CF_API }} -u ${{ inputs.CF_USERNAME }} -p ${{ inputs.CF_PASSWORD }} -o ${{ inputs.CF_ORG }} -s ${{ inputs.CF_SPACE }} && break
-    #       echo "cf login failed, retrying ($i/3)..."
-    #       sleep 10
-    #       if [ "$i" -eq 3 ]; then
-    #         echo "❌ cf login failed after 3 attempts."
-    #         exit 1
-    #       fi
-    #     done
-
-    - uses: actions/checkout@v2
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v2
-      with:
-        node-version: ${{ matrix.node-version }}
-
-    - name: Set CDS version-specific dependencies
+    - name: Authenticate with Cloud Foundry
       shell: bash
       run: |
-        if [ "${{ matrix.cds-version }}" == "8" ]; then
-          echo "Installing CDS 8 compatible packages..."
-          npm pkg set "devDependencies.@cap-js/sqlite=^1.0.0"
-          npm pkg set "overrides.@cap-js/sqlite=^1.0.0"
-          npm pkg set "overrides.@cap-js/hana=^1.0.0"
-          npm pkg set "overrides.@cap-js/db-service=^1.0.0"
-          cd tests/bookshop
-          npm pkg set "dependencies.@cap-js/hana=^1.0.0"
-          npm pkg set "dependencies.@cap-js/db-service=^1.0.0"
-          cd ../..
-        fi
+        echo "::debug::CF_API=${{ inputs.CF_API }}"
+        for i in {1..3}; do
+          cf login -a ${{ inputs.CF_API }} -u ${{ inputs.CF_USERNAME }} -p ${{ inputs.CF_PASSWORD }} -o ${{ inputs.CF_ORG }} -s ${{ inputs.CF_SPACE }} && break
+          echo "cf login failed, retrying ($i/3)..."
+          sleep 10
+          if [ "$i" -eq 3 ]; then
+            echo "❌ cf login failed after 3 attempts."
+            exit 1
+          fi
+        done
+
+    - uses: actions/checkout@v5
+      with:
+        ref: ${{ github.event.pull_request.head.sha || github.sha }}
+    - name: Use Node.js ${{ inputs.NODE_VERSION}}
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ inputs.NODE_VERSION }}
 
     - name: Install global CDS
       shell: bash
@@ -78,49 +63,58 @@ runs:
       run: |
         npm install @sap/cds@${{ matrix.cds-version }}
         npm install
+    - name: Install bookshop dependencies
+      shell: bash
+      run: |
+        cd tests/bookshop && npm install @sap/cds@${{ matrix.cds-version }}
+        npm install
+      
+    - name: Set node env for HANA
+      run: echo "NODE_VERSION_HANA=$(echo ${{ inputs.NODE_VERSION }} | tr . _)" >> $GITHUB_ENV
+      shell: bash
+    - name: Set node env for CDS
+      run: echo "CDS_VERSION=$(echo ${{ matrix.cds-version }} | tr . _)" >> $GITHUB_ENV
+      shell: bash
+    - name: CDS Versions being used
+      run: cds v -i
+      shell: bash
 
-    # HANA Cloud Deployment and binding
-    # Uncomment when you want to run your hybrid integration tests against HANA Cloud
-    # Replace your-project with your actual project name
-    # - name: Set node env for HANA
-    #   run: echo "NODE_VERSION_HANA=$(echo ${{ inputs.NODE_VERSION }} | tr . _)" >> $GITHUB_ENV
-    #   shell: bash
     # Deploy model to HANA
-    # - name: Create HDI Container
-    #   shell: bash
-    #   run: cf create-service hana hdi-shared cap-js-your-project-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-${{ matrix.cds-version }}
-    # - run: cd tests/bookshop/ && cds deploy --to hana:cap-js-your-project-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-${{ matrix.cds-version }}
-    #   shell: bash
-    # # Bind HANA Cloud instance
-    # - run: cds bind db -2 cap-js-your-project-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-${{ matrix.cds-version }} -o package.json
-    #   shell: bash
+    - name: Create HDI Container
+      shell: bash
+      run: cf create-service hana hdi-shared cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION
+    - run: cd tests/bookshop/ && cds deploy --to hana:cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION
+      shell: bash
 
     # Bind against BTP services
-    # Uncomment when actual BTP services should be used. The first argument of `cds bind` is only needed for CAP v8
-    # - run: cds bind <your-service> -2 <your-service> -o package.json
-    #   shell: bash
+    - name: Bind HANA
+      run: cds bind db -2 cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION -o package.json
+      shell: bash
+    - name: Bind AI Core
+      run: cds bind ai-core -2 cap-js-ai-core -o package.json
+      shell: bash
+
     # Run tests in hybrid mode
     - run: npm run test:hybrid
       shell: bash
 
-    # HANA Cleanup
-    # Uncomment when you want to run your hybrid integration tests against HANA Cloud
-    # Replace your-project with your actual project name
-    # - name: Delete HDI Container Key
-    #   if: ${{ always() }}
-    #   run: cf delete-service-key cap-js-your-project-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-${{ matrix.cds-version }} cap-js-your-project-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-${{ matrix.cds-version }}-key -f
-    #   shell: bash
-    # # Somehow first delete always fails with a "ongoing operation on service binding" error
-    # - name: Delete HDI Container
-    #   if: ${{ always() }}
-    #   shell: bash
-    #   run: |
-    #     for i in {1..3}; do
-    #       cf delete-service cap-js-your-project-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-${{ matrix.cds-version }} -f && break
-    #       echo "HDI container delete failed, retrying ($i/3)..."
-    #       sleep 10
-    #       if [ "$i" -eq 3 ]; then
-    #         echo "❌ HDI container delete failed after 3 attempts."
-    #         exit 1
-    #       fi
-    #     done
+    # Cleanup BTP services
+    - name: Delete HDI Container Key
+      if: ${{ always() }}
+      run: cf delete-service-key cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION-key -f
+      shell: bash
+
+    # Note: The initial delete attempt often fails due to an "ongoing operation on service binding" error.
+    - name: Delete HDI Container
+      if: ${{ always() }}
+      shell: bash
+      run: |
+        for i in {1..3}; do
+          cf delete-service cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION -f && break
+          echo "HDI container delete failed, retrying ($i/3)..."
+          sleep 10
+          if [ "$i" -eq 3 ]; then
+            echo "❌ HDI container delete failed after 3 attempts."
+            exit 1
+          fi
+        done

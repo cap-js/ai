@@ -1,60 +1,87 @@
 {
-  "name": "@cap-js/REPO-NAME",
-  "version": "1.0.0",
-  "description": "CAP cds-plugin REPO-DESCRIPTION",
+  "name": "@cap-js/ai",
+  "version": "1.0.0-alpha.1",
+  "publishConfig": {
+    "access": "public",
+    "tag": "alpha"
+  },
+  "description": "CAP cds-plugin for AI capabilities",
+  "repository": "cap-js/ai",
+  "type": "module",
   "license": "Apache-2.0",
-  "author": "AUTHOR",
+  "author": "SAP SE (https://www.sap.com)",
   "homepage": "https://cap.cloud.sap/",
   "main": "cds-plugin.js",
   "scripts": {
     "lint": "npx eslint .",
-    "test": "npx jest --silent",
-    "test:hybrid": "cds bind --exec -- npx jest",
-    "prettier": "npx -y prettier@3 --write .",
-    "prettier:check": "npx -y prettier@3 --check .",
-    "watch:sample": "cd tests/bookshop && cds watch"
+    "test": "node --test tests/*.test.js",
+    "test:hybrid": "cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
+    "format": "npx -y prettier@3 . --write && format-cds -f",
+    "format:check": "npx -y prettier@3 --check . && format-cds --check"
   },
   "files": [
     "index.cds",
     "lib",
-    "db",
-    "srv"
+    "srv",
+    "CHANGELOG.md",
+    "LICENSE",
+    "README.md"
   ],
-  "license": "Apache-2.0",
   "devDependencies": {
-    "@cap-js/cds-test": ">=0",
-    "@cap-js/sqlite": "^2"
+    "@cap-js/cds-test": "^0.4.1",
+    "@cap-js/cds-types": "^0.16.0",
+    "@cap-js/sqlite": "*",
+    "@eslint/js": "^9.39.4",
+    "@sap/cds-dk": "^9",
+    "@sap/cds-lsp": "^9.2.1",
+    "eslint": "^10",
+    "prettier": "^3.8.1"
   },
   "peerDependencies": {
-    "@sap/cds": ">=8"
+    "@sap/cds": ">=9"
   },
   "engines": {
     "node": ">=20.0.0"
   },
-  "workspaces": [
-    "tests/bookshop/"
-  ],
   "cds": {
     "requires": {
-      "emojis": {
-        "[development]": {
-          "kind": "emojis-local"
-        },
-        "[hybrid]": {
-          "kind": "emojis-prod"
-        },
-        "[production]": {
-          "kind": "emojis-prod"
+      "AICore": {
+        "resourceGroup": "default",
+        "vcap": {
+          "label": "aicore"
         }
       },
       "kinds": {
-        "emojis-local": {
-          "impl": "@cap-js/REPO-NAME/srv/basic"
+        "AICore-mocked": {
+          "model": "@cap-js/ai/srv/MockAICoreService"
         },
-        "emojis-prod": {
-          "impl": "@cap-js/REPO-NAME/srv/prod"
+        "AICore-btp": {
+          "model": "@cap-js/ai/srv/AICoreService"
+        }
+      },
+      "[development]": {
+        "AICore": {
+          "kind": "AICore-mocked"
+        }
+      },
+      "[test]": {
+        "AICore": {
+          "kind": "AICore-mocked"
+        }
+      },
+      "[production]": {
+        "AICore": {
+          "kind": "AICore-btp"
+        }
+      },
+      "[hybrid]": {
+        "AICore": {
+          "kind": "AICore-btp"
         }
       }
     }
-  }
+  },
+  "workspaces": [
+    "tests/*"
+  ]
 }

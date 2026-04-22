@@ -1,65 +1,116 @@
-[![REUSE status](https://api.reuse.software/badge/github.com/cap-js/ai)](https://api.reuse.software/info/github.com/cap-js/ai)
+# SAP Cloud Application Programming Model, AI plugin for Node.js
 
-# ai
+The SAP Cloud Application Programming Model, AI plugin for Node.js bundles a variety of AI capabilities to infuse into your CAP applications:
+1. Recommendations
+2. Simplified AI Core usage
 
-## About this project
+> [!IMPORTANT]
+> In multi tenancy scenarios with a sidecar the plugin must be included in the sidecar for SAP AI Core handling.
 
-_Insert a short description of your project here..._
+## 1. Recommendations
 
-## Requirements and Setup
+Recommendations are implemented leveraging SAP-RPT-1 and AI Core. This plugin generically hooks into any entity which has properties with a value help (detected via `@Common.ValueList` on the property or `@cds.odata.valuelist` on the association target).
 
-_Insert a short description what is required to get your project running..._
-
-## Tests
-
-In `tests/bookshop/` you can find a sample application that is used to demonstrate how to use the plugin and to run tests against it.
-
-### Local Testing
-
-To execute local tests, simply run:
-
-```bash
-npm run test
+```cds 
+entity Books {
+  key ID : Integer;
+  title  : String(111);
+  descr  : String(1111);
+  genre : Association to one Genres;
+  status : Association to one Status;
+}
+annotate Genres with @cds.odata.valuelist;
+annotate Books with {
+    status @Common.ValueList : {
+        CollectionPath : 'Status',
+        Parameters: [
+            {
+                $Type: 'Common.ValueListParameterInOut'
+                ValueListProperty : 'code',
+                LocalDataProperty : status_code
+            }
+        ]
+    }
+}
 ```
 
-For tests, the `cds-test` Plugin is used to spin up the application. More information about `cds-test` can be found [here](https://cap.cloud.sap/docs/node.js/cds-test).
+![Recommendations as default values](./_assets/recommendation-default.png)
+![Recommendation in Value Help](./_assets/recommendation-value-help.png)
+![Accept recommendations](./_assets/accept-recommendations.png)
 
-### Hybrid Testing
+The genre field on the UI now automatically has recommendations. If you do not want recommendations for a specific field, it can be annotated with `@UI.RecommendationState`.
 
-#### Local
-
-In the case of hybrid tests (i.e., tests that run with a real BTP service), you can bind the service instance to the local application like this:
-
-```bash
-cds bind -2 my-service
+```cds
+annotate Books with {
+    genre @UI.RecommendationState : 0;
+}
 ```
 
-More on `cds bind` can be found [here](https://pages.github.tools.sap/cap/docs/advanced/hybrid-testing#cds-bind-usage)
+Dynamic expressions as values for `@UI.RecommendationState`, work as well!
 
-The hybrid integration tests can be run via:
-
-```bash
-npm run test:hybrid
+```cds
+annotate Books with {
+    genre @UI.RecommendationState : (price > 200 ? 0 : 1);
+}
 ```
 
-#### CI
+## 2. Simplified AI Core usage
 
-For CI, the service binding is added during the action run. Uncomment the _Bind against BTP services_ and _BTP Auth_ sections in the file `.github/actions/integration-tests/action.yml` and adjust the service name/names accordingly. The `cds bind` command executed there will be the almost the same as done locally before, with the difference that it will be written to package.json in CI.
+The plugin introduces an `AICore` CAP service that automatically performs some administrative tasks and offers simplified access to AI Core.
 
-You can also execute the tests against a HANA Cloud instance. For that, add the commented sections in the action file and adjust accordingly.
+### Automatic operations
 
-## Support, Feedback, Contributing
+- The plugin automatically creates a new SAP AI Core resource group per tenant during tenant onboarding and deletes it during offboarding.
+- The plugin automatically creates an RPT-1 deployment per resource group for the recommendations feature.
 
-This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/cap-js/<your-project>/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
+### Simplified AI Core API access
 
-## Security / Disclosure
+```js
+const aiCore = await cds.connect.to('AICore');
+const {resourceGroups, deployments, configurations} = aiCore.entities;
+await aiCore.run(SELECT.from(resourceGroups));
+await aiCore.run(SELECT.from(resourceGroups).where({tenantId: cds.context.tenant}));
+await aiCore.run(SELECT.from(deployments).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
+await aiCore.run(SELECT.from(configurations).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
+```
 
-If you find any bug that may be a security problem, please follow our instructions at [in our security policy](https://github.com/cap-js/<your-project>/security/policy) on how to report it. Please do not create GitHub issues for security-related doubts or problems.
+Currently, the following `cds.ql` operations are supported:
 
-## Code of Conduct
+| Operation | resourceGroups | deployments | configurations |
+|-----------|---------------|-------------|----------------|
+| **READ (list)** | ✓ | ✓ | ✓ |
+| - limit | ✓ | ✓ | ✓ |
+| - where* | `tenantId`, `resourceGroupId` | `resourceGroup.resourceGroupId` | `resourceGroup.resourceGroupId` |
+| - search | - | - | ✓ |
+| **READ (single)** | ✓ | ✓ | ✓ |
+| **CREATE** | ✓ | ✓ | ✓ |
+| **UPDATE** | ✓ | ✓ | - |
+| - where* | `tenantId`, `resourceGroupId` | `id`, `resourceGroup.resourceGroupId` | - |
+| **UPSERT** | ✓ | ✓ | - |
+| - where* | - | `id`, `resourceGroup.resourceGroupId` | - |
+| **DELETE** | ✓ | ✓ | - |
+| - where* | `tenantId`, `resourceGroupId` | `id`, `resourceGroup.resourceGroupId` | - |
 
-We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone. By participating in this project, you agree to abide by its [Code of Conduct](https://github.com/cap-js/.github/blob/main/CODE_OF_CONDUCT.md) at all times.
+\* Only simple equality checks against the listed properties are supported
 
-## Licensing
+Next to CRUD operations the following helper functions can be used:
 
-Copyright 2026 SAP SE or an SAP affiliate company and ai contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/<your-project>).
+```js
+const aiCore = await cds.connect.to('AICore');
+const {resourceGroups, deployments, configurations} = aiCore.entities;
+
+// Fetch a resource group for a CDS tenant ID
+const resourceGroupId = await aiCore.resourceGroupForTenant(cds.context.tenant)
+
+// Call the RPT-1 API to fetch predictions - see AICoreService.cds for the schema
+const resourceGroupId = await aiCore.predictRowColumns(/** RPT-1 payload */)
+
+/**
+ * Returns the deployment ID for RPT-1. If no RPT-1 deployment exists, creates one for the
+ * resource group
+*/
+const rpt1DeploymentId = await aiCore.rpt1DeploymentId(resourceGroups, {resourceGroupId})
+
+// Stops an AI Core deployment
+await aiCore.stop(deployments, {id: '<deployment id>'})
+```

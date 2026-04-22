@@ -1,0 +1,168 @@
+_schema-version: "3.1"
+ID: intelligent-cap-app
+description: A simple CAP project.
+version: 1.0.0
+modules:
+  - name: intelligent-cap-app-srv
+    type: nodejs
+    path: gen/srv
+    requires:
+      - name: intelligent-cap-app-db
+      - name: intelligent-cap-app-auth
+      - name: intelligent-cap-app-destination
+      - name: intelligent-cap-app-logging
+      - name: joule-cap-proxy
+    provides:
+      - name: srv-api
+        properties:
+          srv-url: ${default-url}
+    parameters:
+      buildpack: nodejs_buildpack
+      readiness-health-check-http-endpoint: /health
+      readiness-health-check-type: http
+    properties:
+      DEPLOYMENT_ID: dc9be52daf393a4a
+    build-parameters:
+      builder: npm
+  - name: intelligent-cap-app-db-deployer
+    type: hdb
+    path: gen/db
+    requires:
+      - name: intelligent-cap-app-db
+      - name: ml_hana_pal
+    parameters:
+      buildpack: nodejs_buildpack
+  - name: intelligent-cap-app-destination-content
+    type: com.sap.application.content
+    requires:
+      - name: intelligent-cap-app-auth
+        parameters:
+          service-key:
+            name: intelligent-cap-app-auth-key
+      - name: srv-api
+      - name: intelligent-cap-app-html-repo-runtime
+        parameters:
+          service-key:
+            name: intelligent-cap-app-html-repo-runtime-key
+      - name: intelligent-cap-app-destination
+        parameters:
+          content-target: true
+    parameters:
+      content:
+        subaccount:
+          destinations:
+            - Authentication: OAuth2UserTokenExchange
+              HTML5.DynamicDestination: true
+              Name: intelligent-cap-app-app-srv
+              ServiceInstanceName: intelligent-cap-app-auth
+              ServiceKeyName: intelligent-cap-app-auth-key
+              URL: ~{srv-api/srv-url}
+              sap.cloud.service: ai-bookshop.cap
+          existing_destinations_policy: update
+    build-parameters:
+      no-source: true
+  - name: intelligent-cap-app-app-content
+    type: com.sap.application.content
+    path: .
+    requires:
+      - name: srv-api
+      - name: intelligent-cap-app-auth
+      - name: intelligent-cap-app-html5-repo-host
+        parameters:
+          content-target: true
+    parameters:
+      config:
+        destinations:
+          - forwardAuthToken: true
+            name: intelligent-cap-app-app-srv
+            url: ~{srv-api/srv-url}
+          - name: ui5
+            url: https://ui5.sap.com
+    build-parameters:
+      build-result: resources
+      requires:
+        - artifacts:
+            - ai-bookshop.zip
+          name: ai-bookshop
+          target-path: resources/
+  - name: ai-bookshop
+    type: html5
+    path: app/ai-bookshop
+    build-parameters:
+      build-result: dist
+      builder: custom
+      commands:
+        - npm install
+        - npm run build:cf
+      supported-platforms:
+        []
+resources:
+  - name: intelligent-cap-app-db
+    type: com.sap.xs.hdi-container
+    parameters:
+      service: hana
+      service-plan: hdi-shared
+  - name: intelligent-cap-app-auth
+    type: org.cloudfoundry.managed-service
+    parameters:
+      config:
+        tenant-mode: dedicated
+        xsappname: intelligent-cap-app-${org}-${space}
+      path: ./xs-security.json
+      service: xsuaa
+      service-plan: application
+  - name: intelligent-cap-app-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      config:
+        init_data:
+          subaccount:
+            destinations:
+              - Authentication: NoAuthentication
+                Name: intelligent-cap-app-rt
+                ProxyType: Internet
+                Type: HTTP
+                URL: https://cdsmunich.launchpad.cfapps.eu12.hana.ondemand.com
+            existing_destinations_policy: update
+          version: 1.0.0
+      service: destination
+      service-plan: lite
+    requires:
+      - name: srv-api
+  - name: intelligent-cap-app-html-repo-runtime
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-name: intelligent-cap-app-html-repo-runtime
+      service-plan: app-runtime
+  - name: intelligent-cap-app-html5-repo-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-name: intelligent-cap-app-html5-repo-host
+      service-plan: app-host
+  - name: intelligent-cap-app-logging
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: application-logs
+      service-plan: lite
+  - name: joule-cap-proxy
+    type: org.cloudfoundry.existing-service
+  - name: ml_hana_pal
+    type: org.cloudfoundry.existing-service
+    parameters:
+      service-name: ml_hana_pal
+parameters:
+  deploy_mode: html5-repo
+  enable-parallel-deployments: true
+build-parameters:
+  before-all:
+    - builder: custom
+      commands:
+        - mkdir -p resources
+        - cp config/cdm.json resources/cdm.json
+        - sh -c 'TGZ_FILE="$(ls -1 | grep -E "^cap-js-ai.*\.tgz$" | head -n 1)" && npm install "./${TGZ_FILE}"'
+        - npm ci
+        - npx -p @sap/cds-dk cds build --production
+        - sh -c 'cp "$(ls -1 | grep -E "^cap-js-ai.*\.tgz$" | head -n 1)" ./gen/srv'
+        - cp -r patches gen/srv

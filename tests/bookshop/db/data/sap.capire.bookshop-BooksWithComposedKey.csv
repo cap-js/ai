@@ -1,0 +1,6 @@
+key1;key2;title;descr;author_ID;stock;price;currency_code;createdAt;createdBy;modifiedAt;modifiedBy
+1;1;The Tenant of Wildfell Hall;"The Tenant of Wildfell Hall is the second and final novel by English author Anne Brontë. It was first published in 1848 under the pseudonym Acton Bell.";101;20;12.50;GBP;;;;
+1;2;The Murders in the Rue Morgue;"The Murders in the Rue Morgue is a short story by Edgar Allan Poe published in 1841. It is considered one of the first detective stories.";150;75;11.99;USD;;;;
+2;1;The Professor;"The Professor, A Tale is the first novel by Charlotte Brontë. It was written before Jane Eyre, but was rejected by many publishing houses.";107;15;10.50;EUR;;;;
+2;2;The Masque of the Red Death;"The Masque of the Red Death is a short story by American writer Edgar Allan Poe, first published in 1842.";150;88;7.99;GBP;;;;
+3;1;Poems by Currer, Ellis, and Acton Bell;"A collection of poetry published by the three Brontë sisters in 1846 under their pseudonyms.";107;10;18.99;GBP;;;;

@@ -1,0 +1,16 @@
+[
+  "src/gen/**/*.hdbview",
+  "src/gen/**/*.hdbindex",
+  "src/gen/**/*.hdbconstraint",
+  "src/gen/**/*.hdbtable",
+  "src/gen/**/*.hdbcds",
+  "src/gen/**/*.hdbmigrationtable",
+  "src/gen/**/*.hdbtabledata",
+  "src/gen/**/**/*.hdbtabledata",
+  "src/gen/**/**/*.hdbeshconfig",
+  "src/**/*.hdbcalculationview",
+  "src/**/*.hdbsynonym",
+  "src/**/*.hdbprocedure",
+  "srv/**/*..hdbeshconfig",
+  "src/gen/data/*.csv"
+]

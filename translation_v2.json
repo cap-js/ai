@@ -8,17 +8,6 @@
           "sourceFilters": ["*.properties"]
         }
       ]
-    },
-    {
-      "collectionName": "data",
-      "folders": [
-        {
-          "startingFolderPath": "/db/data",
-          "targetFolderPath": "/db/data",
-          "oneQFolderPath": "/db/data",
-          "sourceFilters": ["**/*_texts.csv"]
-        }
-      ]
     }
   ],
   "defaultConfiguration": {
