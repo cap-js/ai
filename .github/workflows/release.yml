@@ -37,6 +37,8 @@ jobs:
   publish-npm:
     permissions:
       id-token: write
+      contents: write
+
     needs: test
     runs-on: ubuntu-latest
     environment: npm:@cap-js/ai
