@@ -16,7 +16,6 @@
     "format:check": "npx -y prettier@3 --check . && format-cds --check"
   },
   "files": [
-    "index.cds",
     "lib",
     "srv"
   ],
@@ -58,5 +57,8 @@
         }
       }
     }
-  }
+  },
+  "workspaces": [
+    "tests/*"
+  ]
 }
