@@ -1,10 +1,6 @@
 {
   "name": "@cap-js/ai",
-  "version": "1.0.0-alpha.1",
-  "publishConfig": {
-    "access": "public",
-    "tag": "alpha"
-  },
+  "version": "1.0.0",
   "description": "CAP cds-plugin for AI capabilities",
   "repository": "cap-js/ai",
   "type": "module",
@@ -22,10 +18,7 @@
   "files": [
     "index.cds",
     "lib",
-    "srv",
-    "CHANGELOG.md",
-    "LICENSE",
-    "README.md"
+    "srv"
   ],
   "devDependencies": {
     "@cap-js/cds-test": "^0.4.1",
@@ -45,43 +38,25 @@
   },
   "cds": {
     "requires": {
-      "AICore": {
-        "resourceGroup": "default",
-        "vcap": {
-          "label": "aicore"
-        }
+      "AICore": "AICore-mocked",
+      "[production]": {
+        "AICore": "AICore-btp"
+      },
+      "[hybrid]": {
+        "AICore": "AICore-btp"
       },
       "kinds": {
         "AICore-mocked": {
           "model": "@cap-js/ai/srv/MockAICoreService"
         },
         "AICore-btp": {
-          "model": "@cap-js/ai/srv/AICoreService"
-        }
-      },
-      "[development]": {
-        "AICore": {
-          "kind": "AICore-mocked"
-        }
-      },
-      "[test]": {
-        "AICore": {
-          "kind": "AICore-mocked"
-        }
-      },
-      "[production]": {
-        "AICore": {
-          "kind": "AICore-btp"
-        }
-      },
-      "[hybrid]": {
-        "AICore": {
-          "kind": "AICore-btp"
+          "model": "@cap-js/ai/srv/AICoreService",
+          "resourceGroup": "default",
+          "vcap": {
+            "label": "aicore"
+          }
         }
       }
     }
-  },
-  "workspaces": [
-    "tests/*"
-  ]
+  }
 }

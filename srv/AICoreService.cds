@@ -1,10 +1,13 @@
+// REVISIT: Is that model required at runtime at all?
+// If not, we should move it to a separate file that is only used for compilation tasks.
+
 @impl: './AICoreService.js'
 @protocol: 'none'
 service AICore {
 
   @cds.persistence.skip
   entity resourceGroups {
-        @description: 'resource group id'
+        @description: 'resource group id' // DON'T document with annotations! -> change to /** */
     key resourceGroupId : String;
 
         @description: 'tenant id'
