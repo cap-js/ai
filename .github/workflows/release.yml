@@ -35,6 +35,8 @@ jobs:
           NODE_VERSION: ${{ matrix.node-version }}
 
   publish-npm:
+    permissions:
+      id-token: write
     needs: test
     runs-on: ubuntu-latest
     environment: npm:@cap-js/ai
@@ -58,4 +60,5 @@ jobs:
         with:
           tag: "v${{ steps.package-version.outputs.current-version }}"
           body: "${{ steps.parse-changelog.outputs.body }}"
-      - run: npm publish --access public --provenance
+      - name: Publish package to npmjs.com
+        run: npm publish --access public --provenance
