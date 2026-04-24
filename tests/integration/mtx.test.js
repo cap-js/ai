@@ -36,7 +36,7 @@ after(async () => {
 // Bootstrap main app — serves business services for tenant requests
 cdsTest(BOOKSHOP_DIR);
 
-describe('AICore MTX resource group lifecycle', { concurrency: false, timeout: 120_000 }, () => {
+describe('AICore MTX resource group lifecycle', { concurrency: false, timeout: 300_000 }, () => {
   let aiCore;
 
   before(async () => {
@@ -91,16 +91,23 @@ describe('AICore MTX resource group lifecycle', { concurrency: false, timeout: 1
     const status = await unsubscribeTenant(testTenantId, sidecar.port);
     assert.ok(status === 200 || status === 204, `Unsubscribe should succeed, got ${status}`);
 
-    // Wait for deletion to propagate
-    await new Promise((r) => setTimeout(r, 80000));
-    cds.context = new cds.EventContext({ tenant: testTenantId });
-    const groups = await aiCore.run(
-      SELECT.from('AICore.resourceGroups').where({ tenantId: testTenantId })
-    );
-    const stillExists = Array.isArray(groups) && groups.length > 0;
+    // Poll for deletion to propagate (up to 3 minutes)
+    let deleted = false;
+    for (let i = 0; i < 36; i++) {
+      await new Promise((r) => setTimeout(r, 5000)); // eslint-disable-line no-await-in-loop
+      cds.context = new cds.EventContext({ tenant: testTenantId });
+      // eslint-disable-next-line no-await-in-loop
+      const groups = await aiCore.run(
+        SELECT.from('AICore.resourceGroups').where({ tenantId: testTenantId })
+      );
+      if (!Array.isArray(groups) || groups.length === 0) {
+        deleted = true;
+        break;
+      }
+    }
     assert.strictEqual(
-      stillExists,
-      false,
+      deleted,
+      true,
       `Resource group should be deleted after unsubscribe for ${testTenantId}`
     );
   });
