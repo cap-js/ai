@@ -84,10 +84,17 @@ export function startSidecar() {
     proc.stdout.on('data', onData);
     proc.stderr.on('data', onData);
 
+    let started = false;
     function onData(data) {
-      output += data.toString();
+      const chunk = data.toString();
+      output += chunk;
+      if (started) {
+        process.stderr.write(`[sidecar] ${chunk}`);
+        return;
+      }
       const match = output.match(/server listening on \{[^}]*url:\s*'http:\/\/localhost:(\d+)'/);
       if (match) {
+        started = true;
         clearTimeout(timeout);
         resolve({ proc, port: Number(match[1]) });
       }
