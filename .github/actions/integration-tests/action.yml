@@ -98,6 +98,12 @@ runs:
     - run: npm run test:hybrid
       shell: bash
 
+    # Cleanup AI Core test resource groups
+    - name: Cleanup AI Core test resource groups
+      if: ${{ always() }}
+      shell: bash
+      run: cds bind --exec -- node tests/integration/cleanup-resource-groups.cjs || true
+
     # Cleanup BTP services
     - name: Delete HDI Container Key
       if: ${{ always() }}
