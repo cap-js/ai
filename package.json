@@ -16,6 +16,7 @@
     "format:check": "npx -y prettier@3 --check . && format-cds --check"
   },
   "files": [
+    "CHANGELOG.md",
     "lib",
     "srv"
   ],

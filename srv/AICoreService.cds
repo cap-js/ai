@@ -1,6 +1,3 @@
-// REVISIT: Is that model required at runtime at all?
-// If not, we should move it to a separate file that is only used for compilation tasks.
-
 @impl: './AICoreService.js'
 @protocol: 'none'
 service AICore {
