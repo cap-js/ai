@@ -7,8 +7,7 @@ async function main() {
   for (const g of groups) {
     const tenantLabel = g.labels?.find((l) => l.key === 'ext.ai.sap.com/CDS_TENANT_ID');
     if (!tenantLabel) continue;
-    const isTestGroup =
-      tenantLabel.value.startsWith('test-aicore-');
+    const isTestGroup = tenantLabel.value.startsWith('test-aicore-');
     if (!isTestGroup) continue;
     try {
       await aiCore.run(
