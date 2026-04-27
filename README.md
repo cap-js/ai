@@ -107,7 +107,7 @@ const {resourceGroups, deployments, configurations} = aiCore.entities;
 const resourceGroupId = await aiCore.resourceGroupForTenant(cds.context.tenant)
 
 // Call the RPT-1 API to fetch predictions - see AICoreService.cds for the schema
-const resourceGroupId = await aiCore.predictRowColumns(/** RPT-1 payload */)
+const predictions = await aiCore.predictRowColumns(/** RPT-1 payload */)
 
 /**
  * Returns the deployment ID for RPT-1. If no RPT-1 deployment exists, creates one for the
