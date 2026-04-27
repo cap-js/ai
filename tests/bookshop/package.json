@@ -22,9 +22,7 @@
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.16.0",
-    "@cap-js/sqlite": "*",
-    "@sap/cds-dk": "^9",
-    "@sap/ux-specification": "latest"
+    "@cap-js/sqlite": "*"
   },
   "engines": {
     "node": "^22.11.0"
