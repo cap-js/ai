@@ -25,6 +25,7 @@
     "@cap-js/cds-types": "^0.16.0",
     "@cap-js/sqlite": "*",
     "@eslint/js": "^9.39.4",
+    "@sap/cds-lsp": "^9.2.1",
     "eslint": "^10",
     "prettier": "^3.8.1"
   },
