@@ -41,7 +41,7 @@ jobs:
 
     needs: test
     runs-on: ubuntu-latest
-    environment: npm:@cap-js/ai
+    environment: npmjs:@cap-js/ai
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
