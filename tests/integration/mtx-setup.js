@@ -72,22 +72,34 @@ export function startSidecar() {
     const proc = spawn('npx', ['cds', 'serve', '--port', '0'], {
       cwd: SIDECAR_DIR,
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: sidecarEnv
+      env: sidecarEnv,
+      detached: true
     });
 
     let output = '';
     const timeout = setTimeout(() => {
-      proc.kill();
+      try {
+        process.kill(-proc.pid, 'SIGKILL');
+      } catch {
+        proc.kill('SIGKILL');
+      }
       reject(new Error(`Sidecar failed to start within 60s.\nOutput: ${output}`));
     }, 60_000);
 
     proc.stdout.on('data', onData);
     proc.stderr.on('data', onData);
 
+    let started = false;
     function onData(data) {
-      output += data.toString();
+      const chunk = data.toString();
+      output += chunk;
+      if (started) {
+        process.stderr.write(`[sidecar] ${chunk}`);
+        return;
+      }
       const match = output.match(/server listening on \{[^}]*url:\s*'http:\/\/localhost:(\d+)'/);
       if (match) {
+        started = true;
         clearTimeout(timeout);
         resolve({ proc, port: Number(match[1]) });
       }
@@ -141,11 +153,24 @@ export async function stopSidecar(proc) {
     if (proc.exitCode !== null) {
       // already exited
     } else {
-      proc.kill();
+      // Kill the entire process group (npx + cds serve + grandchildren)
+      try {
+        process.kill(-proc.pid, 'SIGTERM');
+      } catch {
+        /* already gone */
+      }
       await Promise.race([
         new Promise((resolve) => proc.on('exit', resolve)),
         new Promise((resolve) => setTimeout(resolve, 5_000))
       ]);
+      // Force kill if still alive after 5s
+      if (proc.exitCode === null) {
+        try {
+          process.kill(-proc.pid, 'SIGKILL');
+        } catch {
+          /* already gone */
+        }
+      }
     }
   }
   cleanDbFiles();
