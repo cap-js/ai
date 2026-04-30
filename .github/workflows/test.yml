@@ -19,6 +19,10 @@ jobs:
         node-version: [20.x, 22.x]
         cds-version: [latest]
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
       - uses: actions/checkout@v2
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@v2
@@ -36,6 +40,10 @@ jobs:
         node-version: [20.x, 22.x]
         cds-version: [latest]
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@v2
+        with:
+          egress-policy: audit
       - name: Checkout repository
         uses: actions/checkout@v4
       - name: Integration tests
