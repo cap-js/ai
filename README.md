@@ -58,6 +58,28 @@ annotate Books with {
 }
 ```
 
+#### Recommendations on fields without a value help
+
+By default the plugin only enhances fields that have a value list — that's how it auto-detects which columns are good prediction targets. Some fields are good targets but have no value list: free-form numerics like measurement ranges, calibration values, or planning estimates. Annotate these with `@AI.Recommend` to opt in:
+
+```cds
+entity CalibrationData : cuid {
+  measuringRangeMin : Decimal(16, 6) @AI.Recommend;
+  measuringRangeMax : Decimal(16, 6) @AI.Recommend;
+  operatingPoint    : Decimal(16, 6) @AI.Recommend;
+  description       : String         @AI.Recommend;
+}
+```
+
+The annotation only takes effect on **scalar** elements (no associations / compositions / unmanaged elements; for those, attach a value help instead). Annotated fields are added to the entity's `<Entity>_Recommendations` companion just like value-helped fields, and Fiori Elements' soft-fill placeholder renders the prediction in the empty input.
+
+`task_type` is chosen automatically per column:
+- numeric scalar (`Integer*`, `Decimal`, `Double`) annotated with `@AI.Recommend` → **`regression`** so RPT-1 can interpolate continuous values,
+- everything else → **`classification`**.
+
+> [!NOTE]
+> Numeric fields that have a value help (e.g. a fixed price-point list) stay on classification — `@AI.Recommend` is only needed when there is *no* value help. Combining both is unnecessary.
+
 #### How recommendations work under the hood
 
 A short FAQ for integrators, so you don't have to read the source.

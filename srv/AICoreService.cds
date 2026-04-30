@@ -226,7 +226,8 @@ service AICore {
       name                   : String;
       prediction_placeholder : String;
       task_type              : String enum {
-        classification = 'classification'
+        classification = 'classification';
+        regression     = 'regression';
       }
     }
   },

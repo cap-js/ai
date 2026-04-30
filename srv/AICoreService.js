@@ -50,6 +50,30 @@ function cdsToPythonDtype(cdsType) {
   return CDS_TO_PYTHON_DTYPE[cdsType];
 }
 
+const NUMERIC_CDS_TYPES = new Set([
+  'cds.Integer',
+  'cds.Integer64',
+  'cds.Int16',
+  'cds.Int32',
+  'cds.Int64',
+  'cds.UInt8',
+  'cds.Decimal',
+  'cds.Double'
+]);
+
+// Pick the RPT-1 task type per target column. Numeric scalars opted in via
+// `@AI.Recommend` get `regression` so the model can interpolate continuous
+// values; everything else (categorical, value-help-backed FKs, strings) gets
+// `classification`. The opt-in check protects against treating a value-list
+// FK column — auto-generated and inheriting the FK's numeric type — as
+// regression: those carry no `@AI.Recommend`, so they remain categorical.
+function pickTaskType(entity, columnName) {
+  const ele = entity?.elements?.[columnName];
+  if (!ele) return 'classification';
+  if (ele['@AI.Recommend'] && NUMERIC_CDS_TYPES.has(ele.type)) return 'regression';
+  return 'classification';
+}
+
 export default class AICore extends cds.ApplicationService {
   init() {
     this.on('fetchPredictions', this._fetchPrediction);
@@ -130,7 +154,7 @@ export default class AICore extends cds.ApplicationService {
           target_columns: predictionColumns.map((c) => ({
             name: c,
             prediction_placeholder: '[PREDICT]',
-            task_type: 'classification'
+            task_type: pickTaskType(entity, c)
           }))
         },
         // SAP_RECOMMENDATIONS_ID is generated in case the entity has composed keys or a key not named ID

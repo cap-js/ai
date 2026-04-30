@@ -11,6 +11,7 @@
 - Provide a CAP `AICore` service, via which SAP AI Core artefacts can be queried, like 'resourceGroups', 'deployments' or 'configurations' with `cds.ql` (`SELECT.from(resourceGroups)` and alike).
 - Automatically create an AI Core deployment for SAP RPT-1 which is used for the recommended values in single tenant and multi tenant scenarios. 
 - Automatically creates an AI Core resource group per tenant in multi tenant scenarios. In single tenant mode the 'default' resource group is used.
+- New `@AI.Recommend` opt-in annotation for scalar fields without a value help (free-form numerics, free-text). Annotated fields are added to the entity's `<Entity>_Recommendations` companion alongside value-helped fields. RPT-1 `task_type` is selected per column: numeric scalars opted in via `@AI.Recommend` use `regression` so the model can interpolate continuous values; everything else uses `classification` (existing behaviour). The `task_type` enum on `predictRowColumns` is widened from `{classification}` to `{classification, regression}`.
 
 ### Fixed
 - CDS-to-RPT-1 dtype map now matches the inference API's enum (`'string' | 'numeric' | 'date'`). Previously emitted `'bool'` for `cds.Boolean` and `'datetime'` for `cds.DateTime` / `cds.Timestamp`, causing HTTP 422 from `/predict` for any entity carrying those types. `cds.DateTime` and `cds.Timestamp` now map to `'string'` so the full ISO value is preserved as an opaque token (no time loss, no date-parse rejection).
