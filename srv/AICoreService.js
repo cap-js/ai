@@ -77,6 +77,13 @@ function pickTaskType(entity, columnName) {
   return 'classification';
 }
 
+// RPT-1 inference limits, per
+// https://help.sap.com/docs/sap-ai-core/generative-ai/sap-rpt-1
+// Exceeding either causes HTTP 422; we warn and skip the prediction so the
+// surrounding READ still completes instead of breaking the whole response.
+const RPT1_MAX_TARGET_COLUMNS = 10;
+const RPT1_MAX_ROW_COLUMNS = 100;
+
 export default class AICore extends cds.ApplicationService {
   init() {
     this.on('fetchPredictions', this._fetchPrediction);
@@ -137,6 +144,25 @@ export default class AICore extends cds.ApplicationService {
 
   async _fetchPrediction(req) {
     const { rows, entity: entityName, predictionColumns } = req.data;
+    // Empty rows would crash the schema-derivation reduce (rows[0] is
+    // undefined). Happens routinely when a draft composition is being
+    // read with no active rows yet — there is nothing to predict from.
+    if (!rows?.length) return {};
+    if (predictionColumns.length > RPT1_MAX_TARGET_COLUMNS) {
+      LOG.warn(
+        `Skipping recommendations for ${entityName}: ${predictionColumns.length} target columns exceeds the RPT-1 limit of ${RPT1_MAX_TARGET_COLUMNS}. ` +
+          'Opt fields out via @UI.RecommendationState : 0 to bring the count down.'
+      );
+      return {};
+    }
+    const rowColumnCount = Object.keys(rows[0]).length;
+    if (rowColumnCount > RPT1_MAX_ROW_COLUMNS) {
+      LOG.warn(
+        `Skipping recommendations for ${entityName}: rows carry ${rowColumnCount} columns, exceeding the RPT-1 limit of ${RPT1_MAX_ROW_COLUMNS}. ` +
+          'Either narrow the entity projection or opt out @cds.api.ignore-style columns that are not useful as features.'
+      );
+      return {};
+    }
     const entity = (cds.context?.model ?? cds.model).definitions[entityName];
     const dataSchema = entity
       ? Object.keys(entity.elements).reduce((acc, ele) => {
