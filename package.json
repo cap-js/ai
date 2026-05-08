@@ -1,6 +1,6 @@
 {
   "name": "@cap-js/ai",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "CAP cds-plugin for AI capabilities",
   "repository": "cap-js/ai",
   "type": "module",

@@ -4,7 +4,12 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
-## Version 1.0.0-alpha.1 - TBD
+## Version 1.0.1 - 2026-05-08
+
+### Fixed
+- Empty recommendations on read on active entities are returned empty to avoid UI errors
+
+## Version 1.0.0 - 2026-04-28
 
 ### Added
 - Out of box support for recommended values in field helps in Fiori UIs by providing an `SAP_Recommendations` navigation property in OData services which contains the recommendations.

@@ -19,6 +19,15 @@ describe('Fetching recommendations', () => {
     assert.ok(data.value.length >= 0);
   });
 
+  test('active entity returns SAP_Recommendations as null', async () => {
+    const { status, data } = await GET(
+      '/odata/v4/catalog/Books(ID=201,IsActiveEntity=true)?$expand=SAP_Recommendations'
+    );
+    assert.strictEqual(status, 200);
+    assert.strictEqual('SAP_Recommendations' in data, true);
+    assert.strictEqual(data.SAP_Recommendations, null);
+  });
+
   test('In draft mode recommendations are returned', async () => {
     const {
       data: { ID }
