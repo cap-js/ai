@@ -58,6 +58,53 @@ annotate Books with {
 }
 ```
 
+#### Recommendations on fields without a value help
+
+By default the plugin only enhances fields that have a value list — that's how it auto-detects which columns are good prediction targets. Some fields are good targets but have no value list: free-form numerics like measurement ranges, calibration values, or planning estimates. Annotate these with `@UI.RecommendationState : 1` to opt in:
+
+```cds
+entity CalibrationData : cuid {
+  measuringRangeMin : Decimal(16, 6) @UI.RecommendationState : 1;
+  measuringRangeMax : Decimal(16, 6) @UI.RecommendationState : 1;
+  operatingPoint    : Decimal(16, 6) @UI.RecommendationState : 1;
+  description       : String         @UI.RecommendationState : 1;
+}
+```
+
+The annotation only takes effect on **scalar** elements (no associations / compositions / unmanaged elements; for those, attach a value help instead). Annotated fields are added to the entity's `<Entity>_Recommendations` companion just like value-helped fields, and Fiori Elements' soft-fill placeholder renders the prediction in the empty input.
+
+`task_type` is chosen automatically per column:
+- numeric scalar (`Integer*`, `Decimal`, `Double`) annotated with `@UI.RecommendationState` → **`regression`** so RPT-1 can interpolate continuous values,
+- everything else → **`classification`**.
+
+> [!NOTE]
+> Numeric fields that have a value help (e.g. a fixed price-point list) stay on classification — `@UI.RecommendationState` is only needed when there is *no* value help. Combining both is unnecessary.
+
+#### How recommendations work under the hood
+
+A short FAQ for integrators, so you don't have to read the source.
+
+**What does the plugin emit on the OData service?**
+On every draft-enabled entity that has at least one value-helped field, it adds an entity-level annotation `@UI.Recommendations: { '=': 'SAP_Recommendations' }` plus a synthetic companion entity (`<Entity>_Recommendations`, `@cds.persistence.skip`) with one virtual array per recommendable field. Each item carries `RecommendedFieldValue`, `RecommendedFieldDescription`, `RecommendedFieldScoreValue` and `RecommendedFieldIsSuggestion` — the shape Fiori Elements expects for `UI.RecommendationListType`. The first entry per field has `RecommendedFieldIsSuggestion: true` and is rendered as the soft-fill default.
+
+**When does it run?**
+On READ requests to a draft entity that expand `SAP_Recommendations`. Reads against the active entity return nothing in that field. Reads during `draftActivate` are skipped.
+
+**What data is sent to RPT-1 as context?**
+Up to 2000 rows from the **active** version of the same entity, restricted to rows where every recommendable field is non-null. The columns `createdAt`, `createdBy`, `modifiedAt`, `modifiedBy` plus any `cds.LargeBinary` / `cds.Vector` elements are stripped. The active row corresponding to the draft (if any) is removed and replaced by the draft row carrying `[PREDICT]` placeholders in the columns to predict. There is no sampling or `ORDER BY` — for tables larger than 2000 rows, which rows make the cut is determined by the database.
+
+> [!IMPORTANT]
+> Everything in the remaining columns is forwarded to AI Core. Annotate sensitive fields with `@UI.RecommendationState : 0` (or a dynamic expression) to keep them out of both the predictions and the context payload.
+
+**How are descriptions populated?**
+For each predicted value, the plugin issues an extra SELECT against the field's `@Common.Text` association (if set) to fetch the human-readable label. Fields without `@Common.Text` get an empty `RecommendedFieldDescription`.
+
+**RPT-1 deployment lifecycle**
+First prediction call against a resource group provisions an `sap-rpt-1-small` deployment in scenario `foundation-models` (executable `aicore-sap`) and polls up to 10× with exponential backoff until it reaches `RUNNING`. Subsequent calls reuse the cached deployment. Single-tenant uses the configured `resourceGroup` (default `'default'`); multi-tenant creates one resource group per tenant on subscribe (label `ext.ai.sap.com/CDS_TENANT_ID`) and deletes it on unsubscribe.
+
+**Local development**
+Without an AI Core binding the plugin uses `MockAICoreService`, which returns the first non-null value of each target column from the context as the "prediction" — useful for UI smoke tests, useless as a quality signal. Run `cds bind <your-aicore-instance>` and start with profile `hybrid` to talk to a real AI Core deployment locally.
+
 ### 2. Use case: Simplified AI Core usage
 
 The plugin introduces an `AICore` CAP service that automatically performs some administrative tasks and offers simplified access to AI Core.
