@@ -15,10 +15,6 @@ jobs:
         node-version: [20.x, 22.x]
         cds-version: [latest]
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
-        with:
-          egress-policy: audit
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -29,7 +25,7 @@ jobs:
           npm run lint
           npm run test
       - name: Integration tests
-        uses: ./.github/actions/integration-tests
+        uses: cap-js/ai/.github/actions/integration-tests@main
         with:
           CF_API: ${{ secrets.CF_API }}
           CF_USERNAME: ${{ secrets.CF_USERNAME }}
@@ -47,10 +43,6 @@ jobs:
     runs-on: ubuntu-latest
     environment: npm:@cap-js/ai
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@f808768d1510423e83855289c910610ca9b43176 # v2.17.0
-        with:
-          egress-policy: audit
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
@@ -59,7 +51,7 @@ jobs:
       - run: npm install
       - name: get-version
         id: package-version
-        uses: martinbeentjes/npm-get-version-action@v1.2.3
+        uses: martinbeentjes/npm-get-version-action@7aa1d82604bb2dbe377a64ca35e692e6fe333c9c # v1.2.3
       - name: Parse changelog
         id: parse-changelog
         uses: schwma/parse-changelog-action@69a9f9ab4cf2f2e736108ab41396fc3c55f65e40 # v1.0.0
