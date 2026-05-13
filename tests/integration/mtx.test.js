@@ -77,13 +77,18 @@ describe('AICore MTX resource group lifecycle', { concurrency: false, timeout: 3
     for (let i = 0; i < 30; i++) {
       await new Promise((r) => setTimeout(r, 2000)); // eslint-disable-line no-await-in-loop
       cds.context = new cds.EventContext({ tenant: testTenantId });
-      // eslint-disable-next-line no-await-in-loop
-      const groups = await aiCore.run(
-        SELECT.from('AICore.resourceGroups').where({ tenantId: testTenantId })
-      );
-      if (Array.isArray(groups) && groups[0]?.status === 'PROVISIONED') {
-        provisioned = true;
-        break;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const groups = await aiCore.run(
+          SELECT.from('AICore.resourceGroups').where({ tenantId: testTenantId })
+        );
+        if (Array.isArray(groups) && groups[0]?.status === 'PROVISIONED') {
+          provisioned = true;
+          break;
+        }
+      } catch (e) {
+        // Transient network error — continue polling
+        console.warn(`Provisioning poll attempt ${i + 1} failed: ${e.message}`);
       }
     }
     assert.ok(provisioned, 'Resource group should reach PROVISIONED before unsubscribe');
@@ -96,13 +101,18 @@ describe('AICore MTX resource group lifecycle', { concurrency: false, timeout: 3
     for (let i = 0; i < 36; i++) {
       await new Promise((r) => setTimeout(r, 5000)); // eslint-disable-line no-await-in-loop
       cds.context = new cds.EventContext({ tenant: testTenantId });
-      // eslint-disable-next-line no-await-in-loop
-      const groups = await aiCore.run(
-        SELECT.from('AICore.resourceGroups').where({ tenantId: testTenantId })
-      );
-      if (!Array.isArray(groups) || groups.length === 0) {
-        deleted = true;
-        break;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const groups = await aiCore.run(
+          SELECT.from('AICore.resourceGroups').where({ tenantId: testTenantId })
+        );
+        if (!Array.isArray(groups) || groups.length === 0) {
+          deleted = true;
+          break;
+        }
+      } catch (e) {
+        // Transient network error — continue polling
+        console.warn(`Deletion poll attempt ${i + 1} failed: ${e.message}`);
       }
     }
     assert.strictEqual(
