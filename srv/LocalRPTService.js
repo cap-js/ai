@@ -6,7 +6,6 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { pipeline } from 'node:stream/promises';
-import { createHash } from 'node:crypto';
 
 import AICoreService from './AICoreService.js';
 
@@ -138,15 +137,21 @@ async function ensureEmbedder() {
   const headers = token ? { Authorization: `Bearer ${token}` } : {};
   const base = `https://huggingface.co/${EMBEDDER_ID}/resolve/main`;
 
-  let anyDownloaded = false;
-  for (const file of EMBEDDER_FILES) {
-    const dest = join(snapshotDir, file);
-    if (existsSync(dest) && (await stat(dest)).size > 0) continue;
-    if (!anyDownloaded) {
-      LOG.info(`[Local RPT] downloading sentence embedder (${EMBEDDER_ID})`);
-      anyDownloaded = true;
-    }
-    await _downloadFile(`${base}/${file}`, dest, `${EMBEDDER_ID}/${file}`, headers);
+  const missing = await Promise.all(
+    EMBEDDER_FILES.map(async (file) => {
+      const dest = join(snapshotDir, file);
+      if (existsSync(dest) && (await stat(dest)).size > 0) return null;
+      return file;
+    })
+  ).then((files) => files.filter(Boolean));
+
+  if (missing.length) {
+    LOG.info(`[Local RPT] downloading sentence embedder (${EMBEDDER_ID})`);
+    await Promise.all(
+      missing.map((file) =>
+        _downloadFile(`${base}/${file}`, join(snapshotDir, file), `${EMBEDDER_ID}/${file}`, headers)
+      )
+    );
   }
 
   // Write the refs/main pointer that huggingface_hub uses to resolve the snapshot
@@ -156,7 +161,7 @@ async function ensureEmbedder() {
     writeFileSync(refPath, 'main');
   }
 
-  if (anyDownloaded) process.stderr.write('  Embedder ready.\n\n');
+  if (missing.length) process.stderr.write('  Embedder ready.\n\n');
 }
 
 // ─── HuggingFace Inference API mode ──────────────────────────────────────────
