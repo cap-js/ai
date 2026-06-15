@@ -17,7 +17,9 @@ describe('Local RPT recommendations (AICore-local e2e)', () => {
   });
 
   test('recommendations are returned in draft mode', async () => {
-    const { data: { ID } } = await POST('/odata/v4/catalog/Books', {
+    const {
+      data: { ID }
+    } = await POST('/odata/v4/catalog/Books', {
       ID: Math.round(Math.random() * 10000)
     });
     const { status, data } = await GET(
@@ -29,7 +31,9 @@ describe('Local RPT recommendations (AICore-local e2e)', () => {
   });
 
   test('recommendations contain a default suggestion', async () => {
-    const { data: { ID } } = await POST('/odata/v4/catalog/Books', {
+    const {
+      data: { ID }
+    } = await POST('/odata/v4/catalog/Books', {
       ID: Math.round(Math.random() * 10000)
     });
     const { status, data } = await GET(
@@ -42,7 +46,9 @@ describe('Local RPT recommendations (AICore-local e2e)', () => {
   });
 
   test('description populated via @Common.Text', async () => {
-    const { data: { ID } } = await POST('/odata/v4/catalog/Books', {
+    const {
+      data: { ID }
+    } = await POST('/odata/v4/catalog/Books', {
       ID: Math.round(Math.random() * 10000)
     });
     const { data } = await GET(
@@ -53,7 +59,9 @@ describe('Local RPT recommendations (AICore-local e2e)', () => {
   });
 
   test('@UI.RecommendationState: 0 disables field', async () => {
-    const { data: { ID } } = await POST('/odata/v4/catalog/Books', {
+    const {
+      data: { ID }
+    } = await POST('/odata/v4/catalog/Books', {
       ID: Math.round(Math.random() * 10000)
     });
     const { data } = await GET(
@@ -63,7 +71,9 @@ describe('Local RPT recommendations (AICore-local e2e)', () => {
   });
 
   test('dynamic @UI.RecommendationState expression enables/disables field', async () => {
-    const { data: { ID } } = await POST('/odata/v4/catalog/Books', {
+    const {
+      data: { ID }
+    } = await POST('/odata/v4/catalog/Books', {
       ID: Math.round(Math.random() * 10000),
       genre_ID: 13
     });
@@ -80,7 +90,9 @@ describe('Local RPT recommendations (AICore-local e2e)', () => {
   });
 
   test('entity with non-ID key returns recommendations', async () => {
-    const { data: { notID } } = await POST('/odata/v4/catalog/BooksWithCustomKey', {
+    const {
+      data: { notID }
+    } = await POST('/odata/v4/catalog/BooksWithCustomKey', {
       notID: Math.round(Math.random() * 10000)
     });
     const { status, data } = await GET(
@@ -91,7 +103,9 @@ describe('Local RPT recommendations (AICore-local e2e)', () => {
   });
 
   test('entity with composed keys returns recommendations', async () => {
-    const { data: { key1, key2 } } = await POST('/odata/v4/catalog/BooksWithComposedKey', {
+    const {
+      data: { key1, key2 }
+    } = await POST('/odata/v4/catalog/BooksWithComposedKey', {
       key1: Math.round(Math.random() * 10000),
       key2: Math.round(Math.random() * 10000)
     });

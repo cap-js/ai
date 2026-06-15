@@ -26,7 +26,7 @@ const EMBEDDER_FILES = [
   'special_tokens_map.json',
   'vocab.txt',
   'model.safetensors',
-  '1_Pooling/config.json',
+  '1_Pooling/config.json'
 ];
 
 // ─── Cache helpers ────────────────────────────────────────────────────────────
@@ -71,12 +71,12 @@ async function _downloadFile(url, dest, label, headers = {}) {
     if (res.status === 401 || res.status === 403) {
       throw new Error(
         `Access denied when downloading ${label} (HTTP ${res.status}).\n\n` +
-        `  SAP/sap-rpt-1-oss is a gated model — you need a HuggingFace account and must\n` +
-        `  accept the model licence at https://huggingface.co/${MODEL_ID}\n\n` +
-        `  Then provide your HF token via .cdsrc-private.json (gitignored):\n` +
-        `        { "cds": { "rpt": { "hfToken": "hf_..." } } }\n\n` +
-        `  Generate a token at https://huggingface.co/settings/tokens\n` +
-        `  Required permission: "Read access to contents of all public gated repos you can access"`
+          `  SAP/sap-rpt-1-oss is a gated model — you need a HuggingFace account and must\n` +
+          `  accept the model licence at https://huggingface.co/${MODEL_ID}\n\n` +
+          `  Then provide your HF token via .cdsrc-private.json (gitignored):\n` +
+          `        { "cds": { "rpt": { "hfToken": "hf_..." } } }\n\n` +
+          `  Generate a token at https://huggingface.co/settings/tokens\n` +
+          `  Required permission: "Read access to contents of all public gated repos you can access"`
       );
     }
     throw new Error(`Download failed for ${label}: ${res.status} ${res.statusText}`);
@@ -103,7 +103,11 @@ async function _downloadFile(url, dest, label, headers = {}) {
 
   const { Transform } = await import('node:stream');
   const tracker = new Transform({
-    transform(chunk, _enc, cb) { downloaded += chunk.length; _drawBar(); cb(null, chunk); }
+    transform(chunk, _enc, cb) {
+      downloaded += chunk.length;
+      _drawBar();
+      cb(null, chunk);
+    }
   });
 
   process.stderr.write(`\n  Downloading ${label}\n`);
@@ -112,14 +116,20 @@ async function _downloadFile(url, dest, label, headers = {}) {
   process.stderr.write('\n');
 }
 
+const MODEL_MIN_SIZE = 50 * 1024 * 1024; // 50 MB — guards against partial downloads
+
 /** Ensure the RPT-1 checkpoint is on disk. */
 async function ensureModel() {
   const dest = _modelPath();
-  if (existsSync(dest) && (await stat(dest)).size > 0) return dest;
+  if (existsSync(dest) && (await stat(dest)).size >= MODEL_MIN_SIZE) return dest;
   LOG.info(`[Local RPT] downloading model checkpoint from ${MODEL_URL}`);
   const token = _hfToken();
-  await _downloadFile(MODEL_URL, dest, `${MODEL_FILE} (${MODEL_ID})`,
-    token ? { Authorization: `Bearer ${token}` } : {});
+  await _downloadFile(
+    MODEL_URL,
+    dest,
+    `${MODEL_FILE} (${MODEL_ID})`,
+    token ? { Authorization: `Bearer ${token}` } : {}
+  );
   process.stderr.write('  Download complete.\n\n');
   return dest;
 }
@@ -155,7 +165,13 @@ async function ensureEmbedder() {
   }
 
   // Write the refs/main pointer that huggingface_hub uses to resolve the snapshot
-  const refPath = join(_hfHome(), 'hub', 'models--' + EMBEDDER_ID.replace('/', '--'), 'refs', 'main');
+  const refPath = join(
+    _hfHome(),
+    'hub',
+    'models--' + EMBEDDER_ID.replace('/', '--'),
+    'refs',
+    'main'
+  );
   if (!existsSync(refPath)) {
     mkdirSync(dirname(refPath), { recursive: true });
     writeFileSync(refPath, 'main');
@@ -171,7 +187,7 @@ export class HFInferenceRPTService extends AICoreService {
     const token = _hfToken();
     if (!token)
       throw new cds.error(
-        'Missing HuggingFace token. Set cds.requires.AICore.credentials.token or HF_TOKEN.'
+        'Missing HuggingFace token. Configure cds.rpt.hfToken in .cdsrc-private.json.'
       );
     return token;
   }
@@ -249,8 +265,8 @@ export class LocalSubprocessRPTService extends AICoreService {
       env: {
         ...process.env,
         HF_TOKEN: token,
-        HUGGING_FACE_HUB_TOKEN: token,   // legacy env var checked by some HF libs
-        HF_HOME: _hfHome(),              // point Python at our pre-downloaded cache
+        HUGGING_FACE_HUB_TOKEN: token, // legacy env var checked by some HF libs
+        HF_HOME: _hfHome(), // point Python at our pre-downloaded cache
         RPT_MODEL_PATH: modelPath
       },
       stdio: ['pipe', 'pipe', 'pipe']
@@ -270,8 +286,12 @@ export class LocalSubprocessRPTService extends AICoreService {
     const rl = createInterface({ input: this._proc.stdout });
     rl.on('line', (line) => {
       let msg;
-      try { msg = JSON.parse(line); }
-      catch { LOG.warn(`[Local RPT] unexpected stdout: ${line}`); return; }
+      try {
+        msg = JSON.parse(line);
+      } catch {
+        LOG.warn(`[Local RPT] unexpected stdout: ${line}`);
+        return;
+      }
       const h = this._pending.get(msg.id);
       if (!h) return;
       this._pending.delete(msg.id);
@@ -284,19 +304,21 @@ export class LocalSubprocessRPTService extends AICoreService {
         const border = '─'.repeat(60);
         process.stderr.write(
           `\n  ┌${border}┐\n` +
-          `  │  sap_rpt_oss Python package is not installed.            │\n` +
-          `  │                                                          │\n` +
-          `  │  Install it once with:                                   │\n` +
-          `  │    pip install git+https://github.com/SAP-samples/       │\n` +
-          `  │                sap-rpt-1-oss                             │\n` +
-          `  │                                                          │\n` +
-          `  │  Requires: Python ≥3.11, torch, transformers             │\n` +
-          `  └${border}┘\n\n`
+            `  │  sap_rpt_oss Python package is not installed.            │\n` +
+            `  │                                                          │\n` +
+            `  │  Install it once with:                                   │\n` +
+            `  │    pip install git+https://github.com/SAP-samples/       │\n` +
+            `  │                sap-rpt-1-oss                             │\n` +
+            `  │                                                          │\n` +
+            `  │  Requires: Python ≥3.11, torch, transformers             │\n` +
+            `  └${border}┘\n\n`
         );
       }
       if (this._pending.size > 0) {
         const err = missingPackage
-          ? new Error('sap_rpt_oss not installed — run: pip install git+https://github.com/SAP-samples/sap-rpt-1-oss')
+          ? new Error(
+              'sap_rpt_oss not installed — run: pip install git+https://github.com/SAP-samples/sap-rpt-1-oss'
+            )
           : new Error(`Python inference process exited (code ${code})`);
         for (const [, h] of this._pending) h.reject(err);
         this._pending.clear();
@@ -318,6 +340,7 @@ export class LocalSubprocessRPTService extends AICoreService {
     LOG.debug(`[Local RPT] request #${id} — ${req.data.rows?.length ?? '?'} row(s)`);
 
     return new Promise((resolve, reject) => {
+      if (!this._proc) return reject(new Error('Python inference process is not running'));
       this._pending.set(id, { resolve, reject });
       this._proc.stdin.write(JSON.stringify({ id, data: req.data }) + '\n');
     });

@@ -4,4 +4,3 @@ gen/
 package-lock.json
 .env
 .cdsrc-private.json
-resources/.cds-private.json

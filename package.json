@@ -33,7 +33,7 @@
   },
   "cds": {
     "requires": {
-      "AICore": "AICore-local",
+      "AICore": "AICore-mocked",
       "[production]": {
         "AICore": "AICore-btp"
       },

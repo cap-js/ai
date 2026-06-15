@@ -17,6 +17,7 @@ import sys
 import os
 import warnings
 import traceback
+import pandas as pd
 from pathlib import Path
 
 # Silence noisy sap_rpt_oss dtype warnings — we normalise dtypes ourselves below
@@ -90,8 +91,6 @@ def predict(clf, data: dict) -> dict:
       index_column      – name of the ID column
       data_schema       – optional { col: {dtype} } map
     """
-    import pandas as pd
-
     rows = data["rows"]
     prediction_config = data["prediction_config"]
     index_column = data["index_column"]
@@ -105,17 +104,19 @@ def predict(clf, data: dict) -> dict:
     for _, row in df.iterrows():
         row_id = row[index_column]
         new_pred = {index_column: row_id}
-        needs_prediction = False
-
-        for col in target_cols:
-            if str(row.get(col)) == placeholder or row.get(col) is None:
-                needs_prediction = True
+        needs_prediction = any(
+            str(row.get(col)) == placeholder or row.get(col) is None
+            for col in target_cols
+        )
 
         if not needs_prediction:
             continue
 
-        # Build training context from rows that are NOT placeholders for this col
+        # Only predict columns that actually need it for this row
         for col in target_cols:
+            if str(row.get(col)) != placeholder and row.get(col) is not None:
+                continue
+
             train_rows = [
                 r for r in rows
                 if r.get(col) is not None and str(r.get(col)) != placeholder
@@ -126,19 +127,13 @@ def predict(clf, data: dict) -> dict:
 
             X_train = _coerce_dtypes(pd.DataFrame(train_rows).drop(columns=[col], errors="ignore"), data_schema)
             y_train = pd.DataFrame(train_rows)[col]
-
             test_row = _coerce_dtypes(df[df[index_column] == row_id].drop(columns=[col], errors="ignore").copy(), data_schema)
 
             try:
                 clf.fit(X_train, y_train)
                 probas = clf.predict_proba(test_row)
                 classes = clf.classes_
-                # Return top-3 candidates sorted by probability
-                ranked = sorted(
-                    zip(classes, probas[0]),
-                    key=lambda x: x[1],
-                    reverse=True
-                )[:3]
+                ranked = sorted(zip(classes, probas[0]), key=lambda x: x[1], reverse=True)[:3]
                 new_pred[col] = [{"prediction": str(c), "score": float(p)} for c, p in ranked]
             except Exception as exc:
                 new_pred[col] = [{"prediction": None, "error": str(exc)}]
@@ -168,7 +163,6 @@ def main():
 
     clf = load_model(model_path)
 
-    # Signal readiness to the Node.js parent
     _respond({"id": 0, "result": "ready"})
     print("Ready — waiting for requests.", flush=True)
 
