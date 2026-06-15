@@ -33,7 +33,7 @@
   },
   "cds": {
     "requires": {
-      "AICore": "AICore-mocked",
+      "AICore": "AICore-local",
       "[production]": {
         "AICore": "AICore-btp"
       },
@@ -49,6 +49,19 @@
           "resourceGroup": "default",
           "vcap": {
             "label": "aicore"
+          }
+        },
+        "AICore-local": {
+          "model": "@cap-js/ai/srv/LocalRPTService",
+          "local": true,
+          "credentials": {
+            "token": ""
+          }
+        },
+        "AICore-hf": {
+          "model": "@cap-js/ai/srv/LocalRPTService",
+          "credentials": {
+            "token": ""
           }
         }
       }
