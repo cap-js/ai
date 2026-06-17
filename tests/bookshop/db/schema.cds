@@ -39,7 +39,7 @@ entity Books : managed {
       details                       : Composition of one BookDetails
                                         on details.book = $self;
       stock                         : Integer @title: '{i18n>Stock}';
-      price                         : Decimal(6, 2) @title: '{i18n>Price}' @UI.RecommendationState;
+      price                         : Decimal(6, 2)  @title: '{i18n>Price}'  @UI.RecommendationState;
       currency                      : Currency  @Common.ValueListWithFixedValues  @title: '{i18n>Currency}';
       chapters                      : Composition of many Chapters
                                         on chapters.book = $self;
