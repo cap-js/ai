@@ -13,7 +13,7 @@ The SAP Cloud Application Programming Model, AI plugin for Node.js bundles two A
 
 ### 1. Use case: Recommendations
 
-Recommendations are implemented leveraging SAP-RPT-1 and AI Core. This plugin generically hooks into any entity which has properties with a value help (detected via `@Common.ValueList` on the property or `@cds.odata.valuelist` on the association target).
+Recommendations are implemented leveraging [SAP-RPT-1](https://help.sap.com/docs/sap-ai-core/generative-ai/sap-rpt-1) and AI Core. This plugin generically hooks into any entity which has properties with a value help (detected via `@Common.ValueList` on the property or `@cds.odata.valuelist` on the association target).
 
 ```cds 
 entity Books {
@@ -58,16 +58,16 @@ annotate Books with {
 }
 ```
 
-#### Recommendations on fields without a value help
+#### Regression Recommendations on fields without a value help
 
-By default the plugin only enhances fields that have a value list — that's how it auto-detects which columns are good prediction targets. Some fields are good targets but have no value list: free-form numerics like measurement ranges, calibration values, or planning estimates. Annotate these with `@UI.RecommendationState : 1` to opt in:
+By default, the plugin only enhances fields that have a value help list since these columns are good prediction targets for classification. However, some fields are good targets but have no value list: free-form numerics like measurement ranges, calibration values, or planning estimates. Annotate these with `@UI.RecommendationState` to opt in:
 
 ```cds
 entity CalibrationData : cuid {
-  measuringRangeMin : Decimal(16, 6) @UI.RecommendationState : 1;
-  measuringRangeMax : Decimal(16, 6) @UI.RecommendationState : 1;
-  operatingPoint    : Decimal(16, 6) @UI.RecommendationState : 1;
-  description       : String         @UI.RecommendationState : 1;
+  measuringRangeMin : Decimal(16, 6) @UI.RecommendationState;
+  measuringRangeMax : Decimal(16, 6) @UI.RecommendationState;
+  operatingPoint    : Decimal(16, 6) @UI.RecommendationState;
+  description       : String         @UI.RecommendationState;
 }
 ```
 
@@ -80,9 +80,14 @@ The annotation only takes effect on **scalar** elements (no associations / compo
 > [!NOTE]
 > Numeric fields that have a value help (e.g. a fixed price-point list) stay on classification — `@UI.RecommendationState` is only needed when there is *no* value help. Combining both is unnecessary.
 
-#### How recommendations work under the hood
+> [!WARNING]
+> SAP Fiori Elements does not yet support rendering recommendations for scalar fields without a value help. The backend correctly provides predictions for these fields, but the Fiori Elements client currently only requests and displays recommendations for fields annotated with `@Common.ValueList` or `@Common.ValueListWithFixedValues`.
+
+<details>
+<summary><b>How recommendations work under the hood</b></summary>
 
 A short FAQ for integrators, so you don't have to read the source.
+
 
 **What does the plugin emit on the OData service?**
 On every draft-enabled entity that has at least one value-helped field, it adds an entity-level annotation `@UI.Recommendations: { '=': 'SAP_Recommendations' }` plus a synthetic companion entity (`<Entity>_Recommendations`, `@cds.persistence.skip`) with one virtual array per recommendable field. Each item carries `RecommendedFieldValue`, `RecommendedFieldDescription`, `RecommendedFieldScoreValue` and `RecommendedFieldIsSuggestion` — the shape Fiori Elements expects for `UI.RecommendationListType`. The first entry per field has `RecommendedFieldIsSuggestion: true` and is rendered as the soft-fill default.
@@ -104,6 +109,8 @@ First prediction call against a resource group provisions an `sap-rpt-1-small` d
 
 **Local development**
 Without an AI Core binding the plugin uses `MockAICoreService`, which returns the first non-null value of each target column from the context as the "prediction" — useful for UI smoke tests, useless as a quality signal. Run `cds bind <your-aicore-instance>` and start with profile `hybrid` to talk to a real AI Core deployment locally.
+
+</details>
 
 ### 2. Use case: Simplified AI Core usage
 
