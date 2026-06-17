@@ -153,4 +153,22 @@ describe('Fetching recommendations', () => {
     assert.ok(data.SAP_Recommendations);
     assert.ok(data.SAP_Recommendations.currency_code.length);
   });
+
+  test('Recommendations are added to composition targets', async () => {
+    // Chapters is a Composition target of Books (which is draft-enabled)
+    const {
+      data: { ID }
+    } = await POST(`/odata/v4/catalog/Books`, { ID: Math.round(Math.random() * 10000) });
+    const { data: chapter } = await POST(
+      `/odata/v4/catalog/Books(ID=${ID},IsActiveEntity=false)/chapters`,
+      { title: 'Test Chapter' }
+    );
+    const { status, data } = await GET(
+      `/odata/v4/catalog/Chapters(ID=${chapter.ID},IsActiveEntity=false)?$expand=SAP_Recommendations`
+    );
+    assert.strictEqual(status, 200);
+    assert.ok(data);
+    assert.ok(data.SAP_Recommendations);
+    assert.ok(data.SAP_Recommendations.genre_ID.length);
+  });
 });
