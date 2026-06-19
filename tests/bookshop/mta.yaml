@@ -1,4 +1,4 @@
-_schema-version: "3.1"
+_schema-version: '3.1'
 ID: intelligent-cap-app
 description: A simple CAP project.
 version: 1.0.0
@@ -94,8 +94,7 @@ modules:
       commands:
         - npm install
         - npm run build:cf
-      supported-platforms:
-        []
+      supported-platforms: []
 resources:
   - name: intelligent-cap-app-db
     type: com.sap.xs.hdi-container

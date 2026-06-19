@@ -43,6 +43,39 @@ jobs:
       - run: cd tests/bookshop && npm i
       - run: npm run test
 
+  local-tests:
+    runs-on: ubuntu-latest
+    needs: requires-approval
+    if: always() && (needs.requires-approval.result == 'success' || needs.requires-approval.result == 'skipped')
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20.x, 22.x]
+        cds-version: [latest]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install sap_rpt_oss
+        run: pip install git+https://github.com/SAP-samples/sap-rpt-1-oss
+      - name: Configure HuggingFace token
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          printf '{"cds":{"rpt":{"hfToken":"%s"}}}\n' "$HF_TOKEN" > tests/bookshop/.cdsrc-private.json
+      - run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
+      - run: npm i
+      - run: cd tests/bookshop && npm i
+      - name: Run local RPT e2e tests
+        run: node --test tests/local/local.test.js
+
   integration-tests:
     runs-on: ubuntu-latest
     needs: requires-approval

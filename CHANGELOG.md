@@ -4,11 +4,14 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
-
 ## Version 1.1.0 - Upcoming
 
 ### Added
 - New `@UI.RecommendationState` opt-in annotation for scalar fields to use Regression prediction from RPT-1
+- - Local inference mode using the open-source [SAP RPT-1 OSS](https://huggingface.co/SAP/sap-rpt-1-oss) model (`AICore-local`), without requiring an SAP AI Core service binding
+- HuggingFace Inference API mode (`AICore-hf`) as a lightweight alternative that requires only a HuggingFace token
+- Automatic model download on first startup; checkpoint and sentence embedder are cached in `~/.cache/sap-rpt-1-oss/`
+- Configure HuggingFace token via `cds.rpt.hfToken` in `.cdsrc-private.json`
 
 ### Changed
 - Extend `task_type` to `{classification, regression}`
