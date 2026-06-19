@@ -4,6 +4,21 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+
+## Version 1.1.0 - Upcoming
+
+### Added
+- New `@UI.RecommendationState` opt-in annotation for scalar fields to use Regression prediction from RPT-1
+
+### Changed
+- Extend `task_type` to `{classification, regression}`
+
+### Fixed
+- CDS-to-RPT-1 dtype map now correctly maps `cds.Boolean` to `'string'` and `cds.DateTime`/`cds.Timestamp` to `'string'`, fixing HTTP 422 errors from `/predict`
+- Recurisly enhance composition children of draft-enabled entities so recommendations are displayed for nested entities
+- Fix empty-rows server crash in `_fetchPrediction` when draft entity compositions are empty, now returns an empty result instead of throwing a TypeError
+- RPT-1 inference limits now honoured: `_fetchPrediction` logs a warning and returns empty when `target_columns > 10` or `row columns > 100`, instead of letting the API reject with a 422
+
 ## Version 1.0.1 - 2026-05-08
 
 ### Fixed

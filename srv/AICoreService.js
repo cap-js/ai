@@ -20,6 +20,13 @@ import { createConfiguration, readConfigurations } from './ai-core/configuration
 
 const LOG = cds.log('@cap-js/ai');
 
+// RPT-1 inference only accepts dtype values 'string', 'numeric' or 'date'.
+// - Booleans round-trip as 'true' / 'false' strings.
+// - cds.Date maps to 'date' (calendar date, no time portion).
+// - cds.DateTime / cds.Timestamp keep their time portion: declared as
+//   'string' so RPT-1 treats the ISO value as an opaque categorical token
+//   instead of date-parsing it (which would drop the time and may reject
+//   ISO timestamps that aren't pure YYYY-MM-DD).
 const CDS_TO_PYTHON_DTYPE = {
   'cds.String': 'string',
   'cds.LargeString': 'string',
@@ -32,16 +39,50 @@ const CDS_TO_PYTHON_DTYPE = {
   'cds.UInt8': 'numeric',
   'cds.Decimal': 'numeric',
   'cds.Double': 'numeric',
-  'cds.Boolean': 'bool',
+  'cds.Boolean': 'string',
   'cds.Date': 'date',
   'cds.Time': 'string',
-  'cds.DateTime': 'datetime',
-  'cds.Timestamp': 'datetime'
+  'cds.DateTime': 'string',
+  'cds.Timestamp': 'string'
 };
 
 function cdsToPythonDtype(cdsType) {
   return CDS_TO_PYTHON_DTYPE[cdsType];
 }
+
+const NUMERIC_CDS_TYPES = new Set([
+  'cds.Integer',
+  'cds.Integer64',
+  'cds.Int16',
+  'cds.Int32',
+  'cds.Int64',
+  'cds.UInt8',
+  'cds.Decimal',
+  'cds.Double'
+]);
+
+// Pick the RPT-1 task type per target column. Fields with a ValueList always
+// get `classification` — they represent categorical choices. Numeric scalars
+// opted in via `@UI.RecommendationState` (without a ValueList) get `regression`
+// so the model can interpolate continuous values; everything else gets
+// `classification`.
+function pickTaskType(entity, columnName) {
+  const ele = entity?.elements?.[columnName];
+  if (!ele) return 'classification';
+  const hasValueList =
+    ele['@Common.ValueList.CollectionPath'] ||
+    cds.model.definitions[ele.target]?.['@cds.odata.valuelist'];
+  if (hasValueList) return 'classification';
+  if (ele['@UI.RecommendationState'] && NUMERIC_CDS_TYPES.has(ele.type)) return 'regression';
+  return 'classification';
+}
+
+// RPT-1 inference limits, per
+// https://help.sap.com/docs/sap-ai-core/generative-ai/sap-rpt-1
+// Exceeding either causes HTTP 422; we warn and skip the prediction so the
+// surrounding READ still completes instead of breaking the whole response.
+const RPT1_MAX_TARGET_COLUMNS = 10;
+const RPT1_MAX_ROW_COLUMNS = 100;
 
 export default class AICore extends cds.ApplicationService {
   init() {
@@ -103,6 +144,25 @@ export default class AICore extends cds.ApplicationService {
 
   async _fetchPrediction(req) {
     const { rows, entity: entityName, predictionColumns } = req.data;
+    // Empty rows would crash the schema-derivation reduce (rows[0] is
+    // undefined). Happens routinely when a draft composition is being
+    // read with no active rows yet — there is nothing to predict from.
+    if (!rows?.length) return {};
+    if (predictionColumns.length > RPT1_MAX_TARGET_COLUMNS) {
+      LOG.warn(
+        `Skipping recommendations for ${entityName}: ${predictionColumns.length} target columns exceeds the RPT-1 limit of ${RPT1_MAX_TARGET_COLUMNS}. ` +
+          'Opt fields out via @UI.RecommendationState : 0 to bring the count down.'
+      );
+      return {};
+    }
+    const rowColumnCount = Object.keys(rows[0]).length;
+    if (rowColumnCount > RPT1_MAX_ROW_COLUMNS) {
+      LOG.warn(
+        `Skipping recommendations for ${entityName}: rows carry ${rowColumnCount} columns, exceeding the RPT-1 limit of ${RPT1_MAX_ROW_COLUMNS}. ` +
+          'Either narrow the entity projection or opt out @cds.api.ignore-style columns that are not useful as features.'
+      );
+      return {};
+    }
     const entity = (cds.context?.model ?? cds.model).definitions[entityName];
     const dataSchema = entity
       ? Object.keys(entity.elements).reduce((acc, ele) => {
@@ -123,7 +183,7 @@ export default class AICore extends cds.ApplicationService {
           target_columns: predictionColumns.map((c) => ({
             name: c,
             prediction_placeholder: '[PREDICT]',
-            task_type: 'classification'
+            task_type: pickTaskType(entity, c)
           }))
         },
         // SAP_RECOMMENDATIONS_ID is generated in case the entity has composed keys or a key not named ID
