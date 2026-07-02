@@ -227,6 +227,79 @@ cds bind ai-core -2 <your-ai-core-service-instance>
 npm run test:hybrid
 ```
 
+### Local mode (without SAP AI Core)
+
+Instead of connecting to SAP AI Core, you can run the plugin locally using the open-source [SAP RPT-1 OSS](https://huggingface.co/SAP/sap-rpt-1-oss) model. Two backends are supported:
+
+| Kind | How it works | Requires |
+|---|---|---|
+| `AICore-local` | Downloads the model checkpoint (~65 MB) on first startup and runs inference locally via a Python subprocess | Python ≥3.11, `sap_rpt_oss` package |
+| `AICore-hf` | Calls the HuggingFace Inference API — no local Python needed | HuggingFace token |
+
+#### Setup
+
+**1. Accept the model licence**
+
+Visit [https://huggingface.co/SAP/sap-rpt-1-oss](https://huggingface.co/SAP/sap-rpt-1-oss) and click **Agree** while logged in to your HuggingFace account.
+
+**2. Create a HuggingFace token**
+
+Go to [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and create a fine-grained token with the permission:
+> _Read access to contents of all public gated repos you can access_
+
+**3. Configure the token**
+
+Add a `.cdsrc-private.json` file to your project root (it is gitignored by default):
+
+```json
+{
+  "cds": {
+    "rpt": {
+      "hfToken": "hf_..."
+    }
+  }
+}
+```
+
+**4a. Local inference (`AICore-local`)**
+
+Install the Python package once:
+
+```bash
+pip install git+https://github.com/SAP-samples/sap-rpt-1-oss
+```
+
+Then activate local mode in your `package.json` or `.cdsrc.json`:
+
+```json
+{
+  "cds": {
+    "requires": {
+      "AICore": "AICore-local"
+    }
+  }
+}
+```
+
+On first startup the model checkpoint is downloaded automatically and cached in `~/.cache/SAP/sap-rpt-1-oss/`. Subsequent startups skip the download and load directly from cache.
+
+**4b. HuggingFace Inference API (`AICore-hf`)**
+
+No Python installation needed. Activate with:
+
+```json
+{
+  "cds": {
+    "requires": {
+      "AICore": "AICore-hf"
+    }
+  }
+}
+```
+
+> [!NOTE]
+> The default kind for local development (no CDS profile) is `AICore-local`. Production and hybrid profiles use `AICore-btp`.
+
 ## Support, Feedback, Contributing
 
 This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/cap-js/ai/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
