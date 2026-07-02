@@ -9,10 +9,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 let { GET, POST, PATCH, axios } = cdsTest(path.join(__dirname, './bookshop'));
+axios.defaults.auth = { username: 'alice' };
 
-describe('Fetching recommendations', () => {
-  axios.defaults.auth = { username: 'alice' };
-
+describe('Classification predictions', () => {
   test('requesting recommendations on active entity return nothing', async () => {
     const { status, data } = await GET('/odata/v4/catalog/Books?$expand=SAP_Recommendations');
     assert.strictEqual(status, 200);
@@ -152,5 +151,45 @@ describe('Fetching recommendations', () => {
     assert.ok(data);
     assert.ok(data.SAP_Recommendations);
     assert.ok(data.SAP_Recommendations.currency_code.length);
+  });
+
+  test('Recommendations are added to composition targets', async () => {
+    // Chapters is a Composition target of Books (which is draft-enabled)
+    const {
+      data: { ID }
+    } = await POST(`/odata/v4/catalog/Books`, { ID: Math.round(Math.random() * 10000) });
+    const { data: chapter } = await POST(
+      `/odata/v4/catalog/Books(ID=${ID},IsActiveEntity=false)/chapters`,
+      { title: 'Test Chapter' }
+    );
+    const { status, data } = await GET(
+      `/odata/v4/catalog/Chapters(ID=${chapter.ID},IsActiveEntity=false)?$expand=SAP_Recommendations`
+    );
+    assert.strictEqual(status, 200);
+    assert.ok(data);
+    assert.ok(data.SAP_Recommendations);
+    assert.ok(data.SAP_Recommendations.genre_ID.length);
+  });
+});
+
+describe('Regression predictions', () => {
+  test('Scalar field with @UI.RecommendationState is included in Recommendations entity', async () => {
+    assert.equal(
+      !!cds.model.definitions['CatalogService.Books_Recommendations'].elements['price'],
+      true
+    );
+  });
+
+  test('Predictions are returned for scalar field with @UI.RecommendationState', async () => {
+    const {
+      data: { ID }
+    } = await POST(`/odata/v4/catalog/Books`, { ID: Math.round(Math.random() * 10000) });
+    const { status, data } = await GET(
+      `/odata/v4/catalog/Books(ID=${ID},IsActiveEntity=false)?$expand=SAP_Recommendations`
+    );
+    assert.strictEqual(status, 200);
+    assert.ok(data.SAP_Recommendations);
+    assert.ok(data.SAP_Recommendations.price.length);
+    assert.strictEqual(typeof data.SAP_Recommendations.price[0].RecommendedFieldValue, 'number');
   });
 });
