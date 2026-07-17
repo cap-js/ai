@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-  pull_request_target:
+  pull_request:
     branches: [main]
     types: [reopened, synchronize, opened]
 
@@ -64,7 +64,7 @@ jobs:
         cds-version: [9, latest]
     steps:
       - name: Integration tests
-        uses: cap-js/ai/.github/actions/integration-tests@main
+        uses: cap-js/ai/.github/actions/integration-tests@cds-10
         with:
           CF_API: ${{ secrets.CF_API }}
           CF_USERNAME: ${{ secrets.CF_USERNAME }}
