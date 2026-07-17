@@ -5,7 +5,7 @@
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
 
-## Version 1.1.0 - Upcoming
+## Version 1.1.0 - 2026-07-17
 
 ### Added
 - New `@UI.RecommendationState` opt-in annotation for scalar fields to use Regression prediction from RPT-1
