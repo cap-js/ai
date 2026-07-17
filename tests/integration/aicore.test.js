@@ -241,6 +241,32 @@ describe('AICore Service - cds.ql integration', { concurrency: false }, () => {
       assert.ok(created?.id, 'Should create a deployment');
       const deploymentId = created.id;
 
+      t.after(async () => {
+        try {
+          await withTenant('t0', () =>
+            aiCore.send({
+              event: 'stop',
+              entity: 'AICore.deployments',
+              params: [{ id: deploymentId }]
+            })
+          );
+        } catch {
+          /* stop() may fail on UNKNOWN status — ignore */
+        }
+        try {
+          await withTenant('t0', () =>
+            aiCore.run(
+              DELETE.from('AICore.deployments').where({
+                id: deploymentId,
+                'resourceGroup.resourceGroupId': defaultResourceGroupId
+              })
+            )
+          );
+        } catch {
+          /* DELETE may 404 if the test-body DELETE already succeeded — ignore */
+        }
+      });
+
       // Verify it appears in the list
       const afterCreate = await withTenant('t0', () =>
         aiCore.run(
