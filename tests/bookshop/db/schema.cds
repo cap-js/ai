@@ -67,12 +67,12 @@ entity Books : managed {
 }
 
 entity RestrictedBooks : managed {
-  key ID     : Integer @title: '{i18n>ID}';
+  key ID                : Integer @title: '{i18n>ID}';
 
       @mandatory
-      title  : String(20) @title: '{i18n>Title}';
+      title             : String(20) @title: '{i18n>Title}';
 
-      owner  : String @title: 'Owner';
+      owner             : String @title: 'Owner';
 
       @mandatory author : Association to Authors  @title: '{i18n>AUTHOR}'  @Common.Text: author.name  @Common.TextArrangement: #TextFirst  @Common.ValueList: {
                             CollectionPath: 'Authors',

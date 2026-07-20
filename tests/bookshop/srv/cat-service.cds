@@ -19,7 +19,7 @@ service CatalogService {
   @requires: 'authenticated-user'
   @restrict: [{
     grant: '*',
-    to   : 'authenticated-user',
+    to: 'authenticated-user',
     where: 'owner = $user.id'
   }]
   @odata.draft.enabled
