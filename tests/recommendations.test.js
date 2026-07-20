@@ -198,3 +198,38 @@ describe('Regression predictions', () => {
     assert.ok(Number.isFinite(Number(rec)), `RecommendedFieldValue is not numeric: ${rec}`);
   });
 });
+
+describe('Row-level authorization', () => {
+  let capturedContextRows;
+  before(async () => {
+    const aiCore = await cds.connect.to('AICore');
+    aiCore.before('fetchPredictions', (req) => {
+      capturedContextRows = req.data.rows;
+    });
+  });
+
+  test('context sent to AI Core only contains rows the user is authorized to read', async () => {
+    capturedContextRows = undefined;
+
+    const {
+      data: { ID }
+    } = await POST(`/odata/v4/catalog/RestrictedBooks`, {
+      ID: Math.round(Math.random() * 100000),
+      owner: 'alice'
+    });
+    const { status } = await GET(
+      `/odata/v4/catalog/RestrictedBooks(ID=${ID},IsActiveEntity=false)?$expand=SAP_Recommendations`
+    );
+    assert.strictEqual(status, 200);
+
+    assert.ok(capturedContextRows, 'expected fetchPredictions to be called with context rows');
+
+    const owners = capturedContextRows.map((r) => r.owner).filter((o) => o != null);
+    const leakedRows = capturedContextRows.filter((r) => r.owner && r.owner !== 'alice');
+    assert.deepStrictEqual(
+      leakedRows,
+      [],
+      `context leaked rows not owned by alice: ${JSON.stringify(owners)}`
+    );
+  });
+});

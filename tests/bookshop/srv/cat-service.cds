@@ -16,6 +16,15 @@ service CatalogService {
   @odata.draft.enabled
   entity BooksWithCustomKey   as projection on my.BooksWithCustomKey;
 
+  @requires: 'authenticated-user'
+  @restrict: [{
+    grant: '*',
+    to: 'authenticated-user',
+    where: 'owner = $user.id'
+  }]
+  @odata.draft.enabled
+  entity RestrictedBooks      as projection on my.RestrictedBooks;
+
   entity Authors              as
     select from my.Authors
     excluding {
