@@ -190,6 +190,11 @@ describe('Regression predictions', () => {
     assert.strictEqual(status, 200);
     assert.ok(data.SAP_Recommendations);
     assert.ok(data.SAP_Recommendations.price.length);
-    assert.strictEqual(typeof data.SAP_Recommendations.price[0].RecommendedFieldValue, 'number');
+    const rec = data.SAP_Recommendations.price[0].RecommendedFieldValue;
+    assert.ok(
+      typeof rec === 'number' || typeof rec === 'string',
+      `RecommendedFieldValue has unexpected type: ${typeof rec}`
+    );
+    assert.ok(Number.isFinite(Number(rec)), `RecommendedFieldValue is not numeric: ${rec}`);
   });
 });

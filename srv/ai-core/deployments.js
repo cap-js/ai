@@ -185,8 +185,10 @@ export async function rpt1ForResourceGroup(req) {
   const deploymentsList = await this.run(
     SELECT.from(deployments).where({ 'resourceGroup.resourceGroupId': resourceGroupId })
   );
-  let deployment = deploymentsList?.find((r) => r.configurationName.match(/rpt-1/));
-  if (!deployment || (deployment.status !== 'RUNNING' && deployment.status !== 'PENDING')) {
+  const rpt1s = (deploymentsList ?? []).filter((r) => r.configurationName?.match(/rpt-1/));
+  let deployment =
+    rpt1s.find((r) => r.status === 'RUNNING') ?? rpt1s.find((r) => r.status === 'PENDING');
+  if (!deployment) {
     // Create RPT-1 deployment on demand if the resource group is missing it
     const configurationsList = await this.run(
       SELECT.from(configurations)
@@ -229,8 +231,10 @@ export async function rpt1ForResourceGroup(req) {
       }
     }
   }
-  this.resourceRPTMappings.set(resourceGroupId, deployment.id);
-  return deployment.id;
+  if (deployment?.status === 'RUNNING') {
+    this.resourceRPTMappings.set(resourceGroupId, deployment.id);
+  }
+  return deployment?.id;
 }
 
 export async function orchestrationForResourceGroup(req) {
