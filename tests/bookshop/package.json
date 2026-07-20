@@ -8,21 +8,21 @@
   "type": "module",
   "dependencies": {
     "@cap-js/ai": "file:../../",
-    "@cap-js/hana": "^2",
+    "@cap-js/hana": ">=2",
     "@sap-ai-sdk/orchestration": "^2.5.0",
     "@sap-ai-sdk/prompt-registry": "^2.5.0",
     "@sap-cloud-sdk/connectivity": "^4",
     "@sap-cloud-sdk/http-client": "^4",
     "@sap-cloud-sdk/resilience": "^4.3.1",
-    "@sap/cds": "^9",
+    "@sap/cds": ">=9",
     "@sap/cds-common-content": "^3.1.0",
-    "@sap/cds-mtxs": "^3",
+    "@sap/cds-mtxs": ">=3",
     "@sap/xssec": "^4",
     "express": "^5"
   },
   "devDependencies": {
     "@cap-js/cds-types": "^0.16.0",
-    "@cap-js/sqlite": "*"
+    "@cap-js/sqlite": ">=2"
   },
   "engines": {
     "node": "^22.11.0"

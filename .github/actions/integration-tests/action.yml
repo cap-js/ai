@@ -19,6 +19,9 @@ inputs:
   NODE_VERSION:
     description: "Node.js version to use for tests"
     required: true
+  CDS_VERSION:
+    description: "CDS version to install globally (e.g. 9, latest)"
+    required: true
 runs:
   using: "composite"
   steps:
@@ -57,30 +60,34 @@ runs:
     - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
       with:
         ref: ${{ github.event.pull_request.head.sha || github.sha }}
-    - name: Use Node.js ${{ inputs.NODE_VERSION}}
+    - name: Use Node.js ${{ inputs.NODE_VERSION }}
       uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
       with:
         node-version: ${{ inputs.NODE_VERSION }}
 
     - name: Install global CDS
       shell: bash
-      run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
-    - name: Install root dependencies
+      run: npm i -g @sap/cds-dk@${{ inputs.CDS_VERSION }}
+
+    - name: Pin CDS 9 compatible stack
+      if: inputs.CDS_VERSION == '9'
       shell: bash
       run: |
-        npm install @sap/cds@${{ matrix.cds-version }}
-        npm install
-    - name: Install bookshop dependencies
+        npm pkg set "overrides.@cap-js/sqlite=^2"
+        npm pkg set "overrides.@cap-js/hana=^2"
+        npm pkg set "overrides.@sap/cds-mtxs=^3"
+        npm pkg set "devDependencies.@sap/cds=^9"
+        npm pkg set --workspace=tests/bookshop "dependencies.@sap/cds=^9"
+
+    - name: Install all dependencies
       shell: bash
-      run: |
-        cd tests/bookshop && npm install @sap/cds@${{ matrix.cds-version }}
-        npm install
-      
+      run: npm install
+
     - name: Set node env for HANA
       run: echo "NODE_VERSION_HANA=$(echo ${{ inputs.NODE_VERSION }} | tr . _)" >> $GITHUB_ENV
       shell: bash
-    - name: Set node env for CDS
-      run: echo "CDS_VERSION=$(echo ${{ matrix.cds-version }} | tr . _)" >> $GITHUB_ENV
+    - name: Set env for CDS version (safe for service names)
+      run: echo "CDS_VERSION_HANA=$(echo ${{ inputs.CDS_VERSION }} | tr . _)" >> $GITHUB_ENV
       shell: bash
     - name: CDS Versions being used
       run: cds v -i
@@ -89,13 +96,13 @@ runs:
     # Deploy model to HANA
     - name: Create HDI Container
       shell: bash
-      run: cf create-service hana hdi-shared cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION
-    - run: cd tests/bookshop/ && cds deploy --to hana:cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION
+      run: cf create-service hana hdi-shared cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
+    - run: cd tests/bookshop/ && cds deploy --to hana:cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
       shell: bash
 
     # Bind against BTP services
     - name: Bind HANA
-      run: cds bind db -2 cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION -o package.json
+      run: cds bind db -2 cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA -o package.json
       shell: bash
     - name: Bind AI Core
       run: cds bind ai-core -2 cap-js-ai-core -o package.json
@@ -114,7 +121,7 @@ runs:
     # Cleanup BTP services
     - name: Delete HDI Container Key
       if: ${{ always() }}
-      run: cf delete-service-key cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION-key -f
+      run: cf delete-service-key cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA-key -f
       shell: bash
 
     # Note: The initial delete attempt often fails due to an "ongoing operation on service binding" error.
@@ -123,7 +130,7 @@ runs:
       shell: bash
       run: |
         for i in {1..3}; do
-          cf delete-service cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION -f && break
+          cf delete-service cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA -f && break
           echo "HDI container delete failed, retrying ($i/3)..."
           sleep 10
           if [ "$i" -eq 3 ]; then

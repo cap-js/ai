@@ -22,14 +22,16 @@ jobs:
         run: echo "This job has been approved!"
 
   test:
+    name: Tests with Node.js ${{ matrix.node-version }} (CDS ${{ matrix.cds-version }})
     runs-on: ubuntu-latest
     needs: requires-approval
     if: always() && (needs.requires-approval.result == 'success' || needs.requires-approval.result == 'skipped')
+    timeout-minutes: 3
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20.x, 22.x]
-        cds-version: [latest]
+        node-version: [22.x, 24.x]
+        cds-version: [9, latest]
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
@@ -38,20 +40,29 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node-version }}
+      - name: Pin CDS 9 compatible stack
+        if: matrix.cds-version == '9'
+        run: |
+          npm pkg set "overrides.@cap-js/sqlite=^2"
+          npm pkg set "overrides.@cap-js/hana=^2"
+          npm pkg set "overrides.@sap/cds-mtxs=^3"
+          npm pkg set "devDependencies.@sap/cds=^9"
+          npm pkg set --workspace=tests/bookshop "dependencies.@sap/cds=^9"
       - run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
       - run: npm i
-      - run: cd tests/bookshop && npm i
+      - run: cd tests/bookshop && cds v -i
       - run: npm run test
 
   integration-tests:
+    name: Integration Tests with Node.js ${{ matrix.node-version }} (CDS ${{ matrix.cds-version }})
     runs-on: ubuntu-latest
     needs: requires-approval
     if: always() && (needs.requires-approval.result == 'success' || needs.requires-approval.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
-        node-version: [20.x, 22.x]
-        cds-version: [latest]
+        node-version: [22.x, 24.x]
+        cds-version: [9, latest]
     steps:
       - name: Integration tests
         uses: cap-js/ai/.github/actions/integration-tests@main
@@ -62,3 +73,4 @@ jobs:
           CF_ORG: ${{ secrets.CF_ORG }}
           CF_SPACE: ${{ secrets.CF_SPACE }}
           NODE_VERSION: ${{ matrix.node-version }}
+          CDS_VERSION: ${{ matrix.cds-version }}
