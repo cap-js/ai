@@ -159,7 +159,7 @@ export default class AICore extends cds.ApplicationService {
     if (rowColumnCount > RPT1_MAX_ROW_COLUMNS) {
       LOG.warn(
         `Skipping recommendations for ${entityName}: rows carry ${rowColumnCount} columns, exceeding the RPT-1 limit of ${RPT1_MAX_ROW_COLUMNS}. ` +
-          'Either narrow the entity projection or opt out @cds.api.ignore-style columns that are not useful as features.'
+          'Either narrow the entity projection or opt out non-feature fields via @AI.Feature: false.'
       );
       return {};
     }

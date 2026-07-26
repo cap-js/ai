@@ -215,7 +215,7 @@ describe('Draft-technical association fields', () => {
     });
   });
 
-  test('rows sent to AI Core carry no DraftAdministrativeData or other associations', async () => {
+  test('rows sent to AI Core exclude non-predictive fields', async () => {
     capturedContextRows = undefined;
 
     // Put an existing active book into edit-draft so an *active* context row
@@ -244,6 +244,13 @@ describe('Draft-technical association fields', () => {
         assert.ok(
           value === null || typeof value !== 'object',
           `row carries non-scalar value for "${key}": ${JSON.stringify(row[key])}`
+        );
+      }
+      for (const field of ['computedUiState', 'virtualUiState', 'nonPredictiveFeature']) {
+        assert.strictEqual(
+          field in row,
+          false,
+          `row carries non-predictive field "${field}": ${JSON.stringify(row[field])}`
         );
       }
     }
