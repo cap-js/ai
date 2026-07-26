@@ -58,6 +58,27 @@ annotate Books with {
 }
 ```
 
+#### Opt-in mode for a controlled rollout
+
+By default the plugin is **opt-out**: every field with a value help auto-enrolls for recommendations, and each unwanted one has to be silenced with `@UI.RecommendationState : 0`. On a large existing model this can enroll dozens of fields at once and generate unnecessary `/predict` traffic. To invert the default, configure the `AICore` service:
+
+```jsonc
+// package.json or .cdsrc.json → cds.requires
+"AICore": { "recommendations": "opt-in" }
+```
+
+- `"auto"` (default): current behavior — value-helped fields auto-enroll, `@UI.RecommendationState : 0` excludes.
+- `"opt-in"`: a field is enrolled **only** if it carries a truthy `@UI.RecommendationState` (`1` or a dynamic expression); everything else — including value-helped fields — stays out.
+
+```cds
+annotate Books with {
+    genre @UI.RecommendationState : 1; // enrolled
+    // author, currency, … (value help, not annotated) → not enrolled in opt-in mode
+}
+```
+
+`@UI.RecommendationState : 0` wins in both modes, and entities that end up with zero enrolled fields get no `SAP_Recommendations` companion at all.
+
 #### Regression Recommendations on fields without a value help
 
 By default, the plugin only enhances fields that have a value help list since these columns are good prediction targets for classification. However, some fields are good targets but have no value list: free-form numerics like measurement ranges, calibration values, or planning estimates. Annotate these with `@UI.RecommendationState` to opt in:
@@ -96,7 +117,7 @@ On every draft-enabled entity that has at least one value-helped field, it adds 
 On READ requests to a draft entity that expand `SAP_Recommendations`. Reads against the active entity return nothing in that field. Reads during `draftActivate` are skipped.
 
 **What data is sent to RPT-1 as context?**
-Up to 2000 rows from the **active** version of the same entity, restricted to rows where every recommendable field is non-null. The columns `createdAt`, `createdBy`, `modifiedAt`, `modifiedBy` plus any `cds.LargeBinary` / `cds.Vector` elements are stripped. The active row corresponding to the draft (if any) is removed and replaced by the draft row carrying `[PREDICT]` placeholders in the columns to predict. There is no sampling or `ORDER BY` — for tables larger than 2000 rows, which rows make the cut is determined by the database.
+Up to 2000 rows from the **active** version of the same entity, restricted to rows where every recommendable field is non-null. The columns `createdAt`, `createdBy`, `modifiedAt`, `modifiedBy` plus any `cds.LargeBinary` / `cds.Vector` elements and all associations/compositions (their flattened foreign keys remain) are stripped. The active row corresponding to the draft (if any) is removed and replaced by the draft row carrying `[PREDICT]` placeholders in the columns to predict. There is no sampling or `ORDER BY` — for tables larger than 2000 rows, which rows make the cut is determined by the database.
 
 > [!IMPORTANT]
 > Everything in the remaining columns is forwarded to AI Core. Annotate sensitive fields with `@UI.RecommendationState : 0` (or a dynamic expression) to keep them out of both the predictions and the context payload.
