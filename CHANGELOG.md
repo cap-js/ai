@@ -12,6 +12,7 @@
 
 ### Fixed
 - Association/composition elements (e.g. the draft-added `DraftAdministrativeData`) are no longer sent to RPT-1 `/predict`, fixing HTTP 422 errors (and silently empty recommendations) on draft reads whenever other edit drafts of the entity exist
+- `@UI.RecommendationState` (and other) annotations are no longer copied onto `<Entity>_Recommendations…RecommendedFieldValue`, so dynamic expressions referencing sibling fields (e.g. `(aiWriteEnabled ? 1 : 0)`) no longer fail CDS compile/serve with `anno-missing-rewrite` / "Element has not been found"
 
 ## Version 1.1.0 - 2026-07-20
 

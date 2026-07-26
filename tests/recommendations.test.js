@@ -97,6 +97,13 @@ describe('Classification predictions', () => {
       ],
       true
     );
+    // Expression stays on the source field; companion value type must not inherit it
+    // (sibling paths like genre_ID / aiWriteEnabled are not resolvable there).
+    const valueType =
+      cds.model.definitions['CatalogService.Books_Recommendations'].elements[
+        'authorWDynamicRecommendations_ID'
+      ].items.elements.RecommendedFieldValue;
+    assert.strictEqual(valueType['@UI.RecommendationState'], undefined);
 
     const {
       data: { ID }
