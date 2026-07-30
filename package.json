@@ -20,6 +20,9 @@
     "lib",
     "srv"
   ],
+  "dependencies": {
+    "onnxruntime-node": "^1.20.1"
+  },
   "devDependencies": {
     "@cap-js/cds-test": "^1",
     "@cap-js/cds-types": "^0.16.0"
