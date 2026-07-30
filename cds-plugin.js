@@ -5,23 +5,55 @@ import registerHandlersForRecommendations from './lib/handlers/recommendations.j
 import registerMtxHandlers from './lib/mtx/index.js';
 import addSQLiteVectorSupport from './lib/vector_handling/index.js';
 
+// Extend SQLiteService class to add vector support
+const originalSQLiteService = await (async () => {
+  try {
+    const mod = await import('@cap-js/sqlite');
+    return mod.default || mod;
+  } catch (e) {
+    console.warn('[cds-ai] Failed to import @cap-js/sqlite:', e.message);
+    return null;
+  }
+})();
+
+if (originalSQLiteService) {
+  // Patch the factory getter on the prototype to add VECTOR_EMBEDDING function
+  const originalFactoryDescriptor = Object.getOwnPropertyDescriptor(originalSQLiteService.prototype, 'factory');
+
+  if (originalFactoryDescriptor && originalFactoryDescriptor.get) {
+    Object.defineProperty(originalSQLiteService.prototype, 'factory', {
+      get() {
+        const originalFactory = originalFactoryDescriptor.get.call(this);
+        const originalCreate = originalFactory.create;
+
+        return {
+          ...originalFactory,
+          create: async (tenant) => {
+            const dbc = await originalCreate.call(originalFactory, tenant);
+
+            // Register VECTOR_EMBEDDING function on this connection
+            try {
+              await addSQLiteVectorSupport(dbc);
+            } catch (err) {
+              console.warn('[cds-ai] Failed to register VECTOR_EMBEDDING:', err.message);
+            }
+
+            return dbc;
+          },
+        };
+      },
+      configurable: true,
+    });
+  }
+}
+
 cds.on('compile.for.runtime', enhanceModelWithRecommendations);
 cds.on('compile.to.edmx', enhanceModelWithRecommendations);
 
 cds.on('served', async (services) => {
+  // Register other handlers
   for (const name in services) {
-    if (name === 'db') {
-      // Register vector support for SQLite
-      const db = await cds.connect.to('db');
-      if (db.kind === 'sqlite') {
-        // Access the underlying database connection
-        const dbc = db.dbc;
-        if (dbc) {
-          await addSQLiteVectorSupport(dbc);
-        }
-      }
-      continue;
-    }
+    if (name === 'db') continue;
     // eslint-disable-next-line no-await-in-loop
     const srv = await cds.connect.to(name);
     registerHandlersForRecommendations(srv);

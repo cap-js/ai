@@ -4,6 +4,18 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Version 1.2.0 - tbd
+
+### Added
+
+- SQLite vector support: `VECTOR_EMBEDDING` function using ONNX Runtime with `Xenova/all-MiniLM-L6-v2` model (384 dimensions)
+  - Automatically registers on SQLite database connections
+  - Downloads model on-demand from Hugging Face (~10MB, cached locally)
+  - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants
+  - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
+  - Synchronous execution suitable for SQLite user-defined functions
+
+
 
 ## Version 1.1.0 - 2026-07-20
 
