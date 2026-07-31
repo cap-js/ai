@@ -8,17 +8,16 @@ import addSQLiteVectorSupport from './lib/vector_handling/index.js';
 const LOG = cds.log('@cap-js/ai');
 
 // Extend SQLiteService class to add vector support
-const originalSQLiteService = await (async () => {
+(async () => {
+  let originalSQLiteService;
   try {
     const mod = await import('@cap-js/sqlite');
-    return mod.default || mod;
+    originalSQLiteService = mod.default || mod;
   } catch (e) {
     LOG.warn('Failed to import @cap-js/sqlite:', e.message);
-    return null;
+    return;
   }
-})();
 
-if (originalSQLiteService) {
   // Patch the factory getter on the prototype to add VECTOR_EMBEDDING function
   const originalFactoryDescriptor = Object.getOwnPropertyDescriptor(
     originalSQLiteService.prototype,
@@ -50,7 +49,7 @@ if (originalSQLiteService) {
       configurable: true
     });
   }
-}
+})();
 
 cds.on('compile.for.runtime', enhanceModelWithRecommendations);
 cds.on('compile.to.edmx', enhanceModelWithRecommendations);
