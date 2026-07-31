@@ -50,7 +50,11 @@ describe('Vector functions (SQLite only)', () => {
           VECTOR_EMBEDDING('test text', 'DOCUMENT', 'SAP_GXY.20250407') as e2`
       );
 
-      assert.strictEqual(result[0].e1, result[0].e2, 'Same input should produce identical embeddings');
+      assert.strictEqual(
+        result[0].e1,
+        result[0].e2,
+        'Same input should produce identical embeddings'
+      );
     });
 
     test('different inputs produce different outputs', async () => {
@@ -62,7 +66,11 @@ describe('Vector functions (SQLite only)', () => {
           VECTOR_EMBEDDING('goodbye world', 'DOCUMENT', 'SAP_GXY.20250407') as e2`
       );
 
-      assert.notStrictEqual(result[0].e1, result[0].e2, 'Different inputs should produce different embeddings');
+      assert.notStrictEqual(
+        result[0].e1,
+        result[0].e2,
+        'Different inputs should produce different embeddings'
+      );
     });
 
     test('semantically similar sentences produce similar vectors', async () => {
@@ -78,7 +86,10 @@ describe('Vector functions (SQLite only)', () => {
       const v2 = JSON.parse(result[0].e2);
 
       const similarity = cosineSimilarity(v1, v2);
-      assert.ok(similarity > 0.8, `Semantically similar sentences should have high cosine similarity (got ${similarity.toFixed(3)})`);
+      assert.ok(
+        similarity > 0.8,
+        `Semantically similar sentences should have high cosine similarity (got ${similarity.toFixed(3)})`
+      );
     });
 
     test('semantically different sentences are far apart in vector space', async () => {
@@ -94,7 +105,10 @@ describe('Vector functions (SQLite only)', () => {
       const v2 = JSON.parse(result[0].e2);
 
       const similarity = cosineSimilarity(v1, v2);
-      assert.ok(similarity < 0.1, `Semantically different sentences should have low cosine similarity (got ${similarity.toFixed(3)})`);
+      assert.ok(
+        similarity < 0.1,
+        `Semantically different sentences should have low cosine similarity (got ${similarity.toFixed(3)})`
+      );
     });
 
     test('4-parameter version with remote_source works', async () => {

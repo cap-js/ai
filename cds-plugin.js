@@ -20,7 +20,10 @@ const originalSQLiteService = await (async () => {
 
 if (originalSQLiteService) {
   // Patch the factory getter on the prototype to add VECTOR_EMBEDDING function
-  const originalFactoryDescriptor = Object.getOwnPropertyDescriptor(originalSQLiteService.prototype, 'factory');
+  const originalFactoryDescriptor = Object.getOwnPropertyDescriptor(
+    originalSQLiteService.prototype,
+    'factory'
+  );
 
   if (originalFactoryDescriptor && originalFactoryDescriptor.get) {
     Object.defineProperty(originalSQLiteService.prototype, 'factory', {
@@ -41,10 +44,10 @@ if (originalSQLiteService) {
             }
 
             return dbc;
-          },
+          }
         };
       },
-      configurable: true,
+      configurable: true
     });
   }
 }
