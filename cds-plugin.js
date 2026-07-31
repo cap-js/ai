@@ -5,13 +5,15 @@ import registerHandlersForRecommendations from './lib/handlers/recommendations.j
 import registerMtxHandlers from './lib/mtx/index.js';
 import addSQLiteVectorSupport from './lib/vector_handling/index.js';
 
+const LOG = cds.log('@cap-js/ai');
+
 // Extend SQLiteService class to add vector support
 const originalSQLiteService = await (async () => {
   try {
     const mod = await import('@cap-js/sqlite');
     return mod.default || mod;
   } catch (e) {
-    console.warn('[cds-ai] Failed to import @cap-js/sqlite:', e.message);
+    LOG.warn('Failed to import @cap-js/sqlite:', e.message);
     return null;
   }
 })();
@@ -35,7 +37,7 @@ if (originalSQLiteService) {
             try {
               await addSQLiteVectorSupport(dbc);
             } catch (err) {
-              console.warn('[cds-ai] Failed to register VECTOR_EMBEDDING:', err.message);
+              LOG.warn('Failed to register VECTOR_EMBEDDING:', err.message);
             }
 
             return dbc;
