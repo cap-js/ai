@@ -20,7 +20,7 @@
     "lib",
     "srv"
   ],
-  "optionalDependencies": {
+  "dependencies": {
     "onnxruntime-node": "^1.20.1"
   },
   "devDependencies": {
