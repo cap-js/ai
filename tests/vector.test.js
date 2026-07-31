@@ -96,6 +96,21 @@ describe('Vector functions (SQLite only)', () => {
       const similarity = cosineSimilarity(v1, v2);
       assert.ok(similarity < 0.1, `Semantically different sentences should have low cosine similarity (got ${similarity.toFixed(3)})`);
     });
+
+    test('4-parameter version with remote_source works', async () => {
+      if (db?.kind !== 'sqlite') return;
+
+      const result = await db.run(
+        `SELECT VECTOR_EMBEDDING('test text', 'DOCUMENT', 'SAP_GXY.20250407', 'MY_GENAI_HUB_REMOTE_SOURCE') as embedding`
+      );
+
+      const embedding = JSON.parse(result[0].embedding);
+      assert.ok(Array.isArray(embedding), 'Embedding should be an array');
+      assert.strictEqual(embedding.length, 384, 'Embedding should have 384 dimensions');
+
+      // Note: In real HANA, remote_source would connect to SAP AI Core.
+      // In our SQLite implementation, we ignore it and use local ONNX model.
+    });
   });
 });
 
