@@ -1,3 +1,5 @@
+// dummy change
+
 import cds from '@sap/cds';
 
 import enhanceModelWithRecommendations from './lib/csn-enhancements/recommendations.js';
