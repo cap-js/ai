@@ -66,7 +66,10 @@ describe('Vector embedding function (standalone)', () => {
       const embedding = JSON.parse(result);
       assert.ok(Array.isArray(embedding), 'Empty text should return zero vector');
       assert.strictEqual(embedding.length, 384, 'Should have 384 dimensions');
-      assert.ok(embedding.every(v => v === 0), 'Empty text should return all zeros');
+      assert.ok(
+        embedding.every((v) => v === 0),
+        'Empty text should return all zeros'
+      );
     });
 
     test('handles null text', async () => {
@@ -75,7 +78,10 @@ describe('Vector embedding function (standalone)', () => {
       const embedding = JSON.parse(result);
       assert.ok(Array.isArray(embedding), 'Null text should return zero vector');
       assert.strictEqual(embedding.length, 384, 'Should have 384 dimensions');
-      assert.ok(embedding.every(v => v === 0), 'Null text should return all zeros');
+      assert.ok(
+        embedding.every((v) => v === 0),
+        'Null text should return all zeros'
+      );
     });
 
     test('uses correct dimensions for different models', async () => {
