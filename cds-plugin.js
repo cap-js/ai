@@ -4,8 +4,6 @@ import enhanceModelWithRecommendations from './lib/csn-enhancements/recommendati
 import registerHandlersForRecommendations from './lib/handlers/recommendations.js';
 import registerMtxHandlers from './lib/mtx/index.js';
 
-const LOG = cds.log('@cap-js/ai');
-
 cds.on('compile.for.runtime', enhanceModelWithRecommendations);
 cds.on('compile.to.edmx', enhanceModelWithRecommendations);
 
