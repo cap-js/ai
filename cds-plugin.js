@@ -8,7 +8,6 @@ cds.on('compile.for.runtime', enhanceModelWithRecommendations);
 cds.on('compile.to.edmx', enhanceModelWithRecommendations);
 
 cds.on('served', async (services) => {
-  // Register other handlers
   for (const name in services) {
     if (name === 'db') continue;
     // eslint-disable-next-line no-await-in-loop
