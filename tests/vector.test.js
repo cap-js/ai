@@ -1,6 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert';
-import { vector_embedding } from '../lib/vector_handling/sync-wrapper.js';
+import { vector_embedding } from '../lib/vector_embedding/index.js';
 
 describe('Vector embedding function (standalone)', () => {
   describe('vector_embedding', () => {
