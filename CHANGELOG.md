@@ -8,8 +8,7 @@
 
 ### Added
 
-- SQLite vector support: `VECTOR_EMBEDDING` function using ONNX Runtime with `Xenova/all-MiniLM-L6-v2` model (384 dimensions)
-  - Automatically registers on SQLite database connections
+- Support `VECTOR_EMBEDDING` function using ONNX Runtime with `Xenova/all-MiniLM-L6-v2` model (384 dimensions)  
   - Downloads model on-demand from Hugging Face (~10MB, cached locally)
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
