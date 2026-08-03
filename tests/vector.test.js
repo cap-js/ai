@@ -1,36 +1,13 @@
-import path from 'path';
-import { describe, test, before } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert';
-import cds from '@sap/cds';
-import cdsTest from '@cap-js/cds-test';
-import { fileURLToPath } from 'url';
+import { vector_embedding } from '../lib/vector_handling/sync-wrapper.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Initialize cds test environment
-cdsTest(path.join(__dirname, './bookshop'));
-
-describe('Vector functions (SQLite only)', () => {
-  let db;
-
-  before(async () => {
-    db = cds.db || (await cds.connect.to('db'));
-  });
-
-  describe('VECTOR_EMBEDDING', () => {
+describe('Vector embedding function (standalone)', () => {
+  describe('vector_embedding', () => {
     test('computes embedding with ONNX model', async () => {
-      if (db?.kind !== 'sqlite') {
-        console.log('Skipping - not SQLite');
-        return;
-      }
+      const result = vector_embedding('Hello world', 'DOCUMENT', 'SAP_GXY.20250407');
 
-      const result = await db.run(
-        `SELECT VECTOR_EMBEDDING(title, 'DOCUMENT', 'SAP_GXY.20250407') as embedding
-         FROM sap_capire_bookshop_Books LIMIT 1`
-      );
-
-      const embedding = JSON.parse(result[0].embedding);
+      const embedding = JSON.parse(result);
       assert.ok(Array.isArray(embedding), 'Embedding should be an array');
       assert.strictEqual(embedding.length, 384, 'Embedding should have 384 dimensions');
 
@@ -42,48 +19,25 @@ describe('Vector functions (SQLite only)', () => {
     });
 
     test('deterministic - same input produces same output', async () => {
-      if (db?.kind !== 'sqlite') return;
+      const e1 = vector_embedding('test text', 'DOCUMENT', 'SAP_GXY.20250407');
+      const e2 = vector_embedding('test text', 'DOCUMENT', 'SAP_GXY.20250407');
 
-      const result = await db.run(
-        `SELECT
-          VECTOR_EMBEDDING('test text', 'DOCUMENT', 'SAP_GXY.20250407') as e1,
-          VECTOR_EMBEDDING('test text', 'DOCUMENT', 'SAP_GXY.20250407') as e2`
-      );
-
-      assert.strictEqual(
-        result[0].e1,
-        result[0].e2,
-        'Same input should produce identical embeddings'
-      );
+      assert.strictEqual(e1, e2, 'Same input should produce identical embeddings');
     });
 
     test('different inputs produce different outputs', async () => {
-      if (db?.kind !== 'sqlite') return;
+      const e1 = vector_embedding('hello world', 'DOCUMENT', 'SAP_GXY.20250407');
+      const e2 = vector_embedding('goodbye world', 'DOCUMENT', 'SAP_GXY.20250407');
 
-      const result = await db.run(
-        `SELECT
-          VECTOR_EMBEDDING('hello world', 'DOCUMENT', 'SAP_GXY.20250407') as e1,
-          VECTOR_EMBEDDING('goodbye world', 'DOCUMENT', 'SAP_GXY.20250407') as e2`
-      );
-
-      assert.notStrictEqual(
-        result[0].e1,
-        result[0].e2,
-        'Different inputs should produce different embeddings'
-      );
+      assert.notStrictEqual(e1, e2, 'Different inputs should produce different embeddings');
     });
 
     test('semantically similar sentences produce similar vectors', async () => {
-      if (db?.kind !== 'sqlite') return;
+      const e1 = vector_embedding('I love programming', 'DOCUMENT', 'SAP_GXY.20250407');
+      const e2 = vector_embedding('I enjoy coding', 'DOCUMENT', 'SAP_GXY.20250407');
 
-      const result = await db.run(
-        `SELECT
-          VECTOR_EMBEDDING('I love programming', 'DOCUMENT', 'SAP_GXY.20250407') as e1,
-          VECTOR_EMBEDDING('I enjoy coding', 'DOCUMENT', 'SAP_GXY.20250407') as e2`
-      );
-
-      const v1 = JSON.parse(result[0].e1);
-      const v2 = JSON.parse(result[0].e2);
+      const v1 = JSON.parse(e1);
+      const v2 = JSON.parse(e2);
 
       const similarity = cosineSimilarity(v1, v2);
       assert.ok(
@@ -93,16 +47,11 @@ describe('Vector functions (SQLite only)', () => {
     });
 
     test('semantically different sentences are far apart in vector space', async () => {
-      if (db?.kind !== 'sqlite') return;
+      const e1 = vector_embedding('The cat sat on the mat', 'DOCUMENT', 'SAP_GXY.20250407');
+      const e2 = vector_embedding('Quantum physics is fascinating', 'DOCUMENT', 'SAP_GXY.20250407');
 
-      const result = await db.run(
-        `SELECT
-          VECTOR_EMBEDDING('The cat sat on the mat', 'DOCUMENT', 'SAP_GXY.20250407') as e1,
-          VECTOR_EMBEDDING('Quantum physics is fascinating', 'DOCUMENT', 'SAP_GXY.20250407') as e2`
-      );
-
-      const v1 = JSON.parse(result[0].e1);
-      const v2 = JSON.parse(result[0].e2);
+      const v1 = JSON.parse(e1);
+      const v2 = JSON.parse(e2);
 
       const similarity = cosineSimilarity(v1, v2);
       assert.ok(
@@ -111,19 +60,36 @@ describe('Vector functions (SQLite only)', () => {
       );
     });
 
-    test('4-parameter version with remote_source works', async () => {
-      if (db?.kind !== 'sqlite') return;
+    test('handles empty text', async () => {
+      const result = vector_embedding('', 'DOCUMENT', 'SAP_GXY.20250407');
 
-      const result = await db.run(
-        `SELECT VECTOR_EMBEDDING('test text', 'DOCUMENT', 'SAP_GXY.20250407', 'MY_GENAI_HUB_REMOTE_SOURCE') as embedding`
-      );
+      const embedding = JSON.parse(result);
+      assert.ok(Array.isArray(embedding), 'Empty text should return zero vector');
+      assert.strictEqual(embedding.length, 384, 'Should have 384 dimensions');
+      assert.ok(embedding.every(v => v === 0), 'Empty text should return all zeros');
+    });
 
-      const embedding = JSON.parse(result[0].embedding);
-      assert.ok(Array.isArray(embedding), 'Embedding should be an array');
-      assert.strictEqual(embedding.length, 384, 'Embedding should have 384 dimensions');
+    test('handles null text', async () => {
+      const result = vector_embedding(null, 'DOCUMENT', 'SAP_GXY.20250407');
 
-      // Note: In real HANA, remote_source would connect to SAP AI Core.
-      // In our SQLite implementation, we ignore it and use local ONNX model.
+      const embedding = JSON.parse(result);
+      assert.ok(Array.isArray(embedding), 'Null text should return zero vector');
+      assert.strictEqual(embedding.length, 384, 'Should have 384 dimensions');
+      assert.ok(embedding.every(v => v === 0), 'Null text should return all zeros');
+    });
+
+    test('uses correct dimensions for different models', async () => {
+      const result1 = vector_embedding('test', 'DOCUMENT', 'SAP_GXY.20250407');
+      const embedding1 = JSON.parse(result1);
+      assert.strictEqual(embedding1.length, 384, 'SAP_GXY.20250407 should have 384 dimensions');
+
+      const result2 = vector_embedding('test', 'DOCUMENT', 'SAP_GXY.20240715');
+      const embedding2 = JSON.parse(result2);
+      assert.strictEqual(embedding2.length, 384, 'SAP_GXY.20240715 should have 384 dimensions');
+
+      const result3 = vector_embedding('test', 'DOCUMENT', 'unknown_model');
+      const embedding3 = JSON.parse(result3);
+      assert.strictEqual(embedding3.length, 384, 'Unknown model should default to 384 dimensions');
     });
   });
 });

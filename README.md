@@ -205,6 +205,79 @@ resources:
     type: org.cloudfoundry.managed-service
 ```
 
+### 3. Vector Embedding API for Plugin Integration
+
+The `@cap-js/ai` plugin exports a standalone vector embedding function that can be used by other plugins (like `@cap-js/sqlite`) to generate embeddings using an ONNX model.
+
+#### Usage
+
+```javascript
+import { vector_embedding } from '@cap-js/ai/vector-embedding';
+
+// Model initializes automatically on import - just use it
+const embeddingJSON = vector_embedding('Hello world', 'DOCUMENT', 'SAP_GXY.20250407');
+const embedding = JSON.parse(embeddingJSON); // Array of 384 float values
+```
+
+#### Function Signature
+
+```typescript
+function vector_embedding(
+  text: string | null,
+  text_type: string,
+  model_and_version: string
+): string
+```
+
+**Parameters:**
+- `text` - Text to embed (returns zero vector if null or empty)
+- `text_type` - Type of text, e.g., `'DOCUMENT'` (currently informational)
+- `model_and_version` - Model identifier, e.g., `'SAP_GXY.20250407'` or `'SAP_GXY.20240715'`
+
+**Returns:**
+- JSON stringified array of embedding values (384 dimensions)
+
+**Features:**
+- **Auto-initialization**: ONNX model loads automatically when module is imported (top-level await)
+- **Deterministic**: Same input always produces same output
+- **Normalized vectors**: All embeddings are L2-normalized
+- **Semantic similarity**: Embeddings capture text meaning for similarity search
+
+**Error Handling:**
+- Throws if ONNX model failed to load during import
+- Throws if embedding generation fails
+- Import errors can be caught to detect if AI plugin is available
+
+**Example Integration (Database Plugin):**
+
+```javascript
+// In a database plugin like @cap-js/sqlite
+let aiEmbedding = null;
+try {
+  // ONNX model initializes automatically via top-level await
+  const aiPlugin = await import('@cap-js/ai/vector-embedding');
+  aiEmbedding = aiPlugin.vector_embedding;
+} catch (err) {
+  // AI plugin not available, use fallback
+}
+
+// Register SQL function
+dbc.function('VECTOR_EMBEDDING', { deterministic: true }, (text, text_type, model) => {
+  if (text == null) return null;
+  
+  if (aiEmbedding) {
+    try {
+      return aiEmbedding(text, text_type, model);
+    } catch (err) {
+      // Fall back to alternative implementation
+    }
+  }
+  
+  // Fallback implementation
+  return JSON.stringify(hashBasedEmbedding(text));
+});
+```
+
 
 ## Test the plugin locally
 
