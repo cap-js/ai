@@ -248,37 +248,6 @@ function vector_embedding(
 - Throws if embedding generation fails
 - Import errors can be caught to detect if AI plugin is available
 
-**Example Integration (Database Plugin):**
-
-```javascript
-// In a database plugin like @cap-js/sqlite
-let aiEmbedding = null;
-try {
-  // ONNX model initializes automatically via top-level await
-  const aiPlugin = await import('@cap-js/ai/vector-embedding');
-  aiEmbedding = aiPlugin.vector_embedding;
-} catch (err) {
-  // AI plugin not available, use fallback
-}
-
-// Register SQL function
-dbc.function('VECTOR_EMBEDDING', { deterministic: true }, (text, text_type, model) => {
-  if (text == null) return null;
-  
-  if (aiEmbedding) {
-    try {
-      return aiEmbedding(text, text_type, model);
-    } catch (err) {
-      // Fall back to alternative implementation
-    }
-  }
-  
-  // Fallback implementation
-  return JSON.stringify(hashBasedEmbedding(text));
-});
-```
-
-
 ## Test the plugin locally
 
 In `tests/bookshop-app/` you can find a sample application that is used to demonstrate how to use the plugin and to run tests against it.
