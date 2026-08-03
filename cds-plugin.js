@@ -1,5 +1,7 @@
 import cds from '@sap/cds';
 
+// dummy change
+
 import enhanceModelWithRecommendations from './lib/csn-enhancements/recommendations.js';
 import registerHandlersForRecommendations from './lib/handlers/recommendations.js';
 import registerMtxHandlers from './lib/mtx/index.js';
