@@ -156,7 +156,8 @@ export async function handleResourceGroupsForTenant(req) {
     this.tenantResourceGroups.set(tenantId, resources[0].resourceGroupId);
     return resources[0].resourceGroupId;
   } else {
-    const { resourceGroupId } = await this.run(INSERT.into(resourceGroups).entries({ tenantId }));
+    const resourceGroupId = cds.utils.uuid();
+    await this.run(INSERT.into(resourceGroups).entries({ tenantId, resourceGroupId }));
     return resourceGroupId;
   }
 }
