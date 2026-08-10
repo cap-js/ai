@@ -1,5 +1,9 @@
 import cds from '@sap/cds'
 import { resolveValue } from '../lib/n8n/nodes/executors/resolve.js'
+import { makeCapEntityQuery, makeCapCqlQuery, conditionsBlockToCql, sortToCql,
+         addWhereToQuery, branchQuery, addOrderByToQuery, addTopToQuery, foldNodeIntoToken, executeQueryToken } from '../lib/n8n/cql-fusion.js'
+import { createRequire } from 'node:module'
+const _require = createRequire(import.meta.url)
 
 // ── Node executors ────────────────────────────────────────────────────────────
 import { execute as _execManualTrigger         } from '../lib/n8n/nodes/executors/ManualTrigger.js'
@@ -42,6 +46,9 @@ import { execute as _execLCGuardrails          } from '../lib/n8n/nodes/executor
 import { execute as _execLCAgent               } from '../lib/n8n/nodes/executors/LangchainAgent.js'
 import { execute as _execLCChatTrigger         } from '../lib/n8n/nodes/executors/ChatTrigger.js'
 import { execute as _execLCChat               } from '../lib/n8n/nodes/executors/Chat.js'
+import { execute as _execScheduleTrigger, parseCronExpressions as _schedParseCron } from '../lib/n8n/nodes/executors/ScheduleTrigger.js'
+import { execute as _execCronTrigger,     parseCronExpressions as _cronParseCron  } from '../lib/n8n/nodes/executors/CronTrigger.js'
+import { execute as _execIntervalTrigger, toMilliseconds as _intervalToMs         } from '../lib/n8n/nodes/executors/IntervalTrigger.js'
 
 // ── Executor registry: type string → executor function ───────────────────────
 // All executors are async — the dispatch loop always awaits them uniformly.
@@ -88,6 +95,9 @@ const NODE_EXECUTORS = {
   '@n8n/n8n-nodes-langchain.agent':                _execLCAgent,
   '@n8n/n8n-nodes-langchain.chatTrigger':          _execLCChatTrigger,
   '@n8n/n8n-nodes-langchain.chat':                 _execLCChat,
+  'n8n-nodes-base.scheduleTrigger':                _execScheduleTrigger,
+  'n8n-nodes-base.cron':                           _execCronTrigger,
+  'n8n-nodes-base.interval':                       _execIntervalTrigger,
 }
 
 const { SELECT, INSERT, UPDATE } = cds.ql
@@ -98,15 +108,11 @@ const log = cds.log('n8n')
 // When it reaches 0 the execution is finished.
 const _pendingSteps = {}
 
-// Promise resolvers for callers awaiting execution completion (e.g. chat trigger).
-// executionId → { resolve, reject, timeoutHandle }
-const _awaitingCompletion = {}
+// CQL query token helpers — see lib/n8n/cql-fusion.js
 
-// Short-lived in-memory cache of completed execution runData.
-// Set by _finishStep, read+cleared by _awaitExecution.
-// Eliminates the need for a DB round-trip inside the action handler — which would
-// deadlock on SQLite because CAP keeps a transaction open for the action's lifetime.
-const _capturedRunData = {}
+// Promise resolvers for callers awaiting execution completion (e.g. chat trigger).
+// executionId → { resolve, reject }
+const _awaitingCompletion = {}
 
 // Short-lived cache of final nodeOutputs (runData) for finished executions.
 // In-memory map of node outputs per execution: executionId → { nodeName: itemsArray }
@@ -154,20 +160,17 @@ export default class N8nService extends cds.ApplicationService {
 
     cds.on('workflow.step', event => this._handleStep(event))
 
-    // Schedule stale-execution cleanup via the CAP event queue so it fires
-    // once per interval even in scale-out (only one instance handles it).
     cds.once('served', () => {
-      const CLEANUP_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
-      setInterval(async () => {
-        try {
-          const n8n = await cds.connect.to('n8n')
-          await n8n.send('cleanupStaleExecutions', {})
-        } catch (e) {
-          log.warn('Stale execution cleanup failed:', e.message)
-        }
-      }, CLEANUP_INTERVAL_MS)
-      // Also run once immediately at startup
-      cds.connect.to('n8n').then(n8n => n8n.send('cleanupStaleExecutions', {})).catch(() => {})
+      // Stale-execution cleanup — every 5 minutes using cds.spawn so it runs in a
+      // proper CAP transaction context and doesn't block process shutdown.
+      cds.spawn({ every: 5 * 60 * 1000 }, async () => {
+        await this.send('cleanupStaleExecutions', {})
+      })
+      // Run once immediately at startup too
+      this.send('cleanupStaleExecutions', {}).catch(() => {})
+
+      // Start cron/interval scheduler for active workflows
+      this._startScheduler().catch(e => log.warn('Scheduler start failed:', e.message))
     })
 
     await super.init()
@@ -181,7 +184,7 @@ export default class N8nService extends cds.ApplicationService {
     const threshold = new Date(Date.now() - 10 * 60 * 1000).toISOString()
     const stale = await SELECT.from('cap.ai.n8n.WorkflowExecutions')
       .where({ status: 'running' })
-      .and(`startedAt < '${threshold}'`)
+      .and({ startedAt: { '<': threshold } })
     if (!stale.length) return { cleaned: 0 }
     log.warn(`Cleaning up ${stale.length} stale running execution(s)`)
     for (const ex of stale) {
@@ -257,6 +260,11 @@ export default class N8nService extends cds.ApplicationService {
 
     // destinationNode: stop routing after this node completes (partial execution).
     // Store it so _finishStep can check it before emitting successors.
+    if (destinationNode) _destinationNode[executionId] = { name: destinationNode, mode: destinationMode ?? 'exclusive' }
+
+    // Build CQL fusion plans for capEntity nodes whose successor chains can be
+    // folded into a single DB query. Skip fusion for partial executions (the UI
+    // wants real per-node results when "run this node" is clicked).
     if (destinationNode) _destinationNode[executionId] = { name: destinationNode, mode: destinationMode ?? 'exclusive' }
 
     // Pre-populate nodeOutputs from runData (cached outputs for partial executions).
@@ -451,7 +459,7 @@ export default class N8nService extends cds.ApplicationService {
 
     for (let tryIdx = 0; tryIdx < maxTries; tryIdx++) {
       if (tryIdx > 0 && waitBetween > 0) {
-        await new Promise(r => setTimeout(r, waitBetween))
+        await new Promise(r => cds.spawn({ after: waitBetween }, r))
       }
       try {
         const execContext = {
@@ -476,7 +484,8 @@ export default class N8nService extends cds.ApplicationService {
         break
       } catch (err) {
         execError = err
-        log.warn(`workflow.step: node "${node.name}" try ${tryIdx + 1}/${maxTries} threw: ${err.message}`)
+        const msg = err.message || err.reason || (err.details && JSON.stringify(err.details)) || String(err)
+        log.warn(`workflow.step: node "${node.name}" try ${tryIdx + 1}/${maxTries} threw [${err.constructor?.name}] code=${err.code} status=${err.status}: ${msg}`)
       }
     }
 
@@ -496,14 +505,15 @@ export default class N8nService extends cds.ApplicationService {
         execError = null  // treat as soft error — execution continues
       } else {
         log.error(`workflow.step: node "${node.name}" (${node.type}) threw:`, execError)
-        await this._recordStep(executionId, node.id, 'error', null, execError.message)
-        await this._failExecution(executionId, `Node "${node.name}" failed: ${execError.message}`)
+        const errMsg = execError.message || execError.reason || (execError.details && JSON.stringify(execError.details)) || String(execError)
+        await this._recordStep(executionId, node.id, 'error', null, errMsg)
+        await this._failExecution(executionId, `Node "${node.name}" failed: ${errMsg}`)
         const _seqErr = (_pushSeq[executionId] ?? 0)
         cds.emit('n8n.push', {
           type: 'nodeExecuteAfter',
           data: { executionId, nodeName: node.name, sequenceNumber: _seqErr,
             itemCountByConnectionType: { main: [] },
-            data: { startTime: Date.now(), executionTime: 0, executionIndex: execIdx, executionStatus: 'error', hints: [], source: [] } }
+            data: { startTime: stepStart, executionTime: Date.now() - stepStart, executionIndex: execIdx, executionStatus: 'error', hints: [], source: [] } }
         })
         return
       }
@@ -532,9 +542,13 @@ export default class N8nService extends cds.ApplicationService {
 
     const nodeId = node.id
 
+    // Strip CQL query tokens from recorded outputs — these are internal routing
+    // tokens and must not appear as data in the UI.
+    const isCqlToken = item => item?.json?._cql_query !== undefined
+    const recordedOutputs = outputs.map(port => (port ?? []).filter(i => !isCqlToken(i)))
+
     // Persist all port arrays so the UI can show each port's items per run.
-    // (multi-output nodes like SplitInBatches need all ports, not just the first non-empty one)
-    await this._recordStep(executionId, nodeId, 'success', outputs, null)
+    await this._recordStep(executionId, nodeId, 'success', recordedOutputs, null)
     // runIndex was just incremented by _recordStep; the current run is at index - 1
     const nodeRunIndex = (_nodeRunIndex[executionId]?.[nodeId] ?? 1) - 1
 
@@ -548,30 +562,26 @@ export default class N8nService extends cds.ApplicationService {
       ? [{ previousNode: predecessorName, previousNodeRun: 0, previousNodeOutput: predecessorPort ?? 0 }]
       : []
 
-    // n8n splits node completion into two events:
-    //   nodeExecuteAfter     — metadata only (no items), consumed by the UI progress indicator
-    //   nodeExecuteAfterData — full ITaskData including data.main, consumed by the input/output panel
+    // nodeExecuteAfter carries the full ITaskData including data.main (output items + metadata).
     const taskData = {
       startTime:       stepStart,
       executionTime:   execTime,
       executionIndex:  execIdx,
       executionStatus: 'success',
       hints:           [],
-      data:            { main: outputs },
+      data:            { main: recordedOutputs },
       source:          sourceArray,
     }
     // itemCountByConnectionType: { main: [port0Count, port1Count, ...] }
-    const itemCountByConnectionType = { main: outputs.map(p => (p ?? []).length) }
-    const { data: _itemData, ...taskDataMeta } = taskData
-    const seqAfter = (_pushSeq[executionId] ?? 0); _pushSeq[executionId] = seqAfter + 1
-    cds.emit('n8n.push', {
-      type: 'nodeExecuteAfter',
-      data: { executionId, nodeName: node.name, sequenceNumber: seqAfter, data: taskDataMeta, itemCountByConnectionType },
-    })
-    cds.emit('n8n.push', {
-      type: 'nodeExecuteAfterData',
-      data: { executionId, nodeName: node.name, itemCountByConnectionType, data: taskData },
-    })
+    const itemCountByConnectionType = { main: recordedOutputs.map(p => (p ?? []).length) }
+    // Disabled nodes pass input through but emit no events (mirrors real n8n behaviour).
+    if (!isDisabled) {
+      const seqAfter = (_pushSeq[executionId] ?? 0); _pushSeq[executionId] = seqAfter + 1
+      cds.emit('n8n.push', {
+        type: 'nodeExecuteAfter',
+        data: { executionId, nodeName: node.name, sequenceNumber: seqAfter, data: taskData, itemCountByConnectionType },
+      })
+    }
 
     // Route to successor nodes — one successor set per output port.
     // Empty ports are still emitted to multi-input nodes (e.g. Merge after an If
@@ -639,7 +649,6 @@ export default class N8nService extends cds.ApplicationService {
       await UPDATE('cap.ai.n8n.WorkflowExecutions')
         .set({ status: 'success', finishedAt })
         .where({ ID: executionId })
-      log.info(`Execution ${executionId} completed successfully.`)
 
       // ── Gap 7: runData format ─────────────────────────────────────────────
       let runData = {}
@@ -648,22 +657,19 @@ export default class N8nService extends cds.ApplicationService {
       } catch (e) {
         log.warn(`Execution ${executionId}: _buildRunData failed: ${e.message}`)
       }
+      await UPDATE('cap.ai.n8n.WorkflowExecutions')
+        .set({ data: JSON.stringify({ status: 'success', nodeOutputs: runData }) })
+        .where({ ID: executionId })
       cds.emit('n8n.push', {
         type: 'executionFinished',
         data: { executionId, workflowId, status: 'success' },
       })
 
       // Resolve any awaiting caller (e.g. chat trigger route).
-      // Prefer in-memory delivery; fall back to _capturedRunData for callers that
-      // register after completion (no DB access — avoids SQLite deadlock).
       const awaiting = _awaitingCompletion[executionId]
       if (awaiting) {
-        clearTimeout(awaiting.timeoutHandle)
         delete _awaitingCompletion[executionId]
         awaiting.resolve(JSON.stringify({ status: 'success', nodeOutputs: runData }))
-      } else {
-        _capturedRunData[executionId] = { status: 'success', nodeOutputs: runData }
-        setTimeout(() => { delete _capturedRunData[executionId] }, 60_000)
       }
     }
   }
@@ -705,7 +711,81 @@ export default class N8nService extends cds.ApplicationService {
     })()
 
     const execContext = { cds, executionId, nodeOutputs: context.nodeOutputs ?? {}, llmService: _llmService, ...context }
-    const inputItems  = this._normaliseToItems(input)
+    let inputItems  = this._normaliseToItems(input)
+
+    // ── CQL query token handling ──────────────────────────────────────────────
+    // capEntity/capCql nodes emit a _cql_query token instead of executing.
+    // Foldable nodes (Filter, Sort, Limit, If) modify the token and forward it.
+    // Any non-foldable node — or the specific target node in preview mode — executes
+    // the accumulated query and replaces inputItems with real results.
+    const _inputQuery = inputItems[0]?.json?._cql_query ?? null
+    const _previewMode = !!_destinationNode[executionId]
+    const _dest = _destinationNode[executionId]
+    // A node is the effective target if:
+    // - it IS the destination (inclusive/run-current), OR
+    // - the destination is exclusive and this node's only successor is that destination
+    //   (i.e. this is the last node that will actually execute — "run previous")
+    const _isTargetNode = _previewMode && (
+      _dest?.name === node.name ||
+      (_dest?.mode === 'exclusive' && (() => {
+        const succs = (context.connections?.[node.name]?.main ?? []).flat()
+        return succs.length === 1 && succs[0]?.node === _dest.name
+      })())
+    )
+
+    if (_inputQuery) {
+      // At the target node in preview mode: execute immediately, show results, stop
+      if (_isTargetNode) {
+        const nodeOutputs = _nodeOutputs[executionId] ?? {}
+        inputItems = await executeQueryToken(_inputQuery, { ...context, cds }, this._runCapEntity.bind(this), true)
+        const _srcName = _inputQuery._sourceNodeName
+        if (_srcName) nodeOutputs[_srcName] = inputItems
+        for (const fn of (_inputQuery._foldedNodeNames ?? [])) nodeOutputs[fn] = inputItems
+        _nodeOutputs[executionId] = nodeOutputs
+        // Fall through to normal dispatch with real inputItems
+      } else {
+        // Try to fold this node into the token
+        let foldedQuery = null
+
+        if (type === 'n8n-nodes-base.filter') {
+          const where = conditionsBlockToCql(params.conditions)
+          if (where) foldedQuery = addWhereToQuery(_inputQuery, where)
+        } else if (type === 'n8n-nodes-base.sort') {
+          const ob = sortToCql(params)
+          if (ob) foldedQuery = addOrderByToQuery(_inputQuery, ob)
+        } else if (type === 'n8n-nodes-base.limit') {
+          const max = Number(params.maxItems ?? 0)
+          if (max && params.keep !== 'lastItems') foldedQuery = addTopToQuery(_inputQuery, max)
+        } else if (type === 'n8n-nodes-base.if') {
+          const where = conditionsBlockToCql(params.conditions)
+          if (where) {
+            const branches = branchQuery(_inputQuery, where)
+            if (branches) {
+              const out0 = [{ json: { _cql_query: foldNodeIntoToken(branches.port0, node.name) } }]
+              const out1 = [{ json: { _cql_query: foldNodeIntoToken(branches.port1, node.name) } }]
+              return { outputs: [out0, out1], output: out0, outputIndex: 0 }
+            }
+          }
+        }
+
+        if (foldedQuery) {
+          const out = [{ json: { _cql_query: foldNodeIntoToken(foldedQuery, node.name) } }]
+          return { outputs: [out], output: out, outputIndex: 0 }
+        }
+
+        // Non-foldable node — execute query and replace inputItems with real results.
+        // Backfill nodeOutputs for source + folded nodes so $node[...] resolves.
+        const nodeOutputs = _nodeOutputs[executionId] ?? {}
+        inputItems = await executeQueryToken(_inputQuery, { ...context, cds }, this._runCapEntity.bind(this), _previewMode)
+        const _srcName = _inputQuery._sourceNodeName
+        if (_srcName) nodeOutputs[_srcName] = inputItems
+        for (const fn of (_inputQuery._foldedNodeNames ?? [])) nodeOutputs[fn] = inputItems
+        _nodeOutputs[executionId] = nodeOutputs
+      }
+    }
+
+    // Also execute capEntity/capCql directly when they are the target node in preview mode
+    // (they emitted a token instead, so we need to intercept before the token path below)
 
     // ── Registry-based dispatch ───────────────────────────────────────────
     const executor = NODE_EXECUTORS[type]
@@ -715,7 +795,7 @@ export default class N8nService extends cds.ApplicationService {
 
     // ── StickyNote: visual-only, pass input through ───────────────────────
     if (type === 'n8n-nodes-base.stickyNote') {
-      return { outputs: [inputItems], output: input, outputIndex: 0 }
+      return { outputs: [inputItems], output: inputItems, outputIndex: 0 }
     }
 
     // ── CUSTOM.capEntity ──────────────────────────────────────────────────
@@ -724,6 +804,18 @@ export default class N8nService extends cds.ApplicationService {
       const firstItem = inputItems[0] ?? { json: {} }
       const rv = v => resolveValue(v, firstItem, nodeOutputs)
       const { service, entity, operation = 'list', filter, columns, key, body, orderBy, top, skip } = params
+
+      // Read ops: emit token for fusion; execute directly only if this node is the preview target
+      if (operation === 'list' || operation === 'get') {
+        const query = makeCapEntityQuery(node, inputItems, nodeOutputs)
+        if (!_isTargetNode) {
+          const out = [{ json: { _cql_query: query } }]
+          return { outputs: [out], output: out, outputIndex: 0 }
+        }
+        const items = await executeQueryToken(query, { ...context, cds }, this._runCapEntity.bind(this), true)
+        return { outputs: [items], output: items, outputIndex: 0 }
+      }
+
       const output = await this._runCapEntity({
         service:   rv(service),
         entity:    rv(entity),
@@ -733,7 +825,7 @@ export default class N8nService extends cds.ApplicationService {
         key:       rv(key),
         body:      rv(body),
         orderBy:   rv(orderBy),
-        top:       rv(top),
+        top:       _previewMode ? 1 : rv(top),
         skip:      rv(skip),
         input,
       })
@@ -752,8 +844,14 @@ export default class N8nService extends cds.ApplicationService {
       const resolvedAction  = rv(action)
       if (!resolvedService || !resolvedAction) throw new Error(`capAction node "${node.name}" requires service and action parameters`)
       const svc = await cds.connect.to(resolvedService)
-      const resolvedActionParams = rv(actionParams)
-      const output = await svc.send(resolvedAction, resolvedActionParams ?? input)
+      let resolvedActionParams = rv(actionParams)
+      if (typeof resolvedActionParams === 'string') {
+        try { resolvedActionParams = JSON.parse(resolvedActionParams) } catch { /* leave as-is */ }
+      }
+      // Run with privileged user so @requires annotations don't block n8n-driven calls
+      const output = await svc.tx({ user: new cds.User.Privileged() }, tx =>
+        tx.send(resolvedAction, resolvedActionParams ?? input)
+      )
       const rows = Array.isArray(output) ? output : (output != null ? [output] : [])
       const items = rows.map(row => ({ json: row }))
       return { outputs: [items], output: items, outputIndex: 0 }
@@ -761,16 +859,12 @@ export default class N8nService extends cds.ApplicationService {
 
     // ── CUSTOM.capCql ─────────────────────────────────────────────────────
     if (type === 'CUSTOM.capCql') {
-      const nodeOutputs = context.nodeOutputs ?? {}
-      const firstItem = inputItems[0] ?? { json: {} }
-      const rv = v => resolveValue(v, firstItem, nodeOutputs)
-      const { cql: cqlString, params: cqlParams } = params
-      const resolvedCql = rv(cqlString)
-      if (!resolvedCql) throw new Error(`capCql node "${node.name}" requires a cql parameter`)
-      const cqn = cds.parse.cql(resolvedCql)
-      const output = await cds.run(cqn, rv(cqlParams) ?? [])
-      const rows = Array.isArray(output) ? output : (output != null ? [output] : [])
-      const items = rows.map(row => ({ json: row }))
+      const query = makeCapCqlQuery(node, inputItems, context.nodeOutputs ?? {})
+      if (!_isTargetNode) {
+        const out = [{ json: { _cql_query: query } }]
+        return { outputs: [out], output: out, outputIndex: 0 }
+      }
+      const items = await executeQueryToken(query, { ...context, cds }, this._runCapEntity.bind(this), true)
       return { outputs: [items], output: items, outputIndex: 0 }
     }
 
@@ -849,6 +943,34 @@ export default class N8nService extends cds.ApplicationService {
   async _runCapEntity({ service, entity, operation, filter, columns, key, body, orderBy, top, skip, input }) {
     if (!entity) throw new Error('capEntity requires an entity parameter')
 
+    // Parse a key that may be a scalar string ("501"), a JSON object string ('{"k":1}'),
+    // or a JS object-literal string ("{key1:1,key2:2}"). Returns the parsed value.
+    const parseKey = raw => {
+      if (raw == null) return raw
+      if (typeof raw !== 'string') return raw
+      const s = raw.trim()
+      // Try JSON first
+      try { return JSON.parse(s) } catch { /* fall through */ }
+      // Try JS object literal (e.g. "{key1: 1, key2: 2}")
+      if (s.startsWith('{')) {
+        // eslint-disable-next-line no-new-func
+        try { return new Function(`return (${s})`)() } catch { /* fall through */ }
+      }
+      // Numeric scalar
+      if (/^-?\d+(\.\d+)?$/.test(s)) return Number(s)
+      return s
+    }
+
+    // Parse a body value that may be a JSON string or already an object.
+    const parseBody = raw => {
+      if (raw == null) return raw
+      if (typeof raw !== 'string') return raw
+      try { return JSON.parse(raw) } catch { return raw }
+    }
+
+    // Strip service prefix if entity was stored as "ServiceName.EntityName"
+    const stripPrefix = name => (service && name.startsWith(service + '.')) ? name.slice(service.length + 1) : name
+
     switch (operation) {
       case 'list': {
         const cols = columns ? columns.split(',').map(c => c.trim()).filter(Boolean) : null
@@ -859,25 +981,68 @@ export default class N8nService extends cds.ApplicationService {
         return cds.db.run(query)
       }
       case 'get': {
-        const where = key ?? filter ?? input
-        return SELECT.one.from(entity).where(where)
+        const rawKey = key ?? filter
+        if (rawKey != null) {
+          const parsedKey = parseKey(rawKey)
+          // Scalar key: find the entity's first key field from cds.model (handles non-ID keys)
+          if (typeof parsedKey !== 'object' || parsedKey === null) {
+            const defs = cds.model?.definitions ?? {}
+            // entity may be short name — find matching FQN
+            const entityDef = defs[entity] ?? Object.values(defs).find(d => d.name === entity || d.name?.endsWith('.' + entity))
+            const keyFields = entityDef ? Object.entries(entityDef.elements ?? {}).filter(([,e]) => e.key).map(([n]) => n) : []
+            const keyField = keyFields[0] ?? 'ID'
+            return SELECT.one.from(entity).where({ [keyField]: parsedKey })
+          }
+          return SELECT.one.from(entity).where(parsedKey)
+        }
+        // No key: fall back to first item's json fields as where clause
+        const itemJson = Array.isArray(input) ? (input[0]?.json ?? {}) : (input?.json ?? input ?? {})
+        return SELECT.one.from(entity).where(itemJson)
       }
       case 'create': {
         if (!service) throw new Error('capEntity create requires a service parameter')
         const svc = await cds.connect.to(service)
-        return svc.send('POST', entity, body ?? input)
+        const entityName = stripPrefix(entity)
+        const data = parseBody(body) ?? (Array.isArray(input) ? input[0]?.json : input)
+        const result = await svc.tx({ user: new cds.User.Privileged() }, tx =>
+          tx.insert(data).into(entityName)
+        )
+        // INSERT returns InsertResults (array-like) or a number — return the inserted data instead
+        // so downstream nodes receive a usable object, not a row count
+        const isUsable = result && typeof result === 'object' && !Array.isArray(result) && result.constructor?.name === 'Object'
+        return isUsable ? result : data
       }
       case 'update': {
         if (!service) throw new Error('capEntity update requires a service parameter')
         const svc = await cds.connect.to(service)
-        const path = key ? `${entity}(${key})` : entity
-        return svc.send('PATCH', path, body ?? input)
+        const entityName = stripPrefix(entity)
+        const parsedKey = key != null ? parseKey(key) : null
+        const updateData = parseBody(body) ?? (Array.isArray(input) ? input[0]?.json : input)
+        await svc.tx({ user: new cds.User.Privileged() }, tx => {
+          let q = tx.update(entityName).set(updateData)
+          if (parsedKey != null) {
+            q = typeof parsedKey === 'object' ? q.where(parsedKey) : q.byKey(parsedKey)
+          }
+          return q
+        })
+        // UPDATE returns a count — pass through the merged data so downstream nodes can use it
+        const keyPart = typeof parsedKey === 'object' && parsedKey !== null ? parsedKey : {}
+        return { ...keyPart, ...updateData }
       }
       case 'delete': {
         if (!service) throw new Error('capEntity delete requires a service parameter')
         const svc = await cds.connect.to(service)
-        const path = key ? `${entity}(${key})` : entity
-        return svc.send('DELETE', path)
+        const entityName = stripPrefix(entity)
+        const parsedKey = key != null ? parseKey(key) : null
+        await svc.tx({ user: new cds.User.Privileged() }, tx => {
+          let q = tx.delete(entityName)
+          if (parsedKey != null) {
+            q = typeof parsedKey === 'object' ? q.where(parsedKey) : q.byKey(parsedKey)
+          }
+          return q
+        })
+        // DELETE returns a count — return a status object so downstream nodes continue
+        return { deleted: true, key: parsedKey }
       }
       default:
         throw new Error(`capEntity: unknown operation "${operation}"`)
@@ -988,7 +1153,6 @@ export default class N8nService extends cds.ApplicationService {
     delete _stepState[executionId]
     delete _pinData[executionId]
     delete _pushSeq[executionId]
-    log.error(`Execution ${executionId} failed: ${errorMessage}`)
     const finishedAt = new Date().toISOString()
     const execRow = await SELECT.one.from('cap.ai.n8n.WorkflowExecutions').where({ ID: executionId })
     await UPDATE('cap.ai.n8n.WorkflowExecutions')
@@ -998,6 +1162,9 @@ export default class N8nService extends cds.ApplicationService {
         error:      JSON.stringify({ message: errorMessage }),
       })
       .where({ ID: executionId })
+    await UPDATE('cap.ai.n8n.WorkflowExecutions')
+      .set({ data: JSON.stringify({ status: 'error', error: errorMessage }) })
+      .where({ ID: executionId })
     cds.emit('n8n.push', {
       type: 'executionFinished',
       data: { executionId, workflowId: execRow?.workflow_ID ?? null, status: 'error' },
@@ -1006,12 +1173,8 @@ export default class N8nService extends cds.ApplicationService {
     // Reject any awaiting caller (e.g. chat trigger route)
     const awaiting = _awaitingCompletion[executionId]
     if (awaiting) {
-      clearTimeout(awaiting.timeoutHandle)
       delete _awaitingCompletion[executionId]
       awaiting.reject(new Error(errorMessage))
-    } else {
-      _capturedRunData[executionId] = { status: 'error', error: errorMessage }
-      setTimeout(() => { delete _capturedRunData[executionId] }, 60_000)
     }
   }
 
@@ -1034,26 +1197,26 @@ export default class N8nService extends cds.ApplicationService {
     const { id, timeoutMs = 30000 } = req.data
     if (!id) return req.error(400, 'id is required')
 
-    // Register the awaiter BEFORE checking _capturedRunData to close the race
-    // where the execution finishes between our check and registration.
-    // All delivery is in-memory — never touch the DB here, as CAP holds an open
-    // transaction for the action's lifetime and _recordStep INSERTs on the same
-    // connection → deadlock on SQLite.
-    return new Promise((resolve, reject) => {
-      // Already finished — resolve immediately from cache
-      if (id in _capturedRunData) {
-        const captured = _capturedRunData[id]
-        delete _capturedRunData[id]
-        if (captured.status === 'error') return reject(new Error(captured.error ?? 'Execution failed'))
-        return resolve(JSON.stringify({ status: captured.status, nodeOutputs: captured.nodeOutputs }))
+    return new Promise(async (resolve, reject) => {
+      // Already finished — resolve immediately from DB
+      const exec = await cds.tx(async tx => tx.run(SELECT.one.from('cap.ai.n8n.WorkflowExecutions').where({ ID: id })))
+      if (exec && exec.status !== 'running') {
+        const result = exec.data ? (typeof exec.data === 'string' ? JSON.parse(exec.data) : exec.data) : {}
+        if (exec.status === 'error') return reject(new Error(result.error ?? 'Execution failed'))
+        return resolve(JSON.stringify({ status: exec.status, nodeOutputs: result.nodeOutputs ?? {} }))
       }
 
-      const timeoutHandle = setTimeout(() => {
-        delete _awaitingCompletion[id]
-        reject(new Error(`Execution ${id} timed out after ${timeoutMs}ms`))
-      }, timeoutMs)
+      // Use cds.spawn so CAP manages the timer; self-checks the map to avoid firing after resolution
+      let _timedOut = false
+      cds.spawn({ after: timeoutMs }, () => {
+        if (!_timedOut && _awaitingCompletion[id]) {
+          _timedOut = true
+          delete _awaitingCompletion[id]
+          reject(new Error(`Execution ${id} timed out after ${timeoutMs}ms`))
+        }
+      })
 
-      _awaitingCompletion[id] = { resolve, reject, timeoutHandle }
+      _awaitingCompletion[id] = { resolve, reject }  // no timeoutHandle needed
     })
   }
 
@@ -1101,5 +1264,80 @@ export default class N8nService extends cds.ApplicationService {
       error:       exec.error,
       finishedAt:  exec.finishedAt,
     }
+  }
+
+  // ── Scheduler: fire active schedule/cron/interval workflows ──────────────
+
+  async _startScheduler() {
+    // Load all active workflows and register jobs for every trigger node found.
+    const workflows = await SELECT.from('cap.ai.n8n.WorkflowDefinitions').where({ active: true })
+    for (const wf of workflows) {
+      this._scheduleWorkflow(wf)
+    }
+    log.info(`Scheduler started — ${workflows.length} active workflow(s) scanned`)
+  }
+
+  _scheduleWorkflow(wf) {
+    let nodes
+    try {
+      nodes = (typeof wf.nodes === 'string' ? JSON.parse(wf.nodes) : wf.nodes) ?? []
+    } catch {
+      return
+    }
+
+    for (const node of nodes) {
+      const type = node.type
+
+      if (type === 'n8n-nodes-base.scheduleTrigger') {
+        const exprs = _schedParseCron(node.parameters?.rule)
+        for (const expr of exprs) {
+          this._spawnCronJob(expr, wf.ID, node.id)
+        }
+
+      } else if (type === 'n8n-nodes-base.cron') {
+        const exprs = _cronParseCron(node.parameters?.triggerTimes)
+        for (const expr of exprs) {
+          this._spawnCronJob(expr, wf.ID, node.id)
+        }
+
+      } else if (type === 'n8n-nodes-base.interval') {
+        const ms = _intervalToMs(node.parameters)
+        // cds.spawn manages the transaction context, error handling, and .unref() on the timer
+        cds.spawn({ every: ms }, () => this._fireScheduledWorkflow(wf.ID, node.id))
+        log.debug(`Interval trigger registered for workflow ${wf.ID} every ${ms}ms`)
+      }
+    }
+  }
+
+  _spawnCronJob(expr, workflowId, nodeId) {
+    if (!cds.utils.cron(expr)) {
+      log.warn(`Invalid cron expression "${expr}" for workflow ${workflowId} — skipping`)
+      return
+    }
+    const schedule = () => {
+      let msUntilNext
+      try {
+        const { CronExpressionParser } = _require('cron-parser')
+        msUntilNext = Math.max(1000, CronExpressionParser.parse(expr).next().toDate().getTime() - Date.now())
+      } catch (e) {
+        log.warn(`Cron parse failed for "${expr}" (workflow ${workflowId}): ${e.message}`)
+        return
+      }
+      cds.spawn({ after: msUntilNext }, async () => {
+        await this._fireScheduledWorkflow(workflowId, nodeId)
+        schedule()
+      })
+    }
+    schedule()
+    log.debug(`Cron trigger registered for workflow ${workflowId}: ${expr}`)
+  }
+
+  async _fireScheduledWorkflow(workflowId, triggerNodeId) {
+    await this.send('triggerWorkflow', {
+      workflowId,
+      startNodeIds: [triggerNodeId],
+      data: { timestamp: new Date().toISOString() },
+      mode: 'trigger',
+    })
   }
 }
