@@ -8,6 +8,10 @@
   "author": "SAP SE (https://www.sap.com)",
   "homepage": "https://cap.cloud.sap/",
   "main": "cds-plugin.js",
+  "exports": {
+    ".": "./cds-plugin.js",
+    "./vector_embedding": "./lib/vector_embedding/index.js"
+  },
   "scripts": {
     "lint": "npx -y eslint@10 .",
     "test": "node --test tests/*.test.js",
