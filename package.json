@@ -10,7 +10,11 @@
   "main": "cds-plugin.js",
   "exports": {
     ".": "./cds-plugin.js",
-    "./vector_embedding": "./lib/vector_embedding/index.js"
+    "./cds-plugin": "./cds-plugin.js",
+    "./cds-plugin.js": "./cds-plugin.js",
+    "./vector_embedding": "./lib/vector_embedding/index.js",
+    "./srv/*": "./srv/*",
+    "./lib/*": "./lib/*"
   },
   "scripts": {
     "lint": "npx -y eslint@10 .",
