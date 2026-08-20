@@ -24,6 +24,7 @@
     "format:check": "npx -y prettier@3 --check . && format-cds --check"
   },
   "files": [
+    "cds-plugin.js",
     "CHANGELOG.md",
     "lib",
     "srv"
