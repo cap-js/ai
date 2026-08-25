@@ -205,32 +205,40 @@ resources:
     type: org.cloudfoundry.managed-service
 ```
 
-### 3. Vector Embedding API for Plugin Integration
+### 3. Local Vector Embeddings with SQLite
 
-The `@cap-js/ai` plugin exports a standalone vector embedding function that can be used by other plugins (like `@cap-js/sqlite`) to generate embeddings using an ONNX model.
+The `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX model.
 
 #### Usage
 
-```javascript
-import { vector_embedding } from '@cap-js/ai/vector-embedding';
+Install the optional runtime dependencies:
 
-// Model initializes automatically on import - just use it
-const embeddingJSON = vector_embedding('Hello world', 'DOCUMENT', 'SAP_GXY.20250407');
-const embedding = JSON.parse(embeddingJSON); // Array of 384 float values
+```sh
+npm add @cap-js/sqlite onnxruntime-node
 ```
 
-#### Function Signature
+Select `ai-sqlite` for the database service:
 
-```typescript
-function vector_embedding(
-  text: string | null,
-  text_type: string,
-  model_and_version: string
-): string
+```json
+{
+  "cds": {
+    "requires": {
+      "db": "ai-sqlite"
+    }
+  }
+}
+```
+
+The HANA-compatible SQL function can then be used in CQL:
+
+```js
+SELECT.from('Books').columns`
+  VECTOR_EMBEDDING(title, 'DOCUMENT', 'SAP_GXY.20250407') as embedding
+`;
 ```
 
 **Parameters:**
-- `text` - Text to embed (returns zero vector if null or empty)
+- `text` - Text to embed (`NULL` remains `NULL`; empty text returns a zero vector)
 - `text_type` - Type of text, e.g., `'DOCUMENT'` (currently informational)
 - `model_and_version` - Model identifier, e.g., `'SAP_GXY.20250407'` or `'SAP_GXY.20240715'`
 
@@ -238,15 +246,14 @@ function vector_embedding(
 - JSON stringified array of embedding values (384 dimensions)
 
 **Features:**
-- **Auto-initialization**: ONNX model loads automatically when module is imported (top-level await)
+- **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
 - **Deterministic**: Same input always produces same output
 - **Normalized vectors**: All embeddings are L2-normalized
 - **Semantic similarity**: Embeddings capture text meaning for similarity search
 
 **Error Handling:**
-- Throws if ONNX model failed to load during import
+- Starting `ai-sqlite` fails if the ONNX model cannot be initialized
 - Throws if embedding generation fails
-- Import errors can be caught to detect if AI plugin is available
 
 ## Test the plugin locally
 

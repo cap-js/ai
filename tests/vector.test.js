@@ -1,6 +1,9 @@
-import { describe, test } from 'node:test';
+import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
-import { vector_embedding } from '../lib/vector_embedding/index.js';
+import cds from '@sap/cds';
+import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
+
+before(initializeEmbedding);
 
 describe('Vector embedding function (standalone)', () => {
   describe('vector_embedding', () => {
@@ -97,6 +100,38 @@ describe('Vector embedding function (standalone)', () => {
       const embedding3 = JSON.parse(result3);
       assert.strictEqual(embedding3.length, 384, 'Unknown model should default to 384 dimensions');
     });
+  });
+});
+
+describe('ai-sqlite integration', () => {
+  let db;
+
+  before(async () => {
+    db = await cds.connect.to('vector-db', {
+      kind: 'ai-sqlite',
+      credentials: { url: ':memory:' }
+    });
+  });
+
+  after(async () => {
+    await db?.disconnect();
+  });
+
+  test('registers VECTOR_EMBEDDING for three and four arguments', async () => {
+    const [row] = await db.run(`SELECT
+      VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS local,
+      VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407', 'remote') AS remote`);
+
+    assert.strictEqual(JSON.parse(row.local).length, 384);
+    assert.strictEqual(row.remote, row.local);
+  });
+
+  test('preserves SQL null semantics', async () => {
+    const [row] = await db.run(
+      `SELECT VECTOR_EMBEDDING(NULL, 'DOCUMENT', 'SAP_GXY.20250407') AS embedding`
+    );
+
+    assert.strictEqual(row.embedding, null);
   });
 });
 

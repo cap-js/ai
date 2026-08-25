@@ -8,14 +8,6 @@
   "author": "SAP SE (https://www.sap.com)",
   "homepage": "https://cap.cloud.sap/",
   "main": "cds-plugin.js",
-  "exports": {
-    ".": "./cds-plugin.js",
-    "./cds-plugin": "./cds-plugin.js",
-    "./cds-plugin.js": "./cds-plugin.js",
-    "./vector_embedding": "./lib/vector_embedding/index.js",
-    "./srv/*": "./srv/*",
-    "./lib/*": "./lib/*"
-  },
   "scripts": {
     "lint": "npx -y eslint@10 .",
     "test": "node --test tests/*.test.js",
@@ -24,20 +16,23 @@
     "format:check": "npx -y prettier@3 --check . && format-cds --check"
   },
   "files": [
-    "cds-plugin.js",
     "CHANGELOG.md",
     "lib",
     "srv"
   ],
-  "dependencies": {
-    "onnxruntime-node": "^1.20.1"
-  },
   "devDependencies": {
     "@cap-js/cds-test": "^1",
-    "@cap-js/cds-types": "^0.16.0"
+    "@cap-js/cds-types": "^0.16.0",
+    "onnxruntime-node": "^1.20.1"
   },
   "peerDependencies": {
-    "@sap/cds": ">=9"
+    "@sap/cds": ">=9",
+    "onnxruntime-node": "^1.20.1"
+  },
+  "peerDependenciesMeta": {
+    "onnxruntime-node": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=20.0.0"
