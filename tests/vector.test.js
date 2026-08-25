@@ -2,8 +2,13 @@ import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
+import { DEFAULT_MODEL } from '../lib/vector_embedding/embedding.js';
 
-before(initializeEmbedding);
+let embeddingModule;
+
+before(async () => {
+  embeddingModule = await initializeEmbedding();
+});
 
 describe('Vector embedding function (standalone)', () => {
   describe('vector_embedding', () => {
@@ -87,7 +92,17 @@ describe('Vector embedding function (standalone)', () => {
       );
     });
 
-    test('uses correct dimensions for different models', async () => {
+    test('embeds text longer than the MiniLM token limit', () => {
+      const result = vector_embedding(
+        new Array(300).fill('semantic').join(' '),
+        'DOCUMENT',
+        'SAP_GXY.20250407'
+      );
+
+      assert.strictEqual(JSON.parse(result).length, 384);
+    });
+
+    test('uses the configured dimensions for compatibility model identifiers', async () => {
       const result1 = vector_embedding('test', 'DOCUMENT', 'SAP_GXY.20250407');
       const embedding1 = JSON.parse(result1);
       assert.strictEqual(embedding1.length, 384, 'SAP_GXY.20250407 should have 384 dimensions');
@@ -99,6 +114,14 @@ describe('Vector embedding function (standalone)', () => {
       const result3 = vector_embedding('test', 'DOCUMENT', 'unknown_model');
       const embedding3 = JSON.parse(result3);
       assert.strictEqual(embedding3.length, 384, 'Unknown model should default to 384 dimensions');
+    });
+
+    test('retains the embedding module wrapper', () => {
+      const result = embeddingModule.embedding('Hello world');
+
+      assert.equal(result.content, 'Hello world');
+      assert.equal(result.embedding.length, 384);
+      assert.deepEqual(Object.keys(result), ['content']);
     });
   });
 });
@@ -133,6 +156,44 @@ describe('ai-sqlite integration', () => {
 
     assert.strictEqual(row.embedding, null);
   });
+
+  test('validates a model descriptor supplied through the service options', async () => {
+    await assert.rejects(
+      cds.connect.to('invalid-vector-db', {
+        kind: 'ai-sqlite',
+        embedding: { ...DEFAULT_MODEL, revision: 'main' },
+        credentials: { url: ':memory:' }
+      }),
+      /immutable 40-64 character commit hash/
+    );
+  });
+
+  test('keeps custom model behavior scoped to its service', async () => {
+    const customDb = await cds.connect.to('unnormalized-vector-db', {
+      kind: 'ai-sqlite',
+      embedding: {
+        ...DEFAULT_MODEL,
+        output: { ...DEFAULT_MODEL.output, normalize: false }
+      },
+      credentials: { url: ':memory:' }
+    });
+
+    try {
+      const [defaultRow] = await db.run(
+        `SELECT VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS embedding`
+      );
+      const [customRow] = await customDb.run(
+        `SELECT VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS embedding`
+      );
+      const defaultNorm = vectorNorm(JSON.parse(defaultRow.embedding));
+      const customNorm = vectorNorm(JSON.parse(customRow.embedding));
+
+      assert.ok(Math.abs(defaultNorm - 1) < 1e-5);
+      assert.ok(Math.abs(customNorm - 1) > 1e-3);
+    } finally {
+      await customDb.disconnect();
+    }
+  });
 });
 
 // Helper function to calculate cosine similarity between two vectors
@@ -150,4 +211,8 @@ function cosineSimilarity(a, b) {
   }
 
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
+
+function vectorNorm(vector) {
+  return Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
 }
