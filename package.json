@@ -22,10 +22,17 @@
   ],
   "devDependencies": {
     "@cap-js/cds-test": "^1",
-    "@cap-js/cds-types": "^0.16.0"
+    "@cap-js/cds-types": "^0.16.0",
+    "onnxruntime-node": "1.20.1"
   },
   "peerDependencies": {
-    "@sap/cds": ">=9"
+    "@sap/cds": ">=9",
+    "onnxruntime-node": "1.20.1"
+  },
+  "peerDependenciesMeta": {
+    "onnxruntime-node": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=20.0.0"

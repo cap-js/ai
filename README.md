@@ -205,6 +205,59 @@ resources:
     type: org.cloudfoundry.managed-service
 ```
 
+### 3. Local Vector Embeddings with SQLite
+
+The `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX model.
+
+#### Usage
+
+Install the optional runtime dependencies:
+
+```sh
+npm add @cap-js/sqlite onnxruntime-node@1.20.1
+```
+
+`ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
+
+Select `ai-sqlite` for the database service:
+
+```json
+{
+  "cds": {
+    "requires": {
+      "db": "ai-sqlite"
+    }
+  }
+}
+```
+
+The HANA-compatible SQL function can then be used in CQL:
+
+```js
+SELECT.from('Books').columns`
+  VECTOR_EMBEDDING(title, 'DOCUMENT', 'SAP_GXY.20250407') as embedding
+`;
+```
+
+**Parameters:**
+- `text` - Text to embed (`NULL` remains `NULL`; empty text returns a zero vector)
+- `text_type` - Type of text, e.g., `'DOCUMENT'` (currently informational)
+- `model_and_version` - Model identifier, e.g., `'SAP_GXY.20250407'` or `'SAP_GXY.20240715'`
+
+**Returns:**
+- JSON stringified array of embedding values (384 dimensions)
+
+**Features:**
+- **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
+- **Verified cache**: The pinned model revision is cached by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to use a pre-provisioned cache root
+- **Deterministic**: Same input always produces same output
+- **Normalized vectors**: All embeddings are L2-normalized
+- **Semantic similarity**: Embeddings capture text meaning for similarity search
+
+**Error Handling:**
+- Starting `ai-sqlite` fails if the ONNX model cannot be initialized
+- Downloads are time-limited and accepted only when their expected size and SHA-256 match
+- Throws if embedding generation fails
 
 ## Test the plugin locally
 
