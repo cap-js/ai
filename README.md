@@ -207,7 +207,7 @@ resources:
 
 ### 3. Local Vector Embeddings with SQLite
 
-The beta `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX model.
+The `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX encoder model. It uses the pinned `Xenova/all-MiniLM-L6-v2` model by default.
 
 #### Usage
 
@@ -242,22 +242,78 @@ SELECT.from('Books').columns`
 `VECTOR_EMBEDDING` embeds one model input window. Text beyond the tokenizer's input limit is truncated. For long-document retrieval, split documents before persistence and store one vector per chunk instead of combining chunk embeddings in this function.
 
 **Parameters:**
+
 - `text` - Text to embed (`NULL` remains `NULL`; empty text returns a zero vector)
 - `text_type` - Type of text, e.g., `'DOCUMENT'` (currently informational)
-- `model_and_version` - Model identifier, e.g., `'SAP_GXY.20250407'` or `'SAP_GXY.20240715'`
+- `model_and_version` - Compatibility model identifier, e.g., `'SAP_GXY.20250407'` or `'SAP_GXY.20240715'` (currently informational; the service's `embedding` option selects the local model)
 
 **Returns:**
-- JSON stringified array of embedding values (384 dimensions)
+
+- JSON stringified array of embedding values (384 dimensions for the default MiniLM model; custom models use their configured `dimensions`)
 
 **Features:**
+
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
-- **Verified cache**: The pinned model revision is cached by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to use a pre-provisioned cache root
-- **Predictable input**: Embeds the first model input window and truncates longer text
+- **Verified cache**: The pinned model revision and artifact set are cached by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to use a pre-provisioned cache root
+- **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and safely chunks text that exceeds the model limit
 - **Deterministic**: Same input always produces same output
-- **Normalized vectors**: All embeddings are L2-normalized
+- **Normalized vectors**: MiniLM embeddings are L2-normalized; custom descriptors control this with `output.normalize`
 - **Semantic similarity**: Embeddings capture text meaning for similarity search
 
+#### Compatible custom encoder models
+
+Configure a different model through the database service's `embedding` option. Models are not discovered dynamically: every artifact must belong to an immutable revision and have an expected size and SHA-256 checksum.
+
+```json
+{
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "ai-sqlite",
+        "embedding": {
+          "repository": "organization/model",
+          "revision": "0123456789abcdef0123456789abcdef01234567",
+          "dimensions": 768,
+          "maxLength": 512,
+          "files": [
+            {
+              "role": "model",
+              "name": "model.onnx",
+              "path": "onnx/model.onnx",
+              "size": 123456789,
+              "sha256": "<64 lowercase hexadecimal characters>"
+            },
+            {
+              "role": "tokenizer",
+              "name": "tokenizer.json",
+              "path": "tokenizer.json",
+              "size": 123456,
+              "sha256": "<64 lowercase hexadecimal characters>"
+            },
+            {
+              "role": "tokenizerConfig",
+              "name": "tokenizer_config.json",
+              "path": "tokenizer_config.json",
+              "size": 1234,
+              "sha256": "<64 lowercase hexadecimal characters>"
+            }
+          ],
+          "output": {
+            "name": "last_hidden_state",
+            "pooling": "mean",
+            "normalize": true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Compatible models must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`, all as `int64` tensors. Their configured float32 or float64 output must support `mean` or `cls` pooling from `[1, sequence, dimensions]`, or `none` for an already pooled `[dimensions]` or `[1, dimensions]` tensor. Additional pinned ONNX data files can use the `auxiliary` role. Startup probes the model and rejects incompatible input names, output names, types, shapes, or dimensions.
+
 **Error Handling:**
+
 - Starting `ai-sqlite` fails if the ONNX model cannot be initialized
 - Downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails

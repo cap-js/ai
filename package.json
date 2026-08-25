@@ -20,6 +20,9 @@
     "lib",
     "srv"
   ],
+  "dependencies": {
+    "@huggingface/tokenizers": "0.1.3"
+  },
   "devDependencies": {
     "@cap-js/cds-test": "^1",
     "@cap-js/cds-types": "^0.16.0",
