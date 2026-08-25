@@ -214,8 +214,10 @@ The `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embed
 Install the optional runtime dependencies:
 
 ```sh
-npm add @cap-js/sqlite onnxruntime-node
+npm add @cap-js/sqlite onnxruntime-node@1.20.1
 ```
+
+`ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
 
 Select `ai-sqlite` for the database service:
 
@@ -247,12 +249,14 @@ SELECT.from('Books').columns`
 
 **Features:**
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
+- **Verified cache**: The pinned model revision is cached by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to use a pre-provisioned cache root
 - **Deterministic**: Same input always produces same output
 - **Normalized vectors**: All embeddings are L2-normalized
 - **Semantic similarity**: Embeddings capture text meaning for similarity search
 
 **Error Handling:**
 - Starting `ai-sqlite` fails if the ONNX model cannot be initialized
+- Downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails
 
 ## Test the plugin locally
