@@ -9,9 +9,9 @@
 ### Added
 
 - Add the `ai-sqlite` kind with a `VECTOR_EMBEDDING` function using ONNX Runtime and the `Xenova/all-MiniLM-L6-v2` model (384 dimensions)
-  - Adds `cds-ai model install` for explicit, checksum-verified model provisioning; application startup remains offline
+  - Adds `cds-ai model install` for explicit, checksum-verified model provisioning and a warned, on-demand download into the default cache
   - Uses `@huggingface/tokenizers` and chunks long input without dropping per-chunk special tokens
-  - Allows an explicit, checksum-verified compatible encoder model descriptor per `ai-sqlite` service
+  - Configures embedding runtimes only through `model` and an optional relative or absolute `directory`; custom model metadata remains in the provisioned lock
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
   - Synchronous execution suitable for SQLite user-defined functions

@@ -219,25 +219,32 @@ npm add @cap-js/sqlite onnxruntime-node@1.20.1
 
 `ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
 
-Provision the default model before starting the application:
-
-```sh
-npx cds-ai model install Xenova/all-MiniLM-L6-v2
-```
-
-The command downloads the pinned artifacts, verifies their sizes and SHA-256 checksums, and writes an `embedding.lock.json`. Application startup never downloads model files.
-
-Select `ai-sqlite` for the database service:
+Select `ai-sqlite` and the embedding model by name:
 
 ```json
 {
   "cds": {
     "requires": {
-      "db": "ai-sqlite"
+      "db": {
+        "kind": "ai-sqlite",
+        "embedding": {
+          "model": "Xenova/all-MiniLM-L6-v2"
+        }
+      }
     }
   }
 }
 ```
+
+`Xenova/all-MiniLM-L6-v2` is used when the complete `embedding` option is omitted. If `embedding.directory` is not configured, startup checks the default model cache. A missing model is downloaded there after printing a warning, and subsequent starts reuse the verified files.
+
+To avoid a download during application startup, provision the model explicitly first:
+
+```sh
+npx cds-ai model install Xenova/all-MiniLM-L6-v2
+```
+
+The command uses the same default cache location as the runtime, verifies artifact sizes and SHA-256 checksums, and writes an `embedding.lock.json`.
 
 The HANA-compatible SQL function can then be used in CQL:
 
@@ -260,7 +267,7 @@ SELECT.from('Books').columns`
 **Features:**
 
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
-- **Explicit provisioning**: Model artifacts are downloaded only by `cds-ai model install`; runtime initialization is offline
+- **Flexible provisioning**: Preinstall models with `cds-ai model install`, or let development startup download a missing built-in model after warning you
 - **Verified cache**: The pinned model revision and artifact set are stored by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to select another cache root
 - **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and safely chunks text that exceeds the model limit
 - **Deterministic**: Same input always produces same output
@@ -314,7 +321,7 @@ Provision it into an application-managed directory:
 npx cds-ai model install --descriptor ./embedding-model.json --directory ./models/custom
 ```
 
-Then point the service at that locked directory:
+Then point the service at that locked directory. Runtime configuration contains only the model name and directory; the lock contains the technical model metadata:
 
 ```json
 {
@@ -332,14 +339,17 @@ Then point the service at that locked directory:
 }
 ```
 
-Relative directories are resolved from the CAP project root. Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink. For production, provision the directory while building the application image or mount it read-only. The inline descriptor form from earlier versions remains supported and uses the configured cache root.
+Relative directories are resolved from `cds.root`. Absolute directories are used unchanged, which allows multiple applications to reuse a shared model directory. When `embedding.directory` is configured, startup never downloads or modifies that directory: provision it while building the application image or mount an already provisioned directory. Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink.
+
+The runtime accepts no model metadata beyond `embedding.model` and `embedding.directory`. Ad-hoc downloads by model name are available only for built-in presets. Custom models must first be installed from a descriptor into an explicitly configured directory.
 
 Compatible models must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`, all as `int64` tensors. Their configured float32 or float64 output must support `mean` or `cls` pooling from `[1, sequence, dimensions]`, or `none` for an already pooled `[dimensions]` or `[1, dimensions]` tensor. Additional pinned ONNX data files can use the `auxiliary` role. Startup probes the model and rejects incompatible input names, output names, types, shapes, or dimensions.
 
 **Error Handling:**
 
 - Starting `ai-sqlite` fails if the ONNX model cannot be initialized
-- Starting `ai-sqlite` fails with a provisioning command if model artifacts are missing or fail integrity checks
+- A missing built-in model in the default cache is downloaded after a startup warning
+- Starting `ai-sqlite` fails with a provisioning command if a configured model directory is missing or fails integrity checks
 - Provisioning downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails
 

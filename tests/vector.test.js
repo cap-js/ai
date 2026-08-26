@@ -3,7 +3,6 @@ import assert from 'node:assert';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
 import { DEFAULT_MODEL } from '../lib/vector_embedding/embedding.js';
-import { getModelCacheDir, getModelCacheRoot } from '../lib/vector_embedding/model-utils.js';
 
 let embeddingModule;
 
@@ -134,8 +133,7 @@ describe('ai-sqlite integration', () => {
     db = await cds.connect.to('vector-db', {
       kind: 'ai-sqlite',
       embedding: {
-        model: DEFAULT_MODEL.repository,
-        directory: getModelCacheDir(getModelCacheRoot(), DEFAULT_MODEL)
+        model: DEFAULT_MODEL.repository
       },
       credentials: { url: ':memory:' }
     });
@@ -162,42 +160,15 @@ describe('ai-sqlite integration', () => {
     assert.strictEqual(row.embedding, null);
   });
 
-  test('validates a model descriptor supplied through the service options', async () => {
+  test('rejects model descriptors supplied through the service options', async () => {
     await assert.rejects(
       cds.connect.to('invalid-vector-db', {
         kind: 'ai-sqlite',
         embedding: { ...DEFAULT_MODEL, revision: 'main' },
         credentials: { url: ':memory:' }
       }),
-      /immutable 40-64 character commit hash/
+      /Only model and directory are supported/
     );
-  });
-
-  test('keeps custom model behavior scoped to its service', async () => {
-    const customDb = await cds.connect.to('unnormalized-vector-db', {
-      kind: 'ai-sqlite',
-      embedding: {
-        ...DEFAULT_MODEL,
-        output: { ...DEFAULT_MODEL.output, normalize: false }
-      },
-      credentials: { url: ':memory:' }
-    });
-
-    try {
-      const [defaultRow] = await db.run(
-        `SELECT VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS embedding`
-      );
-      const [customRow] = await customDb.run(
-        `SELECT VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS embedding`
-      );
-      const defaultNorm = vectorNorm(JSON.parse(defaultRow.embedding));
-      const customNorm = vectorNorm(JSON.parse(customRow.embedding));
-
-      assert.ok(Math.abs(defaultNorm - 1) < 1e-5);
-      assert.ok(Math.abs(customNorm - 1) > 1e-3);
-    } finally {
-      await customDb.disconnect();
-    }
   });
 });
 
@@ -216,8 +187,4 @@ function cosineSimilarity(a, b) {
   }
 
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-function vectorNorm(vector) {
-  return Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
 }

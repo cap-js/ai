@@ -8,6 +8,7 @@ import { runModelCommand } from '../lib/vector_embedding/cli.js';
 import { resolveEmbeddingModel } from '../lib/vector_embedding/embedding.js';
 import {
   MODEL_LOCK_FILE,
+  getModelCacheDir,
   provisionModel,
   readModelLock,
   verifyModelDirectory
@@ -31,6 +32,21 @@ describe('model presets', () => {
 
   test('rejects unknown model names', () => {
     assert.throws(() => resolveModelPreset('example/unknown'), /Unsupported embedding model/);
+  });
+
+  test('accepts only model and directory in runtime configuration', async () => {
+    await assert.rejects(
+      resolveEmbeddingModel(DEFAULT_MODEL.repository),
+      /embedding must be an object with model and optional directory/
+    );
+    await assert.rejects(
+      resolveEmbeddingModel({ ...DEFAULT_MODEL }),
+      /Only model and directory are supported/
+    );
+    await assert.rejects(
+      resolveEmbeddingModel({ model: DEFAULT_MODEL.repository, directory: '' }),
+      /embedding.directory must be a non-empty string/
+    );
   });
 });
 
@@ -294,30 +310,125 @@ describe('explicit model provisioning', () => {
     assert.deepEqual(await fs.readdir(directory), []);
   });
 
-  test('keeps runtime initialization offline', async () => {
-    const root = await createTemporaryDirectory();
-    let fetched = false;
-    const originalFetch = globalThis.fetch;
-    globalThis.fetch = () => {
-      fetched = true;
-      throw new Error('runtime must not fetch');
+  test('downloads a missing model into the default cache and reuses it', async () => {
+    const cacheRoot = await createTemporaryDirectory();
+    const content = Buffer.from('lazy download fixture');
+    const model = fixtureModel(content);
+    const requestedUrls = [];
+    const warnings = [];
+    const options = {
+      env: { CDS_AI_MODEL_CACHE: cacheRoot },
+      fetchImpl: createFetch(content, requestedUrls),
+      resolvePreset(name) {
+        assert.equal(name, model.repository);
+        return model;
+      },
+      warn: (message) => warnings.push(message)
     };
 
-    try {
-      await assert.rejects(
-        resolveEmbeddingModel(
-          {
-            model: DEFAULT_MODEL.repository,
-            directory: './models/minilm'
-          },
-          { root }
-        ),
-        /cds-ai model install Xenova\/all-MiniLM-L6-v2 --directory \.\/models\/minilm/
-      );
-      assert.equal(fetched, false);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    const first = await resolveEmbeddingModel({ model: model.repository }, options);
+    const expectedDirectory = getModelCacheDir(cacheRoot, model);
+
+    assert.equal(first.model, model);
+    assert.equal(first.modelDir, expectedDirectory);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /Downloading it now; application startup may be delayed/);
+    assert.equal(requestedUrls.length, model.files.length);
+    assert.deepEqual(await readModelLock(expectedDirectory), model);
+
+    const second = await resolveEmbeddingModel({ model: model.repository }, options);
+    assert.equal(second.modelDir, expectedDirectory);
+    assert.equal(warnings.length, 1);
+    assert.equal(requestedUrls.length, model.files.length);
+  });
+
+  test('waits for concurrent lazy provisioning and reuses the completed download', async () => {
+    const cacheRoot = await createTemporaryDirectory();
+    const content = Buffer.from('concurrent lazy download fixture');
+    const model = fixtureModel(content);
+    const requestedUrls = [];
+    const warnings = [];
+    let releaseDownload;
+    let signalDownloadStarted;
+    let firstRequest = true;
+    const downloadStarted = new Promise((resolve) => {
+      signalDownloadStarted = resolve;
+    });
+    const waitForRelease = new Promise((resolve) => {
+      releaseDownload = resolve;
+    });
+    const fetchImpl = async (url) => {
+      requestedUrls.push(url);
+      if (firstRequest) {
+        firstRequest = false;
+        signalDownloadStarted();
+        await waitForRelease;
+      }
+      return new Response(content, {
+        headers: { 'content-length': String(content.length) }
+      });
+    };
+    const options = {
+      env: { CDS_AI_MODEL_CACHE: cacheRoot },
+      fetchImpl,
+      resolvePreset: () => model,
+      warn: (message) => warnings.push(message),
+      provisionRetryMs: 5,
+      provisionTimeoutMs: 1000
+    };
+
+    const first = resolveEmbeddingModel({ model: model.repository }, options);
+    await downloadStarted;
+    const second = resolveEmbeddingModel({ model: model.repository }, options);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    releaseDownload();
+
+    const resolved = await Promise.all([first, second]);
+    assert.equal(resolved[0].modelDir, resolved[1].modelDir);
+    assert.equal(warnings.length, 2);
+    assert.equal(requestedUrls.length, model.files.length);
+  });
+
+  test('keeps explicitly configured directories offline', async () => {
+    const root = await createTemporaryDirectory();
+    let fetched = false;
+    await assert.rejects(
+      resolveEmbeddingModel(
+        {
+          model: DEFAULT_MODEL.repository,
+          directory: './models/minilm'
+        },
+        {
+          root,
+          fetchImpl: () => {
+            fetched = true;
+            throw new Error('explicit directories must not fetch');
+          }
+        }
+      ),
+      /cds-ai model install Xenova\/all-MiniLM-L6-v2 --directory \.\/models\/minilm/
+    );
+    assert.equal(fetched, false);
+  });
+
+  test('resolves relative directories from cds.root and preserves absolute directories', async () => {
+    const root = await createTemporaryDirectory();
+    const directory = path.join(root, 'models', 'custom');
+    const content = Buffer.from('directory resolution fixture');
+    const model = fixtureModel(content);
+    await provisionModel(model, { directory, fetchImpl: createFetch(content) });
+
+    const relative = await resolveEmbeddingModel(
+      { model: model.repository, directory: './models/custom' },
+      { root }
+    );
+    const absolute = await resolveEmbeddingModel(
+      { model: model.repository, directory },
+      { root: await createTemporaryDirectory() }
+    );
+
+    assert.equal(relative.modelDir, directory);
+    assert.equal(absolute.modelDir, directory);
   });
 
   test('requires the complete built-in preset in an explicitly configured directory', async () => {
@@ -374,6 +485,13 @@ describe('explicit model provisioning', () => {
 
     assert.deepEqual(await readModelLock(directory), model);
     assert.match(output.join(''), /Provisioned example\/model/);
+  });
+
+  test('requires a directory when provisioning a custom descriptor', async () => {
+    await assert.rejects(
+      runModelCommand(['model', 'install', '--descriptor', './embedding-model.json']),
+      /--descriptor requires --directory/
+    );
   });
 });
 
