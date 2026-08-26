@@ -132,6 +132,38 @@ describe('model compatibility', () => {
         }),
       /safe relative path/
     );
+    assert.throws(
+      () =>
+        validateModelDescriptor({
+          ...model,
+          files: model.files.map((file, index) =>
+            index === 0 ? { ...file, name: 'embedding.lock.json' } : file
+          )
+        }),
+      /conflicts with provisioning metadata/
+    );
+    assert.throws(
+      () =>
+        validateModelDescriptor({
+          ...model,
+          files: model.files.map((file, index) =>
+            index === 0 ? { ...file, name: 'EMBEDDING.LOCK.JSON' } : file
+          )
+        }),
+      /conflicts with provisioning metadata/
+    );
+    assert.throws(
+      () =>
+        validateModelDescriptor({
+          ...model,
+          files: model.files.map((file, index) => {
+            if (index === 0) return { ...file, name: 'nested' };
+            if (index === 1) return { ...file, name: 'nested/tokenizer.json' };
+            return file;
+          })
+        }),
+      /conflicts with another embedding file/
+    );
   });
 });
 

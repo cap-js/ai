@@ -9,7 +9,7 @@
 ### Added
 
 - Add the `ai-sqlite` kind with a `VECTOR_EMBEDDING` function using ONNX Runtime and the `Xenova/all-MiniLM-L6-v2` model (384 dimensions)
-  - Downloads the pinned model revision on-demand from Hugging Face (~91MB), verifies its size and SHA-256, and caches it locally
+  - Adds `cds-ai model install` for explicit, checksum-verified model provisioning; application startup remains offline
   - Uses `@huggingface/tokenizers` and chunks long input without dropping per-chunk special tokens
   - Allows an explicit, checksum-verified compatible encoder model descriptor per `ai-sqlite` service
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`

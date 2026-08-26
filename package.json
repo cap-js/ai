@@ -8,8 +8,14 @@
   "author": "SAP SE (https://www.sap.com)",
   "homepage": "https://cap.cloud.sap/",
   "main": "cds-plugin.js",
+  "bin": {
+    "cds-ai": "bin/cds-ai.js"
+  },
   "scripts": {
     "lint": "npx -y eslint@10 .",
+    "model:provision": "node bin/cds-ai.js model install Xenova/all-MiniLM-L6-v2",
+    "pretest": "npm run model:provision",
+    "pretest:hybrid": "npm run model:provision",
     "test": "node --test tests/*.test.js",
     "test:hybrid": "cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
     "format": "npx -y prettier@3 . --write && format-cds -f",
@@ -17,6 +23,7 @@
   },
   "files": [
     "CHANGELOG.md",
+    "bin",
     "lib",
     "srv"
   ],

@@ -3,6 +3,7 @@ import assert from 'node:assert';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
 import { DEFAULT_MODEL } from '../lib/vector_embedding/embedding.js';
+import { getModelCacheDir, getModelCacheRoot } from '../lib/vector_embedding/model-utils.js';
 
 let embeddingModule;
 
@@ -132,6 +133,10 @@ describe('ai-sqlite integration', () => {
   before(async () => {
     db = await cds.connect.to('vector-db', {
       kind: 'ai-sqlite',
+      embedding: {
+        model: DEFAULT_MODEL.repository,
+        directory: getModelCacheDir(getModelCacheRoot(), DEFAULT_MODEL)
+      },
       credentials: { url: ':memory:' }
     });
   });

@@ -219,6 +219,14 @@ npm add @cap-js/sqlite onnxruntime-node@1.20.1
 
 `ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
 
+Provision the default model before starting the application:
+
+```sh
+npx cds-ai model install Xenova/all-MiniLM-L6-v2
+```
+
+The command downloads the pinned artifacts, verifies their sizes and SHA-256 checksums, and writes an `embedding.lock.json`. Application startup never downloads model files.
+
 Select `ai-sqlite` for the database service:
 
 ```json
@@ -252,7 +260,8 @@ SELECT.from('Books').columns`
 **Features:**
 
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
-- **Verified cache**: The pinned model revision and artifact set are cached by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to use a pre-provisioned cache root
+- **Explicit provisioning**: Model artifacts are downloaded only by `cds-ai model install`; runtime initialization is offline
+- **Verified cache**: The pinned model revision and artifact set are stored by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to select another cache root
 - **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and safely chunks text that exceeds the model limit
 - **Deterministic**: Same input always produces same output
 - **Normalized vectors**: MiniLM embeddings are L2-normalized; custom descriptors control this with `output.normalize`
@@ -260,7 +269,52 @@ SELECT.from('Books').columns`
 
 #### Compatible custom encoder models
 
-Configure a different model through the database service's `embedding` option. Models are not discovered dynamically: every artifact must belong to an immutable revision and have an expected size and SHA-256 checksum.
+The built-in preset currently recognizes `Xenova/all-MiniLM-L6-v2`. For a compatible custom model, create an `embedding-model.json` descriptor. Models are not discovered dynamically: every artifact must belong to an immutable revision and have an expected size and SHA-256 checksum.
+
+```json
+{
+  "repository": "organization/model",
+  "revision": "0123456789abcdef0123456789abcdef01234567",
+  "dimensions": 768,
+  "maxLength": 512,
+  "files": [
+    {
+      "role": "model",
+      "name": "model.onnx",
+      "path": "onnx/model.onnx",
+      "size": 123456789,
+      "sha256": "<64 lowercase hexadecimal characters>"
+    },
+    {
+      "role": "tokenizer",
+      "name": "tokenizer.json",
+      "path": "tokenizer.json",
+      "size": 123456,
+      "sha256": "<64 lowercase hexadecimal characters>"
+    },
+    {
+      "role": "tokenizerConfig",
+      "name": "tokenizer_config.json",
+      "path": "tokenizer_config.json",
+      "size": 1234,
+      "sha256": "<64 lowercase hexadecimal characters>"
+    }
+  ],
+  "output": {
+    "name": "last_hidden_state",
+    "pooling": "mean",
+    "normalize": true
+  }
+}
+```
+
+Provision it into an application-managed directory:
+
+```sh
+npx cds-ai model install --descriptor ./embedding-model.json --directory ./models/custom
+```
+
+Then point the service at that locked directory:
 
 ```json
 {
@@ -269,38 +323,8 @@ Configure a different model through the database service's `embedding` option. M
       "db": {
         "kind": "ai-sqlite",
         "embedding": {
-          "repository": "organization/model",
-          "revision": "0123456789abcdef0123456789abcdef01234567",
-          "dimensions": 768,
-          "maxLength": 512,
-          "files": [
-            {
-              "role": "model",
-              "name": "model.onnx",
-              "path": "onnx/model.onnx",
-              "size": 123456789,
-              "sha256": "<64 lowercase hexadecimal characters>"
-            },
-            {
-              "role": "tokenizer",
-              "name": "tokenizer.json",
-              "path": "tokenizer.json",
-              "size": 123456,
-              "sha256": "<64 lowercase hexadecimal characters>"
-            },
-            {
-              "role": "tokenizerConfig",
-              "name": "tokenizer_config.json",
-              "path": "tokenizer_config.json",
-              "size": 1234,
-              "sha256": "<64 lowercase hexadecimal characters>"
-            }
-          ],
-          "output": {
-            "name": "last_hidden_state",
-            "pooling": "mean",
-            "normalize": true
-          }
+          "model": "organization/model",
+          "directory": "./models/custom"
         }
       }
     }
@@ -308,12 +332,15 @@ Configure a different model through the database service's `embedding` option. M
 }
 ```
 
+Relative directories are resolved from the CAP project root. Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink. For production, provision the directory while building the application image or mount it read-only. The inline descriptor form from earlier versions remains supported and uses the configured cache root.
+
 Compatible models must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`, all as `int64` tensors. Their configured float32 or float64 output must support `mean` or `cls` pooling from `[1, sequence, dimensions]`, or `none` for an already pooled `[dimensions]` or `[1, dimensions]` tensor. Additional pinned ONNX data files can use the `auxiliary` role. Startup probes the model and rejects incompatible input names, output names, types, shapes, or dimensions.
 
 **Error Handling:**
 
 - Starting `ai-sqlite` fails if the ONNX model cannot be initialized
-- Downloads are time-limited and accepted only when their expected size and SHA-256 match
+- Starting `ai-sqlite` fails with a provisioning command if model artifacts are missing or fail integrity checks
+- Provisioning downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails
 
 ## Test the plugin locally
