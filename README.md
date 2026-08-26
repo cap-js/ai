@@ -239,6 +239,8 @@ SELECT.from('Books').columns`
 `;
 ```
 
+`VECTOR_EMBEDDING` embeds one model input window. Text beyond the tokenizer's input limit is truncated. For long-document retrieval, split documents before persistence and store one vector per chunk instead of combining chunk embeddings in this function.
+
 **Parameters:**
 - `text` - Text to embed (`NULL` remains `NULL`; empty text returns a zero vector)
 - `text_type` - Type of text, e.g., `'DOCUMENT'` (currently informational)
@@ -250,6 +252,7 @@ SELECT.from('Books').columns`
 **Features:**
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
 - **Verified cache**: The pinned model revision is cached by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to use a pre-provisioned cache root
+- **Predictable input**: Embeds the first model input window and truncates longer text
 - **Deterministic**: Same input always produces same output
 - **Normalized vectors**: All embeddings are L2-normalized
 - **Semantic similarity**: Embeddings capture text meaning for similarity search

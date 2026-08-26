@@ -27,6 +27,18 @@ describe('Vector embedding function (standalone)', () => {
       assert.strictEqual(e1, e2, 'Same input should produce identical embeddings');
     });
 
+    test('ignores text beyond the first model input window', () => {
+      const firstWindow = new Array(126).fill('token').join(' ');
+      const truncated = vector_embedding(firstWindow, 'DOCUMENT', 'SAP_GXY.20250407');
+      const withAdditionalText = vector_embedding(
+        `${firstWindow} this text must not affect the embedding`,
+        'DOCUMENT',
+        'SAP_GXY.20250407'
+      );
+
+      assert.strictEqual(withAdditionalText, truncated);
+    });
+
     test('different inputs produce different outputs', async () => {
       const e1 = vector_embedding('hello world', 'DOCUMENT', 'SAP_GXY.20250407');
       const e2 = vector_embedding('goodbye world', 'DOCUMENT', 'SAP_GXY.20250407');
