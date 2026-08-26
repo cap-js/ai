@@ -207,7 +207,7 @@ resources:
 
 ### 3. Local Vector Embeddings with SQLite
 
-The `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX model.
+The beta `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX model.
 
 #### Usage
 

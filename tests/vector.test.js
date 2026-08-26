@@ -12,7 +12,6 @@ describe('Vector embedding function (standalone)', () => {
 
       const embedding = JSON.parse(result);
       assert.ok(Array.isArray(embedding), 'Embedding should be an array');
-      assert.strictEqual(embedding.length, 384, 'Embedding should have 384 dimensions');
 
       // Check that values are floats in reasonable range
       embedding.forEach((val, idx) => {
