@@ -148,8 +148,7 @@ describe('ai-sqlite integration', () => {
   test('requires an explicitly configured embedding model during startup', async () => {
     await assert.rejects(
       cds.connect.to('missing-embedding-model-db', {
-        kind: 'ai-sqlite',
-        credentials: { url: ':memory:' }
+        kind: 'ai-sqlite:memory'
       }),
       /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
     );
@@ -157,9 +156,8 @@ describe('ai-sqlite integration', () => {
 
   before(async () => {
     db = await cds.connect.to('vector-db', {
-      kind: 'ai-sqlite',
-      embedding: { model: MINILM_MODEL },
-      credentials: { url: ':memory:' }
+      kind: 'ai-sqlite:memory',
+      embedding: { model: MINILM_MODEL }
     });
   });
 
@@ -187,9 +185,8 @@ describe('ai-sqlite integration', () => {
   test('rejects model descriptors supplied through the service options', async () => {
     await assert.rejects(
       cds.connect.to('invalid-vector-db', {
-        kind: 'ai-sqlite',
-        embedding: { model: MINILM_MODEL, revision: 'main' },
-        credentials: { url: ':memory:' }
+        kind: 'ai-sqlite:memory',
+        embedding: { model: MINILM_MODEL, revision: 'main' }
       }),
       /Only model and directory are supported/
     );

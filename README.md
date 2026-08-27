@@ -207,7 +207,12 @@ resources:
 
 ### 3. Local Vector Embeddings with SQLite
 
-The beta `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX encoder model. Configure the model explicitly for every service.
+The beta AI-enabled SQLite database kinds extend `@cap-js/sqlite` with local semantic embeddings using an ONNX encoder model:
+
+- `ai-sqlite` uses a file-based SQLite database.
+- `ai-sqlite:memory` uses an in-memory SQLite database.
+
+Configure the embedding model explicitly for every service.
 
 #### Usage
 
@@ -217,7 +222,7 @@ Install the optional runtime dependencies:
 npm add @cap-js/sqlite @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
 ```
 
-The `@huggingface/tokenizers` and `onnxruntime-node` packages are optional peer dependencies of `@cap-js/ai`, but are required when using `ai-sqlite`. `ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
+The `@huggingface/tokenizers` and `onnxruntime-node` packages are optional peer dependencies of `@cap-js/ai`, but are required when using either AI-enabled SQLite kind. Both kinds currently require exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
 
 #### Model provisioning
 
@@ -238,7 +243,24 @@ Runtime configuration is intentionally limited to a model name and an optional m
 }
 ```
 
-`embedding.model` is required. If it is absent, `ai-sqlite` fails during startup. No revision, dimensions, tokenizer, file, pooling, checksum, or descriptor settings are accepted in runtime configuration.
+This configuration uses a file-based SQLite database. For an in-memory database, change the kind to `ai-sqlite:memory`; no `credentials.url` is required:
+
+```json
+{
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "ai-sqlite:memory",
+        "embedding": {
+          "model": "foo/bar"
+        }
+      }
+    }
+  }
+}
+```
+
+`embedding.model` is required. If it is absent, either kind fails during startup. No revision, dimensions, tokenizer, file, pooling, checksum, or descriptor settings are accepted in runtime configuration.
 
 Without `directory`, the model is stored below the CAP project at `.cds/models/foo/bar`. Startup reuses a valid installation from there. If it is missing, startup logs a warning, discovers and downloads the model, generates `embedding.lock.json`, and reuses that installation on subsequent starts.
 
@@ -302,7 +324,7 @@ SELECT.from('Books').columns`
 
 **Features:**
 
-- **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
+- **Initialization**: The ONNX model is loaded when the AI-enabled SQLite service starts
 - **Automatic provisioning**: Use model-only configuration for warned, on-demand installation into `.cds/models`
 - **Explicit provisioning**: Preinstall local or shared models with `npx @cap-js/ai install-model`
 - **Verified artifacts**: The provisioned lock pins the revision, artifact sizes, and SHA-256 checksums
@@ -321,9 +343,9 @@ Provisioning canonicalizes symlinked parent directories and rejects a model dire
 
 **Error Handling:**
 
-- Starting `ai-sqlite` fails if `cds.env.requires.db.embedding.model` is not set or the ONNX model cannot be initialized
+- Starting either AI-enabled SQLite kind fails if `cds.env.requires.db.embedding.model` is not set or the ONNX model cannot be initialized
 - A missing model in the project-local `.cds/models` cache is installed after a startup warning
-- Starting `ai-sqlite` fails with a provisioning command if a configured model directory is missing or fails integrity checks
+- Starting either AI-enabled SQLite kind fails with a provisioning command if a configured model directory is missing or fails integrity checks
 - Provisioning downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails
 

@@ -81,6 +81,10 @@
         },
         "ai-sqlite": {
           "kind": "sqlite",
+          "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js"
+        },
+        "ai-sqlite:memory": {
+          "kind": "sqlite",
           "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
           "credentials": {
             "url": ":memory:"
