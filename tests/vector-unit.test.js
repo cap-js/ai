@@ -4,7 +4,6 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
-import { InferenceSession } from '../lib/vector_embedding/InferenceSession.js';
 import {
   createFeeds,
   createTokenizerState,
@@ -21,20 +20,6 @@ import {
 } from '../lib/vector_embedding/model-utils.js';
 
 const temporaryDirectories = [];
-
-test('disposes inference sessions at most once', async () => {
-  let disposals = 0;
-  const session = new InferenceSession({
-    dispose() {
-      disposals++;
-    }
-  });
-
-  await session.dispose();
-  await session.dispose();
-
-  assert.equal(disposals, 1);
-});
 
 test('explains how to install the optional tokenizer peer dependency', async () => {
   const missing = Object.assign(
@@ -96,14 +81,11 @@ describe('tokenizer input window', () => {
 
 describe('model compatibility', () => {
   test('filters standard int64 feeds by the model input names', () => {
-    const feeds = createFeeds(
-      {
-        ids: [101, 200, 102],
-        attention_mask: [1, 0, 1],
-        token_type_ids: [0, 1, 1]
-      },
-      ['input_ids', 'attention_mask', 'token_type_ids']
-    );
+    const feeds = createFeeds({
+      ids: [101, 200, 102],
+      attention_mask: [1, 0, 1],
+      token_type_ids: [0, 1, 1]
+    });
 
     assert.deepEqual(Object.keys(feeds), ['input_ids', 'attention_mask', 'token_type_ids']);
     assert.deepEqual(feeds.input_ids.dims, [1, 3]);

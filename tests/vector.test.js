@@ -2,6 +2,7 @@ import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
+import { createEmbeddingRuntime } from '../lib/vector_embedding/embedding.js';
 
 const MINILM_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
@@ -138,6 +139,15 @@ describe('Vector embedding function (standalone)', () => {
       assert.equal(result.content, 'Hello world');
       assert.equal(result.embedding.length, 384);
       assert.deepEqual(Object.keys(result), ['content']);
+    });
+
+    test('disposes embedding runtimes safely', async () => {
+      const runtime = await createEmbeddingRuntime({ model: MINILM_MODEL });
+
+      await runtime.dispose();
+      await runtime.dispose();
+
+      assert.throws(() => runtime.embedding('test'), /Inference session has been disposed/);
     });
   });
 });
