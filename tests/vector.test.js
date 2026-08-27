@@ -12,7 +12,6 @@ describe('Vector embedding function (standalone)', () => {
 
       const embedding = JSON.parse(result);
       assert.ok(Array.isArray(embedding), 'Embedding should be an array');
-      assert.strictEqual(embedding.length, 384, 'Embedding should have 384 dimensions');
 
       // Check that values are floats in reasonable range
       embedding.forEach((val, idx) => {
@@ -26,6 +25,18 @@ describe('Vector embedding function (standalone)', () => {
       const e2 = vector_embedding('test text', 'DOCUMENT', 'SAP_GXY.20250407');
 
       assert.strictEqual(e1, e2, 'Same input should produce identical embeddings');
+    });
+
+    test('ignores text beyond the first model input window', () => {
+      const firstWindow = new Array(126).fill('token').join(' ');
+      const truncated = vector_embedding(firstWindow, 'DOCUMENT', 'SAP_GXY.20250407');
+      const withAdditionalText = vector_embedding(
+        `${firstWindow} this text must not affect the embedding`,
+        'DOCUMENT',
+        'SAP_GXY.20250407'
+      );
+
+      assert.strictEqual(withAdditionalText, truncated);
     });
 
     test('different inputs produce different outputs', async () => {

@@ -8,11 +8,12 @@
 
 ### Added
 
-- Add the `ai-sqlite` kind with a `VECTOR_EMBEDDING` function using ONNX Runtime and the `Xenova/all-MiniLM-L6-v2` model (384 dimensions)
+- **Beta:** Add the `ai-sqlite` kind with a `VECTOR_EMBEDDING` function using ONNX Runtime and the `Xenova/all-MiniLM-L6-v2` model (384 dimensions)
   - Downloads the pinned model revision on-demand from Hugging Face (~91MB), verifies its size and SHA-256, and caches it locally
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
   - Synchronous execution suitable for SQLite user-defined functions
+  - Embeds one model input window; applications split long documents and store one vector per chunk
   - **Note**: Produces 384-dimensional vectors (vs. 768 in SAP HANA) for efficiency in local development scenarios
 - Experimental!: Add local `SPARQL_EXECUTE` and `sparql_table` support to the `ai-sqlite` kind through the optional `oxigraph` peer dependency
 

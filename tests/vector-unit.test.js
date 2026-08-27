@@ -40,20 +40,19 @@ describe('BERT tokenizer', () => {
   };
 
   test('applies BERT accent, punctuation, and Chinese character normalization', () => {
-    const [chunk] = wordPieceTokenizer('Héllo, café中文', tokenizer);
+    const chunk = wordPieceTokenizer('Héllo, café中文', tokenizer);
 
     assert.deepEqual(chunk.tokens, ['[CLS]', 'hello', ',', 'cafe', '中', '文', '[SEP]']);
     assert.deepEqual(chunk.ids, [101, 200, 201, 202, 203, 204, 102]);
   });
 
-  test('uses the tokenizer model limit without an off-by-one', () => {
-    const chunks = wordPieceTokenizer(new Array(130).fill('token').join(' '), tokenizer);
+  test('truncates input to one model window without an off-by-one', () => {
+    const firstWindow = wordPieceTokenizer(new Array(126).fill('token').join(' '), tokenizer);
+    const longInput = wordPieceTokenizer(new Array(130).fill('token').join(' '), tokenizer);
 
-    assert.deepEqual(
-      chunks.map(({ ids }) => ids.length),
-      [128, 6]
-    );
-    assert.ok(chunks.every(({ ids }) => ids.length <= tokenizer.maxLength));
+    assert.equal(longInput.ids.length, tokenizer.maxLength);
+    assert.deepEqual(longInput.ids, [101, ...new Array(126).fill(205), 102]);
+    assert.deepEqual(longInput, firstWindow);
   });
 });
 
