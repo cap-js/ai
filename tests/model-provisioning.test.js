@@ -13,7 +13,7 @@ import {
   readModelLock,
   verifyModelDirectory
 } from '../lib/vector_embedding/model-utils.js';
-import { DEFAULT_MODEL, resolveModelPreset } from '../lib/vector_embedding/models.js';
+import { MINILM_MODEL, resolveModelPreset } from '../lib/vector_embedding/models.js';
 
 const temporaryDirectories = [];
 
@@ -26,8 +26,8 @@ afterEach(async () => {
 });
 
 describe('model presets', () => {
-  test('resolves the default MiniLM model by repository name', () => {
-    assert.equal(resolveModelPreset('Xenova/all-MiniLM-L6-v2'), DEFAULT_MODEL);
+  test('resolves the MiniLM model preset by repository name', () => {
+    assert.equal(resolveModelPreset('Xenova/all-MiniLM-L6-v2'), MINILM_MODEL);
   });
 
   test('rejects unknown model names', () => {
@@ -36,15 +36,23 @@ describe('model presets', () => {
 
   test('accepts only model and directory in runtime configuration', async () => {
     await assert.rejects(
-      resolveEmbeddingModel(DEFAULT_MODEL.repository),
+      resolveEmbeddingModel(),
+      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+    );
+    await assert.rejects(
+      resolveEmbeddingModel({}),
+      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+    );
+    await assert.rejects(
+      resolveEmbeddingModel(MINILM_MODEL.repository),
       /embedding must be an object with model and optional directory/
     );
     await assert.rejects(
-      resolveEmbeddingModel({ ...DEFAULT_MODEL }),
+      resolveEmbeddingModel({ ...MINILM_MODEL }),
       /Only model and directory are supported/
     );
     await assert.rejects(
-      resolveEmbeddingModel({ model: DEFAULT_MODEL.repository, directory: '' }),
+      resolveEmbeddingModel({ model: MINILM_MODEL.repository, directory: '' }),
       /embedding.directory must be a non-empty string/
     );
   });
@@ -310,7 +318,7 @@ describe('explicit model provisioning', () => {
     assert.deepEqual(await fs.readdir(directory), []);
   });
 
-  test('downloads a missing model into the default cache and reuses it', async () => {
+  test('downloads a missing model into the automatic cache and reuses it', async () => {
     const cacheRoot = await createTemporaryDirectory();
     const content = Buffer.from('lazy download fixture');
     const model = fixtureModel(content);
@@ -395,7 +403,7 @@ describe('explicit model provisioning', () => {
     await assert.rejects(
       resolveEmbeddingModel(
         {
-          model: DEFAULT_MODEL.repository,
+          model: MINILM_MODEL.repository,
           directory: './models/minilm'
         },
         {
@@ -436,12 +444,12 @@ describe('explicit model provisioning', () => {
     const content = Buffer.from('imposter preset fixture');
     const model = {
       ...fixtureModel(content),
-      repository: DEFAULT_MODEL.repository
+      repository: MINILM_MODEL.repository
     };
     await provisionModel(model, { directory, fetchImpl: createFetch(content) });
 
     await assert.rejects(
-      resolveEmbeddingModel({ model: DEFAULT_MODEL.repository, directory }),
+      resolveEmbeddingModel({ model: MINILM_MODEL.repository, directory }),
       /does not contain the pinned Xenova\/all-MiniLM-L6-v2 preset/
     );
   });
@@ -460,7 +468,7 @@ describe('explicit model provisioning', () => {
     await fs.writeFile(path.join(directory, MODEL_LOCK_FILE), '{}');
 
     await assert.rejects(
-      resolveEmbeddingModel({ model: DEFAULT_MODEL.repository, directory }),
+      resolveEmbeddingModel({ model: MINILM_MODEL.repository, directory }),
       /Remove or replace the invalid lock explicitly, then run 'npx cds-ai model install/
     );
   });

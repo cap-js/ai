@@ -207,7 +207,7 @@ resources:
 
 ### 3. Local Vector Embeddings with SQLite
 
-The `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX encoder model. It uses the pinned `Xenova/all-MiniLM-L6-v2` model by default.
+The `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX encoder model. Configure the model explicitly for every service.
 
 #### Usage
 
@@ -238,14 +238,14 @@ Runtime configuration is intentionally limited to a model name and an optional d
 }
 ```
 
-The complete `embedding` option can be omitted to use `Xenova/all-MiniLM-L6-v2`. When an `embedding` object is provided, `model` is required and `directory` is optional. No revision, dimensions, tokenizer, file, pooling, or checksum settings are accepted in runtime configuration.
+`embedding` and its `model` are required. If `cds.env.requires.db.embedding.model` is absent, `ai-sqlite` fails during startup. `directory` is optional. No revision, dimensions, tokenizer, file, pooling, or checksum settings are accepted in runtime configuration.
 
 The provisioning approaches are:
 
 | Approach | `embedding` configuration | Startup behavior |
 | --- | --- | --- |
-| Ad-hoc download | `{ "model": "Xenova/all-MiniLM-L6-v2" }` or omit `embedding` for the default | Checks the automatically determined default cache directory. If the model is missing or invalid, logs a warning, provisions a verified copy, and reuses it on subsequent starts. |
-| Pre-installed default cache | Same model-only configuration as ad-hoc download | Finds the model in the automatically determined default cache directory; no startup download is needed. |
+| Ad-hoc download | `{ "model": "Xenova/all-MiniLM-L6-v2" }` | Checks the automatically determined cache directory. If the model is missing or invalid, logs a warning, provisions a verified copy, and reuses it on subsequent starts. |
+| Pre-installed automatic cache | Same model-only configuration as ad-hoc download | Finds the model in the automatically determined cache directory; no startup download is needed. |
 | Pre-installed configured directory | `{ "model": "...", "directory": "..." }` | Reads and verifies the provisioned directory. Startup never downloads into or modifies it. |
 
 ##### Ad-hoc download
@@ -254,13 +254,13 @@ Ad-hoc download is available for built-in model presets. With no `directory`, th
 
 - the immutable model revision and verified artifact set
 - embedding dimensions, tokenizer input limit, pooling, and normalization
-- the default cache directory
+- the automatically determined cache directory
 
 If the verified files are absent or fail their integrity checks, startup prints a warning and attempts to provision a verified copy. Concurrent processes using the same cold cache wait for the first download and then reuse it. A conflicting or malformed lock is never silently replaced.
 
 The cache root is selected from `CDS_AI_MODEL_CACHE` when set. Otherwise it uses `XDG_DATA_HOME/semantic-search/models` or `~/.local/share/semantic-search/models` on POSIX systems, and `LOCALAPPDATA/semantic-search/models`, `APPDATA/semantic-search/models`, or `~/AppData/Local/semantic-search/models` on Windows. The model-specific subdirectory is derived from its repository, revision, and artifact set.
 
-##### Pre-installed in the default cache
+##### Pre-installed in the automatic cache
 
 To avoid a runtime download while retaining model-only configuration, install the model before starting or deploying the application:
 
@@ -278,7 +278,7 @@ The command uses the same automatically determined cache directory as the runtim
 }
 ```
 
-Use the same `CDS_AI_MODEL_CACHE` value during installation and at runtime when selecting a non-default cache root.
+Use the same `CDS_AI_MODEL_CACHE` value during installation and at runtime when selecting another cache root.
 
 ##### Pre-installed in a configured directory
 
@@ -326,13 +326,13 @@ SELECT.from('Books').columns`
 
 **Returns:**
 
-- JSON stringified array of embedding values (384 dimensions for the default MiniLM model; custom models use their configured `dimensions`)
+- JSON stringified array of embedding values with the configured model's dimensions
 
 **Features:**
 
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
 - **Flexible provisioning**: Preinstall models with `cds-ai model install`, or let development startup download a missing built-in model after warning you
-- **Verified cache**: The pinned model revision and artifact set are stored by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to select another cache root
+- **Verified cache**: The selected preset's pinned revision and artifact set are stored below the user's data directory unless `CDS_AI_MODEL_CACHE` selects another cache root
 - **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and safely chunks text that exceeds the model limit
 - **Deterministic**: Same input always produces same output
 - **Normalized vectors**: MiniLM embeddings are L2-normalized; custom descriptors control this with `output.normalize`
@@ -411,8 +411,8 @@ Compatible models must accept `input_ids` and may additionally accept `attention
 
 **Error Handling:**
 
-- Starting `ai-sqlite` fails if the ONNX model cannot be initialized
-- A missing built-in model in the default cache is downloaded after a startup warning
+- Starting `ai-sqlite` fails if `cds.env.requires.db.embedding.model` is not set or the ONNX model cannot be initialized
+- A missing explicitly named built-in model in the automatic cache is downloaded after a startup warning
 - Starting `ai-sqlite` fails with a provisioning command if a configured model directory is missing or fails integrity checks
 - Provisioning downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails

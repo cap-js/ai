@@ -2,12 +2,12 @@ import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
-import { DEFAULT_MODEL } from '../lib/vector_embedding/embedding.js';
+import { MINILM_MODEL } from '../lib/vector_embedding/models.js';
 
 let embeddingModule;
 
 before(async () => {
-  embeddingModule = await initializeEmbedding();
+  embeddingModule = await initializeEmbedding({ model: MINILM_MODEL.repository });
 });
 
 describe('Vector embedding function (standalone)', () => {
@@ -113,7 +113,11 @@ describe('Vector embedding function (standalone)', () => {
 
       const result3 = vector_embedding('test', 'DOCUMENT', 'unknown_model');
       const embedding3 = JSON.parse(result3);
-      assert.strictEqual(embedding3.length, 384, 'Unknown model should default to 384 dimensions');
+      assert.strictEqual(
+        embedding3.length,
+        384,
+        'Compatibility identifiers should use the configured model dimensions'
+      );
     });
 
     test('retains the embedding module wrapper', () => {
@@ -129,11 +133,21 @@ describe('Vector embedding function (standalone)', () => {
 describe('ai-sqlite integration', () => {
   let db;
 
+  test('requires an explicitly configured embedding model during startup', async () => {
+    await assert.rejects(
+      cds.connect.to('missing-embedding-model-db', {
+        kind: 'ai-sqlite',
+        credentials: { url: ':memory:' }
+      }),
+      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+    );
+  });
+
   before(async () => {
     db = await cds.connect.to('vector-db', {
       kind: 'ai-sqlite',
       embedding: {
-        model: DEFAULT_MODEL.repository
+        model: MINILM_MODEL.repository
       },
       credentials: { url: ':memory:' }
     });
@@ -164,7 +178,7 @@ describe('ai-sqlite integration', () => {
     await assert.rejects(
       cds.connect.to('invalid-vector-db', {
         kind: 'ai-sqlite',
-        embedding: { ...DEFAULT_MODEL, revision: 'main' },
+        embedding: { ...MINILM_MODEL, revision: 'main' },
         credentials: { url: ':memory:' }
       }),
       /Only model and directory are supported/

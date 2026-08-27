@@ -9,7 +9,7 @@
 ### Added
 
 - Add the `ai-sqlite` kind with a `VECTOR_EMBEDDING` function using ONNX Runtime and the `Xenova/all-MiniLM-L6-v2` model (384 dimensions)
-  - Adds `cds-ai model install` for explicit, checksum-verified model provisioning and a warned, on-demand download into the default cache
+  - Requires `cds.env.requires.db.embedding.model`; adds `cds-ai model install` for explicit, checksum-verified model provisioning and a warned, on-demand download of an explicitly named built-in model into the automatic cache
   - Uses `@huggingface/tokenizers` and chunks long input without dropping per-chunk special tokens
   - Configures embedding runtimes only through `model` and an optional relative or absolute `directory`; custom model metadata remains in the provisioned lock
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
