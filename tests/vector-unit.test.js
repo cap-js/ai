@@ -11,10 +11,8 @@ import {
   tokenizeWithChunks
 } from '../lib/vector_embedding/embedding.js';
 import {
-  artifactSetDigest,
   downloadFile,
   downloadModelIfNeeded,
-  getModelCacheDir,
   validateModelDescriptor
 } from '../lib/vector_embedding/model-utils.js';
 
@@ -164,31 +162,6 @@ describe('model compatibility', () => {
         }),
       /conflicts with another embedding file/
     );
-  });
-});
-
-describe('model cache identity', () => {
-  test('preserves repository components and separates artifact variants', () => {
-    const root = path.join(path.sep, 'cache');
-    const model = fixtureModel(Buffer.from('fixture'));
-    const reordered = { ...model, files: [...model.files].reverse() };
-    const variant = {
-      ...model,
-      files: model.files.map((file, index) =>
-        index === 0 ? { ...file, sha256: 'f'.repeat(64) } : file
-      )
-    };
-    const flattenedRepository = { ...model, repository: 'example_model' };
-
-    const modelPath = getModelCacheDir(root, model);
-    assert.equal(modelPath, getModelCacheDir(root, reordered));
-    assert.notEqual(modelPath, getModelCacheDir(root, variant));
-    assert.notEqual(modelPath, getModelCacheDir(root, flattenedRepository));
-    assert.equal(
-      path.relative(root, modelPath).split(path.sep).slice(0, 3).join('/'),
-      `example/model/${model.revision}`
-    );
-    assert.equal(path.basename(modelPath), artifactSetDigest(model));
   });
 });
 

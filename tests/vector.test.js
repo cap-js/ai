@@ -1,13 +1,22 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
+import fs from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
-import { MINILM_MODEL } from '../lib/vector_embedding/models.js';
+
+const MINILM_MODEL = JSON.parse(
+  await fs.readFile(new URL('./fixtures/minilm.embedding-model.json', import.meta.url), 'utf8')
+);
+const MINILM_DIRECTORY = fileURLToPath(new URL('./.models/minilm', import.meta.url));
 
 let embeddingModule;
 
 before(async () => {
-  embeddingModule = await initializeEmbedding({ model: MINILM_MODEL.repository });
+  embeddingModule = await initializeEmbedding({
+    model: MINILM_MODEL.repository,
+    directory: MINILM_DIRECTORY
+  });
 });
 
 describe('Vector embedding function (standalone)', () => {
@@ -143,11 +152,23 @@ describe('ai-sqlite integration', () => {
     );
   });
 
+  test('requires an explicitly configured embedding directory during startup', async () => {
+    await assert.rejects(
+      cds.connect.to('missing-embedding-directory-db', {
+        kind: 'ai-sqlite',
+        embedding: { model: MINILM_MODEL.repository },
+        credentials: { url: ':memory:' }
+      }),
+      /cds\.env\.requires\.db\.embedding\.directory must be a non-empty string/
+    );
+  });
+
   before(async () => {
     db = await cds.connect.to('vector-db', {
       kind: 'ai-sqlite',
       embedding: {
-        model: MINILM_MODEL.repository
+        model: MINILM_MODEL.repository,
+        directory: MINILM_DIRECTORY
       },
       credentials: { url: ':memory:' }
     });

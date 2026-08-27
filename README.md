@@ -221,7 +221,7 @@ npm add @cap-js/sqlite onnxruntime-node@1.20.1
 
 #### Model provisioning
 
-Runtime configuration is intentionally limited to a model name and an optional directory:
+Runtime configuration is intentionally limited to a model name and directory:
 
 ```json
 {
@@ -230,7 +230,8 @@ Runtime configuration is intentionally limited to a model name and an optional d
       "db": {
         "kind": "ai-sqlite",
         "embedding": {
-          "model": "Xenova/all-MiniLM-L6-v2"
+          "model": "organization/model",
+          "directory": "./models/embedding"
         }
       }
     }
@@ -238,77 +239,25 @@ Runtime configuration is intentionally limited to a model name and an optional d
 }
 ```
 
-`embedding` and its `model` are required. If `cds.env.requires.db.embedding.model` is absent, `ai-sqlite` fails during startup. `directory` is optional. No revision, dimensions, tokenizer, file, pooling, or checksum settings are accepted in runtime configuration.
+Both `embedding.model` and `embedding.directory` are required. `ai-sqlite` fails during startup when either is absent. No revision, dimensions, tokenizer, file, pooling, or checksum settings are accepted in runtime configuration.
 
-The provisioning approaches are:
-
-| Approach | `embedding` configuration | Startup behavior |
-| --- | --- | --- |
-| Ad-hoc download | `{ "model": "Xenova/all-MiniLM-L6-v2" }` | Checks the automatically determined cache directory. If the model is missing or invalid, logs a warning, provisions a verified copy, and reuses it on subsequent starts. |
-| Pre-installed automatic cache | Same model-only configuration as ad-hoc download | Finds the model in the automatically determined cache directory; no startup download is needed. |
-| Pre-installed configured directory | `{ "model": "...", "directory": "..." }` | Reads and verifies the provisioned directory. Startup never downloads into or modifies it. |
-
-##### Ad-hoc download
-
-Ad-hoc download is available for built-in model presets. With no `directory`, the model name selects the preset and automatically determines:
-
-- the immutable model revision and verified artifact set
-- embedding dimensions, tokenizer input limit, pooling, and normalization
-- the automatically determined cache directory
-
-If the verified files are absent or fail their integrity checks, startup prints a warning and attempts to provision a verified copy. Concurrent processes using the same cold cache wait for the first download and then reuse it. A conflicting or malformed lock is never silently replaced.
-
-The cache root is selected from `CDS_AI_MODEL_CACHE` when set. Otherwise it uses `XDG_DATA_HOME/semantic-search/models` or `~/.local/share/semantic-search/models` on POSIX systems, and `LOCALAPPDATA/semantic-search/models`, `APPDATA/semantic-search/models`, or `~/AppData/Local/semantic-search/models` on Windows. The model-specific subdirectory is derived from its repository, revision, and artifact set.
-
-##### Pre-installed in the automatic cache
-
-To avoid a runtime download while retaining model-only configuration, install the model before starting or deploying the application:
+Create an `embedding-model.json` descriptor for the model, then provision it before application startup:
 
 ```sh
-npx cds-ai model install Xenova/all-MiniLM-L6-v2
+npx cds-ai model install --descriptor ./embedding-model.json --directory ./models/embedding
 ```
 
-The command uses the same automatically determined cache directory as the runtime, verifies artifact sizes and SHA-256 checksums, and writes an `embedding.lock.json`. The application configuration remains:
-
-```json
-{
-  "embedding": {
-    "model": "Xenova/all-MiniLM-L6-v2"
-  }
-}
-```
-
-Use the same `CDS_AI_MODEL_CACHE` value during installation and at runtime when selecting another cache root.
-
-##### Pre-installed in a configured directory
-
-An explicit directory is suitable for application images, read-only mounts, or a model shared by multiple applications:
-
-```sh
-npx cds-ai model install Xenova/all-MiniLM-L6-v2 --directory ./models/minilm
-```
-
-```json
-{
-  "embedding": {
-    "model": "Xenova/all-MiniLM-L6-v2",
-    "directory": "./models/minilm"
-  }
-}
-```
+Provisioning downloads the descriptor's pinned artifacts, verifies their sizes and SHA-256 checksums, and writes the validated descriptor to `embedding.lock.json`. The lock content is therefore generated from the descriptor; it is not inferred from the model name.
 
 The CLI resolves a relative `--directory` from its working directory. Runtime configuration resolves a relative `embedding.directory` from `cds.root`; absolute directories are used unchanged in both cases. Run the install command from `cds.root` or use the same absolute path so both refer to the same model directory.
 
-A configured directory must already contain a valid `embedding.lock.json` and all verified artifacts. Startup remains offline and fails rather than downloading if the directory is incomplete. `CDS_AI_MODEL_CACHE` has no effect when `embedding.directory` is configured.
+A configured directory must already contain a valid `embedding.lock.json` and all verified artifacts. Startup remains offline and fails rather than downloading or modifying the directory if it is incomplete.
 
-##### Automatic model metadata detection
+##### Model metadata
 
-The runtime obtains technical model configuration without exposing it through `cds.requires.db.embedding`:
+At startup, the runtime reads the immutable revision, artifacts, checksums, dimensions, tokenizer limit, pooling, and normalization from `embedding.lock.json`. It verifies the files and checks that the lock's repository matches `embedding.model`.
 
-- Without `directory`, the model name resolves to a built-in preset containing the pinned revision, artifacts, checksums, dimensions, tokenizer limit, and output semantics.
-- With `directory`, the runtime reads those values from `embedding.lock.json`, verifies the artifacts, and checks that its repository matches `embedding.model`. Built-in presets are additionally checked against their complete pinned descriptor.
-
-This is not dynamic discovery of arbitrary Hugging Face repositories. Model-name-only ad-hoc downloads require a built-in preset. Other compatible models must be explicitly provisioned from a descriptor into a configured directory.
+This is local metadata detection, not discovery from a model name or arbitrary Hugging Face repository. A model name alone cannot reliably determine artifact selection, pooling, normalization, or other runtime semantics.
 
 The HANA-compatible SQL function can then be used in CQL:
 
@@ -331,16 +280,16 @@ SELECT.from('Books').columns`
 **Features:**
 
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
-- **Flexible provisioning**: Preinstall models with `cds-ai model install`, or let development startup download a missing built-in model after warning you
-- **Verified cache**: The selected preset's pinned revision and artifact set are stored below the user's data directory unless `CDS_AI_MODEL_CACHE` selects another cache root
+- **Explicit provisioning**: Install models before startup with `cds-ai model install`
+- **Verified artifacts**: The provisioned lock pins the revision, artifact sizes, and SHA-256 checksums
 - **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and safely chunks text that exceeds the model limit
 - **Deterministic**: Same input always produces same output
-- **Normalized vectors**: MiniLM embeddings are L2-normalized; custom descriptors control this with `output.normalize`
+- **Configurable output handling**: The descriptor controls pooling and L2 normalization
 - **Semantic similarity**: Embeddings capture text meaning for similarity search
 
-#### Compatible custom encoder models
+#### Compatible encoder models
 
-The built-in preset currently recognizes `Xenova/all-MiniLM-L6-v2`. For a compatible custom model, create an `embedding-model.json` descriptor. Models are not discovered dynamically: every artifact must belong to an immutable revision and have an expected size and SHA-256 checksum.
+Create an `embedding-model.json` descriptor for each compatible model. Models are not discovered dynamically: every artifact must belong to an immutable revision and have an expected size and SHA-256 checksum.
 
 ```json
 {
@@ -405,14 +354,13 @@ Then point the service at that locked directory. Runtime configuration contains 
 
 Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink.
 
-The runtime accepts no model metadata beyond `embedding.model` and `embedding.directory`. Ad-hoc downloads by model name are available only for built-in presets. Custom models must first be installed from a descriptor into an explicitly configured directory.
+The runtime accepts no model metadata beyond `embedding.model` and `embedding.directory`. Every model must first be installed from a descriptor into the configured directory.
 
 Compatible models must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`, all as `int64` tensors. Their configured float32 or float64 output must support `mean` or `cls` pooling from `[1, sequence, dimensions]`, or `none` for an already pooled `[dimensions]` or `[1, dimensions]` tensor. Additional pinned ONNX data files can use the `auxiliary` role. Startup probes the model and rejects incompatible input names, output names, types, shapes, or dimensions.
 
 **Error Handling:**
 
-- Starting `ai-sqlite` fails if `cds.env.requires.db.embedding.model` is not set or the ONNX model cannot be initialized
-- A missing explicitly named built-in model in the automatic cache is downloaded after a startup warning
+- Starting `ai-sqlite` fails if `cds.env.requires.db.embedding.model` or `cds.env.requires.db.embedding.directory` is not set, or the ONNX model cannot be initialized
 - Starting `ai-sqlite` fails with a provisioning command if a configured model directory is missing or fails integrity checks
 - Provisioning downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails

@@ -5,3 +5,4 @@ package-lock.json
 .env
 .cdsrc-private.json
 resources/
+tests/.models/

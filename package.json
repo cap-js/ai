@@ -13,9 +13,9 @@
   },
   "scripts": {
     "lint": "npx -y eslint@10 .",
-    "model:provision": "node bin/cds-ai.js model install Xenova/all-MiniLM-L6-v2",
-    "pretest": "npm run model:provision",
-    "pretest:hybrid": "npm run model:provision",
+    "test:model:provision": "node bin/cds-ai.js model install --descriptor tests/fixtures/minilm.embedding-model.json --directory tests/.models/minilm",
+    "pretest": "npm run test:model:provision",
+    "pretest:hybrid": "npm run test:model:provision",
     "test": "node --test tests/*.test.js",
     "test:hybrid": "cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
     "format": "npx -y prettier@3 . --write && format-cds -f",
