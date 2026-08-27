@@ -17,7 +17,7 @@
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
   - Synchronous execution suitable for SQLite user-defined functions
   - Embeds one model input window; applications split long documents and store one vector per chunk
-- Experimental!: Add local `SPARQL_EXECUTE` and `sparql_table` support to the `ai-sqlite` kind through the optional `oxigraph` peer dependency
+- **Experimental!:** Add local `SPARQL_EXECUTE` and `sparql_table` support to the `ai-sqlite` kind through the optional `oxigraph` peer dependency
 
 ## Version 1.1.0 - 2026-07-20
 
