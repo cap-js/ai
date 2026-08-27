@@ -2,12 +2,13 @@ import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
-import { DEFAULT_MODEL } from '../lib/vector_embedding/embedding.js';
+
+const MINILM_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
 let embeddingModule;
 
 before(async () => {
-  embeddingModule = await initializeEmbedding();
+  embeddingModule = await initializeEmbedding({ model: MINILM_MODEL });
 });
 
 describe('Vector embedding function (standalone)', () => {
@@ -124,7 +125,11 @@ describe('Vector embedding function (standalone)', () => {
 
       const result3 = vector_embedding('test', 'DOCUMENT', 'unknown_model');
       const embedding3 = JSON.parse(result3);
-      assert.strictEqual(embedding3.length, 384, 'Unknown model should default to 384 dimensions');
+      assert.strictEqual(
+        embedding3.length,
+        384,
+        'Compatibility identifiers should use the configured model dimensions'
+      );
     });
 
     test('retains the embedding module wrapper', () => {
@@ -140,9 +145,20 @@ describe('Vector embedding function (standalone)', () => {
 describe('ai-sqlite integration', () => {
   let db;
 
+  test('requires an explicitly configured embedding model during startup', async () => {
+    await assert.rejects(
+      cds.connect.to('missing-embedding-model-db', {
+        kind: 'ai-sqlite',
+        credentials: { url: ':memory:' }
+      }),
+      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+    );
+  });
+
   before(async () => {
     db = await cds.connect.to('vector-db', {
       kind: 'ai-sqlite',
+      embedding: { model: MINILM_MODEL },
       credentials: { url: ':memory:' }
     });
   });
@@ -168,42 +184,15 @@ describe('ai-sqlite integration', () => {
     assert.strictEqual(row.embedding, null);
   });
 
-  test('validates a model descriptor supplied through the service options', async () => {
+  test('rejects model descriptors supplied through the service options', async () => {
     await assert.rejects(
       cds.connect.to('invalid-vector-db', {
         kind: 'ai-sqlite',
-        embedding: { ...DEFAULT_MODEL, revision: 'main' },
+        embedding: { model: MINILM_MODEL, revision: 'main' },
         credentials: { url: ':memory:' }
       }),
-      /immutable 40-64 character commit hash/
+      /Only model and directory are supported/
     );
-  });
-
-  test('keeps custom model behavior scoped to its service', async () => {
-    const customDb = await cds.connect.to('unnormalized-vector-db', {
-      kind: 'ai-sqlite',
-      embedding: {
-        ...DEFAULT_MODEL,
-        output: { ...DEFAULT_MODEL.output, normalize: false }
-      },
-      credentials: { url: ':memory:' }
-    });
-
-    try {
-      const [defaultRow] = await db.run(
-        `SELECT VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS embedding`
-      );
-      const [customRow] = await customDb.run(
-        `SELECT VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS embedding`
-      );
-      const defaultNorm = vectorNorm(JSON.parse(defaultRow.embedding));
-      const customNorm = vectorNorm(JSON.parse(customRow.embedding));
-
-      assert.ok(Math.abs(defaultNorm - 1) < 1e-5);
-      assert.ok(Math.abs(customNorm - 1) > 1e-3);
-    } finally {
-      await customDb.disconnect();
-    }
   });
 });
 
@@ -222,8 +211,4 @@ function cosineSimilarity(a, b) {
   }
 
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-}
-
-function vectorNorm(vector) {
-  return Math.sqrt(vector.reduce((sum, value) => sum + value * value, 0));
 }

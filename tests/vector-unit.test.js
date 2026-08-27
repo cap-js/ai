@@ -4,21 +4,36 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
+import { InferenceSession } from '../lib/vector_embedding/InferenceSession.js';
 import {
   createFeeds,
   createTokenizerState,
   poolOutput,
-  tokenizeWithChunks
+  tokenizeToWindow
 } from '../lib/vector_embedding/embedding.js';
 import {
-  artifactSetDigest,
   downloadFile,
   downloadModelIfNeeded,
-  getModelCacheDir,
+  getModelDirectory,
+  getModelRoot,
   validateModelDescriptor
 } from '../lib/vector_embedding/model-utils.js';
 
 const temporaryDirectories = [];
+
+test('disposes inference sessions at most once', async () => {
+  let disposals = 0;
+  const session = new InferenceSession({
+    dispose() {
+      disposals++;
+    }
+  });
+
+  await session.dispose();
+  await session.dispose();
+
+  assert.equal(disposals, 1);
+});
 
 afterEach(async () => {
   await Promise.all(
@@ -28,7 +43,7 @@ afterEach(async () => {
   );
 });
 
-describe('tokenizer chunking', () => {
+describe('tokenizer input window', () => {
   const tokenizer = {
     encode(text, { add_special_tokens: addSpecialTokens }) {
       const ids = text
@@ -47,32 +62,20 @@ describe('tokenizer chunking', () => {
     }
   };
 
-  test('derives special-token boundaries and adds them to every chunk', () => {
+  test('derives special-token boundaries and keeps one complete model window', () => {
     const state = createTokenizerState(tokenizer, 5);
-    const chunks = tokenizeWithChunks('one two three four five six seven', tokenizer, state);
+    const input = tokenizeToWindow('one two three four five six seven', tokenizer, state);
 
-    assert.deepEqual(
-      chunks.map(({ ids }) => ids),
-      [
-        [101, 10, 11, 12, 102],
-        [101, 13, 14, 15, 102],
-        [101, 16, 102]
-      ]
-    );
-    assert.deepEqual(chunks[0].attention_mask, [1, 0, 1, 0, 1]);
-    assert.deepEqual(chunks[1].token_type_ids, [9, 23, 24, 25, 10]);
-    assert.ok(chunks.every(({ ids }) => ids.length <= 5));
+    assert.deepEqual(input.ids, [101, 10, 11, 12, 102]);
+    assert.deepEqual(input.attention_mask, [1, 0, 1, 0, 1]);
+    assert.deepEqual(input.token_type_ids, [9, 20, 21, 22, 10]);
   });
 
-  test('does not rely on the tokenizer to truncate long input', () => {
+  test('truncates content without relying on tokenizer-side truncation', () => {
     const state = createTokenizerState(tokenizer, 4);
-    const chunks = tokenizeWithChunks(new Array(9).fill('token').join(' '), tokenizer, state);
+    const input = tokenizeToWindow(new Array(9).fill('token').join(' '), tokenizer, state);
 
-    assert.equal(chunks.length, 5);
-    assert.deepEqual(
-      chunks.flatMap(({ ids }) => ids.slice(1, -1)),
-      [10, 11, 12, 13, 14, 15, 16, 17, 18]
-    );
+    assert.deepEqual(input.ids, [101, 10, 11, 102]);
   });
 });
 
@@ -132,31 +135,60 @@ describe('model compatibility', () => {
         }),
       /safe relative path/
     );
+    assert.throws(
+      () =>
+        validateModelDescriptor({
+          ...model,
+          files: model.files.map((file, index) =>
+            index === 0 ? { ...file, name: 'embedding.lock.json' } : file
+          )
+        }),
+      /conflicts with provisioning metadata/
+    );
+    assert.throws(
+      () =>
+        validateModelDescriptor({
+          ...model,
+          files: model.files.map((file, index) =>
+            index === 0 ? { ...file, name: 'EMBEDDING.LOCK.JSON' } : file
+          )
+        }),
+      /conflicts with provisioning metadata/
+    );
+    assert.throws(
+      () =>
+        validateModelDescriptor({
+          ...model,
+          files: model.files.map((file, index) => {
+            if (index === 0) return { ...file, name: 'nested' };
+            if (index === 1) return { ...file, name: 'nested/tokenizer.json' };
+            return file;
+          })
+        }),
+      /conflicts with another embedding file/
+    );
   });
 });
 
-describe('model cache identity', () => {
-  test('preserves repository components and separates artifact variants', () => {
-    const root = path.join(path.sep, 'cache');
-    const model = fixtureModel(Buffer.from('fixture'));
-    const reordered = { ...model, files: [...model.files].reverse() };
-    const variant = {
-      ...model,
-      files: model.files.map((file, index) =>
-        index === 0 ? { ...file, sha256: 'f'.repeat(64) } : file
-      )
-    };
-    const flattenedRepository = { ...model, repository: 'example_model' };
+describe('model directories', () => {
+  test('uses a project-local default and appends the model repository', () => {
+    const project = path.join(path.sep, 'project');
+    const root = getModelRoot(undefined, project);
 
-    const modelPath = getModelCacheDir(root, model);
-    assert.equal(modelPath, getModelCacheDir(root, reordered));
-    assert.notEqual(modelPath, getModelCacheDir(root, variant));
-    assert.notEqual(modelPath, getModelCacheDir(root, flattenedRepository));
+    assert.equal(root, path.join(project, '.cds', 'models'));
+    assert.equal(getModelDirectory(root, 'foo/bar'), path.join(root, 'foo', 'bar'));
+  });
+
+  test('resolves relative, absolute, and home-relative roots', () => {
+    const project = path.join(path.sep, 'project');
+    const home = path.join(path.sep, 'home', 'user');
+
+    assert.equal(getModelRoot('./models', project, home), path.join(project, 'models'));
     assert.equal(
-      path.relative(root, modelPath).split(path.sep).slice(0, 3).join('/'),
-      `example/model/${model.revision}`
+      getModelRoot(path.join(path.sep, 'shared', 'models'), project, home),
+      path.join(path.sep, 'shared', 'models')
     );
-    assert.equal(path.basename(modelPath), artifactSetDigest(model));
+    assert.equal(getModelRoot('~/.cds/models', project, home), path.join(home, '.cds', 'models'));
   });
 });
 

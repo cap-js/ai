@@ -8,15 +8,15 @@
 
 ### Added
 
-- **Beta:** Add the `ai-sqlite` kind with a `VECTOR_EMBEDDING` function using ONNX Runtime and the `Xenova/all-MiniLM-L6-v2` model (384 dimensions)
-  - Downloads the pinned model revision on-demand from Hugging Face (~91MB), verifies its size and SHA-256, and caches it locally
-  - Uses `@huggingface/tokenizers` and chunks long input without dropping per-chunk special tokens
-  - Allows an explicit, checksum-verified compatible encoder model descriptor per `ai-sqlite` service
+- **Beta:** Add the `ai-sqlite` kind with a `VECTOR_EMBEDDING` function using compatible ONNX encoder models
+  - Requires `cds.env.requires.db.embedding.model`; automatically discovers model metadata and supports warned, on-demand provisioning into `.cds/models`
+  - Adds `npx @cap-js/ai install-model <model>` with an optional shared model-cache root
+  - Uses `@huggingface/tokenizers` and truncates long input to the first model input window
+  - Configures embedding runtimes only through `model` and an optional relative, absolute, or home-relative `directory`; discovered metadata remains in the provisioned lock
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
   - Synchronous execution suitable for SQLite user-defined functions
   - Embeds one model input window; applications split long documents and store one vector per chunk
-  - **Note**: Produces 384-dimensional vectors (vs. 768 in SAP HANA) for efficiency in local development scenarios
 - Experimental!: Add local `SPARQL_EXECUTE` and `sparql_table` support to the `ai-sqlite` kind through the optional `oxigraph` peer dependency
 
 ## Version 1.1.0 - 2026-07-20

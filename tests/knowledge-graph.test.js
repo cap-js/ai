@@ -14,6 +14,7 @@ describe('ai-sqlite knowledge graph', () => {
   before(async () => {
     db = await cds.connect.to('knowledge-graph-db', {
       kind: 'ai-sqlite',
+      embedding: { model: 'Xenova/all-MiniLM-L6-v2' },
       credentials: { url: ':memory:' }
     });
   });
