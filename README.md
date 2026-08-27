@@ -226,7 +226,7 @@ The `@huggingface/tokenizers` and `onnxruntime-node` packages are optional peer 
 
 #### Model provisioning
 
-Runtime configuration is intentionally limited to a model name and an optional model-cache root:
+The built-in embedding runtime reads a model name and an optional model-cache root:
 
 ```json
 {
@@ -260,7 +260,7 @@ This configuration uses a file-based SQLite database. For an in-memory database,
 }
 ```
 
-`embedding.model` is required. If it is absent, either kind fails during startup. No revision, dimensions, tokenizer, file, pooling, checksum, or descriptor settings are accepted in runtime configuration.
+`embedding.model` is required. If it is absent, either kind fails during startup. Additional properties are allowed so extensions can add configuration of their own; built-in model provisioning only reads `model` and `directory`.
 
 Without `directory`, the model is stored below the CAP project at `.cds/models/foo/bar`. Startup reuses a valid installation from there. If it is missing, startup logs a warning, discovers and downloads the model, generates `embedding.lock.json`, and reuses that installation on subsequent starts.
 

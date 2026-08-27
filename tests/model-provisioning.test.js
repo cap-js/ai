@@ -26,8 +26,9 @@ afterEach(async () => {
 });
 
 describe('runtime model configuration', () => {
-  test('accepts only model and directory in runtime configuration', async () => {
-    const model = fixtureModel(Buffer.from('configuration fixture'));
+  test('validates model and directory while allowing additional properties', async () => {
+    const content = Buffer.from('configuration fixture');
+    const model = fixtureModel(content);
     await assert.rejects(
       resolveEmbeddingModel(),
       /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
@@ -36,18 +37,25 @@ describe('runtime model configuration', () => {
       resolveEmbeddingModel({}),
       /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
     );
-    await assert.rejects(
-      resolveEmbeddingModel(model.repository),
-      /embedding must be an object with model and optional directory/
-    );
-    await assert.rejects(
-      resolveEmbeddingModel({ ...model }),
-      /Only model and directory are supported/
-    );
+    await assert.rejects(resolveEmbeddingModel(model.repository), /embedding must be an object/);
     await assert.rejects(
       resolveEmbeddingModel({ model: model.repository, directory: '' }),
       /embedding\.directory must be a non-empty string/
     );
+
+    const directory = await createTemporaryDirectory();
+    const modelDir = getModelDirectory(directory, model.repository);
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
+
+    const resolved = await resolveEmbeddingModel({
+      model: model.repository,
+      directory,
+      revision: 'main',
+      extension: { enabled: true }
+    });
+
+    assert.equal(resolved.modelDir, modelDir);
+    assert.deepEqual(resolved.model, model);
   });
 });
 

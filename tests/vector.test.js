@@ -192,14 +192,20 @@ describe('ai-sqlite integration', () => {
     assert.strictEqual(row.embedding, null);
   });
 
-  test('rejects model descriptors supplied through the service options', async () => {
-    await assert.rejects(
-      cds.connect.to('invalid-vector-db', {
-        kind: 'ai-sqlite:memory',
-        embedding: { model: MINILM_MODEL, revision: 'main' }
-      }),
-      /Only model and directory are supported/
-    );
+  test('allows additional embedding properties', async () => {
+    const configuredDb = await cds.connect.to('extended-vector-db', {
+      kind: 'ai-sqlite:memory',
+      embedding: { model: MINILM_MODEL, revision: 'main', extension: { enabled: true } }
+    });
+
+    try {
+      const [row] = await configuredDb.run(
+        `SELECT VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS embedding`
+      );
+      assert.strictEqual(JSON.parse(row.embedding).length, 384);
+    } finally {
+      await configuredDb.disconnect();
+    }
   });
 });
 
