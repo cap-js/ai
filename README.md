@@ -214,10 +214,10 @@ The beta `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic 
 Install the optional runtime dependencies:
 
 ```sh
-npm add @cap-js/sqlite onnxruntime-node@1.20.1
+npm add @cap-js/sqlite @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
 ```
 
-`ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
+The `@huggingface/tokenizers` and `onnxruntime-node` packages are optional peer dependencies of `@cap-js/ai`, but are required when using `ai-sqlite`. `ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
 
 #### Model provisioning
 

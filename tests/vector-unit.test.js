@@ -16,6 +16,7 @@ import {
   downloadModelIfNeeded,
   getModelDirectory,
   getModelRoot,
+  loadTokenizerPackage,
   validateModelDescriptor
 } from '../lib/vector_embedding/model-utils.js';
 
@@ -33,6 +34,20 @@ test('disposes inference sessions at most once', async () => {
   await session.dispose();
 
   assert.equal(disposals, 1);
+});
+
+test('explains how to install the optional tokenizer peer dependency', async () => {
+  const missing = Object.assign(
+    new Error("Cannot find package '@huggingface/tokenizers' imported from model-utils.js"),
+    { code: 'ERR_MODULE_NOT_FOUND' }
+  );
+
+  await assert.rejects(
+    loadTokenizerPackage(async () => {
+      throw missing;
+    }),
+    /npm add @huggingface\/tokenizers@0\.1\.3/
+  );
 });
 
 afterEach(async () => {
