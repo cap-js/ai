@@ -3,7 +3,13 @@ import assert from 'node:assert';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
 
-before(initializeEmbedding);
+const MINILM_MODEL = 'Xenova/all-MiniLM-L6-v2';
+
+let embeddingModule;
+
+before(async () => {
+  embeddingModule = await initializeEmbedding({ model: MINILM_MODEL });
+});
 
 describe('Vector embedding function (standalone)', () => {
   describe('vector_embedding', () => {
@@ -98,7 +104,17 @@ describe('Vector embedding function (standalone)', () => {
       );
     });
 
-    test('uses correct dimensions for different models', async () => {
+    test('embeds text longer than the MiniLM token limit', () => {
+      const result = vector_embedding(
+        new Array(300).fill('semantic').join(' '),
+        'DOCUMENT',
+        'SAP_GXY.20250407'
+      );
+
+      assert.strictEqual(JSON.parse(result).length, 384);
+    });
+
+    test('uses the configured dimensions for compatibility model identifiers', async () => {
       const result1 = vector_embedding('test', 'DOCUMENT', 'SAP_GXY.20250407');
       const embedding1 = JSON.parse(result1);
       assert.strictEqual(embedding1.length, 384, 'SAP_GXY.20250407 should have 384 dimensions');
@@ -109,7 +125,19 @@ describe('Vector embedding function (standalone)', () => {
 
       const result3 = vector_embedding('test', 'DOCUMENT', 'unknown_model');
       const embedding3 = JSON.parse(result3);
-      assert.strictEqual(embedding3.length, 384, 'Unknown model should default to 384 dimensions');
+      assert.strictEqual(
+        embedding3.length,
+        384,
+        'Compatibility identifiers should use the configured model dimensions'
+      );
+    });
+
+    test('retains the embedding module wrapper', () => {
+      const result = embeddingModule.embedding('Hello world');
+
+      assert.equal(result.content, 'Hello world');
+      assert.equal(result.embedding.length, 384);
+      assert.deepEqual(Object.keys(result), ['content']);
     });
   });
 });
@@ -117,9 +145,20 @@ describe('Vector embedding function (standalone)', () => {
 describe('ai-sqlite integration', () => {
   let db;
 
+  test('requires an explicitly configured embedding model during startup', async () => {
+    await assert.rejects(
+      cds.connect.to('missing-embedding-model-db', {
+        kind: 'ai-sqlite',
+        credentials: { url: ':memory:' }
+      }),
+      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+    );
+  });
+
   before(async () => {
     db = await cds.connect.to('vector-db', {
       kind: 'ai-sqlite',
+      embedding: { model: MINILM_MODEL },
       credentials: { url: ':memory:' }
     });
   });
@@ -143,6 +182,17 @@ describe('ai-sqlite integration', () => {
     );
 
     assert.strictEqual(row.embedding, null);
+  });
+
+  test('rejects model descriptors supplied through the service options', async () => {
+    await assert.rejects(
+      cds.connect.to('invalid-vector-db', {
+        kind: 'ai-sqlite',
+        embedding: { model: MINILM_MODEL, revision: 'main' },
+        credentials: { url: ':memory:' }
+      }),
+      /Only model and directory are supported/
+    );
   });
 });
 

@@ -207,29 +207,78 @@ resources:
 
 ### 3. Local Vector Embeddings with SQLite
 
-The beta `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX model.
+The beta `ai-sqlite` database kind extends `@cap-js/sqlite` with local semantic embeddings using an ONNX encoder model. Configure the model explicitly for every service.
 
 #### Usage
 
 Install the optional runtime dependencies:
 
 ```sh
-npm add @cap-js/sqlite onnxruntime-node@1.20.1
+npm add @cap-js/sqlite @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
 ```
 
-`ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
+The `@huggingface/tokenizers` and `onnxruntime-node` packages are optional peer dependencies of `@cap-js/ai`, but are required when using `ai-sqlite`. `ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
 
-Select `ai-sqlite` for the database service:
+#### Model provisioning
+
+Runtime configuration is intentionally limited to a model name and an optional model-cache root:
 
 ```json
 {
   "cds": {
     "requires": {
-      "db": "ai-sqlite"
+      "db": {
+        "kind": "ai-sqlite",
+        "embedding": {
+          "model": "foo/bar"
+        }
+      }
     }
   }
 }
 ```
+
+`embedding.model` is required. If it is absent, `ai-sqlite` fails during startup. No revision, dimensions, tokenizer, file, pooling, checksum, or descriptor settings are accepted in runtime configuration.
+
+Without `directory`, the model is stored below the CAP project at `.cds/models/foo/bar`. Startup reuses a valid installation from there. If it is missing, startup logs a warning, discovers and downloads the model, generates `embedding.lock.json`, and reuses that installation on subsequent starts.
+
+To provision the project-local model before startup instead:
+
+```sh
+npx @cap-js/ai install-model foo/bar
+```
+
+To share a model across projects, select another cache root:
+
+```sh
+npx @cap-js/ai install-model foo/bar --directory ~/.cds/models
+```
+
+```json
+{
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "ai-sqlite",
+        "embedding": {
+          "model": "foo/bar",
+          "directory": "~/.cds/models"
+        }
+      }
+    }
+  }
+}
+```
+
+`directory` always names the cache root; the model is stored below it using the repository path, for example `~/.cds/models/foo/bar`. Relative directories are resolved from `cds.root`, absolute directories are used unchanged, and `~/` is resolved from the user's home directory.
+
+When `directory` is configured, startup treats it as a pre-installed shared cache: it verifies the model but does not download or modify it. This makes runtime deployment deterministic and allows the shared directory to be read-only.
+
+##### Automatic model discovery
+
+The installer resolves the model's current Hugging Face revision to an immutable commit, selects the conventional `onnx/model.onnx` and tokenizer/configuration files, calculates or obtains their checksums, and derives the dimensions, tokenizer limit, pooling, and normalization metadata. It then writes all resolved metadata to `embedding.lock.json` alongside the downloaded artifacts.
+
+Discovery supports compatible Hugging Face ONNX Sentence Transformers models with machine-readable pooling semantics. Repositories with missing or ambiguous artifacts or semantics fail with a compatibility error instead of using guessed defaults. Once installed, startup uses the pinned lock and does not follow later changes to the model repository.
 
 The HANA-compatible SQL function can then be used in CQL:
 
@@ -242,24 +291,40 @@ SELECT.from('Books').columns`
 `VECTOR_EMBEDDING` embeds one model input window. Text beyond the tokenizer's input limit is truncated. For long-document retrieval, split documents before persistence and store one vector per chunk instead of combining chunk embeddings in this function.
 
 **Parameters:**
+
 - `text` - Text to embed (`NULL` remains `NULL`; empty text returns a zero vector)
 - `text_type` - Type of text, e.g., `'DOCUMENT'` (currently informational)
-- `model_and_version` - Model identifier, e.g., `'SAP_GXY.20250407'` or `'SAP_GXY.20240715'`
+- `model_and_version` - Compatibility model identifier, e.g., `'SAP_GXY.20250407'` or `'SAP_GXY.20240715'` (currently informational; the service's `embedding` option selects the local model)
 
 **Returns:**
-- JSON stringified array of embedding values (384 dimensions)
+
+- JSON stringified array of embedding values with the configured model's dimensions
 
 **Features:**
+
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
-- **Verified cache**: The pinned model revision is cached by default below the user's data directory; set `CDS_AI_MODEL_CACHE` to use a pre-provisioned cache root
-- **Predictable input**: Embeds the first model input window and truncates longer text
+- **Automatic provisioning**: Use model-only configuration for warned, on-demand installation into `.cds/models`
+- **Explicit provisioning**: Preinstall local or shared models with `npx @cap-js/ai install-model`
+- **Verified artifacts**: The provisioned lock pins the revision, artifact sizes, and SHA-256 checksums
+- **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and truncates text to the first model input window
 - **Deterministic**: Same input always produces same output
-- **Normalized vectors**: All embeddings are L2-normalized
+- **Automatic output handling**: Pooling and normalization are derived from Sentence Transformers metadata
 - **Semantic similarity**: Embeddings capture text meaning for similarity search
 
+#### Compatible encoder models
+
+Compatible repositories must provide `onnx/model.onnx`, `tokenizer.json`, `tokenizer_config.json`, and `config.json`. The model must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`, all as `int64` tensors, and expose a `last_hidden_state` float output.
+
+Pooling semantics are read from Sentence Transformers `modules.json` and its pooling configuration. Converted repositories such as `Xenova/*` can declare a single `base_model`; its immutable Sentence Transformers metadata is used to determine mean or CLS pooling and normalization. Unsupported module chains, ambiguous pooling modes, missing metadata, or incompatible ONNX inputs and outputs fail explicitly.
+
+Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink. Existing valid locks remain pinned and are reused rather than silently following changes to the repository's default branch.
+
 **Error Handling:**
-- Starting `ai-sqlite` fails if the ONNX model cannot be initialized
-- Downloads are time-limited and accepted only when their expected size and SHA-256 match
+
+- Starting `ai-sqlite` fails if `cds.env.requires.db.embedding.model` is not set or the ONNX model cannot be initialized
+- A missing model in the project-local `.cds/models` cache is installed after a startup warning
+- Starting `ai-sqlite` fails with a provisioning command if a configured model directory is missing or fails integrity checks
+- Provisioning downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails
 
 ## Test the plugin locally
