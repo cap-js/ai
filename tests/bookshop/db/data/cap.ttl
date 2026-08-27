@@ -1,0 +1,17 @@
+@prefix cap: <https://cap.cloud.sap/> .
+
+# CAP sample turtle file
+
+cap:Service cap:label "Service" .
+cap:DatabaseService a cap:Service .
+cap:DatabaseService cap:label "Database Service" .
+cap:SQLiteService a cap:DatabaseService .
+cap:SQLiteService cap:name "SQLite Service" .
+cap:SQLiteService cap:label "SQLite Service" .
+cap:HANAService cap:implementedBy cap:cap-js-sqlite .
+cap:HANAService a cap:DatabaseService .
+cap:HANAService cap:name "HANA Service" .
+cap:HANAService cap:label "HANA Service" .
+cap:HANAService cap:implementedBy cap:cap-js-hana .
+cap:cap-js-hana cap:label "@cap-js/hana" .
+cap:cap-js-sqlite cap:label "@cap-js/sqlite" .

@@ -15,8 +15,7 @@
   - Synchronous execution suitable for SQLite user-defined functions
   - Embeds one model input window; applications split long documents and store one vector per chunk
   - **Note**: Produces 384-dimensional vectors (vs. 768 in SAP HANA) for efficiency in local development scenarios
-
-
+- Experimental!: Add local `SPARQL_EXECUTE` and `sparql_table` support to the `ai-sqlite` kind through the optional `oxigraph` peer dependency
 
 ## Version 1.1.0 - 2026-07-20
 
