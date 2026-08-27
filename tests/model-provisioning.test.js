@@ -581,6 +581,36 @@ describe('explicit model provisioning', () => {
     );
   });
 
+  test('checks a model by name without provisioning it', async () => {
+    const root = await createTemporaryDirectory();
+    const output = [];
+    const checked = {
+      repository: 'example/model',
+      revision: '1'.repeat(40),
+      task: 'sentence-similarity',
+      dimensions: 384,
+      maxLength: 128,
+      files: [
+        { role: 'model', name: 'model.onnx', path: 'onnx/model.onnx' },
+        { role: 'tokenizer', name: 'tokenizer.json', path: 'tokenizer.json' }
+      ],
+      output: { name: 'last_hidden_state', pooling: 'mean', normalize: true }
+    };
+
+    await runModelCommand(['check-model', checked.repository], {
+      cwd: root,
+      check: async (repository) => {
+        assert.equal(repository, checked.repository);
+        return checked;
+      },
+      stdout: { write: (value) => output.push(value) }
+    });
+
+    assert.match(output.join(''), /Likely compatible/i);
+    assert.match(output.join(''), /install-model.*definitive/i);
+    await assert.rejects(fs.access(path.join(root, '.cds', 'models')), /ENOENT/);
+  });
+
   test('requires a model name and accepts an optional cache root', async () => {
     await assert.rejects(
       runModelCommand(['install-model', '--directory', './models/custom']),
@@ -589,6 +619,10 @@ describe('explicit model provisioning', () => {
     await assert.rejects(
       runModelCommand(['install-model', 'example/model', 'example/other']),
       /Unexpected argument 'example\/other'/
+    );
+    await assert.rejects(
+      runModelCommand(['check-model', 'example/model', '--directory', './models']),
+      /Unknown option '--directory'/
     );
   });
 });

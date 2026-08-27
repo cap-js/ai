@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { describe, test } from 'node:test';
 
-import { discoverModel } from '../lib/vector_embedding/model-discovery.js';
+import { checkModel, discoverModel } from '../lib/vector_embedding/model-discovery.js';
 
 const REVISION = '1'.repeat(40);
 const BASE_REVISION = '2'.repeat(40);
@@ -10,6 +10,46 @@ const REPOSITORY = 'example/embedding-model';
 const BASE_REPOSITORY = 'sentence-transformers/base-model';
 
 describe('Hugging Face model discovery', () => {
+  test('checks a model from Hub metadata without downloading its ONNX artifact', async () => {
+    const hub = hubFor();
+
+    const result = await checkModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.deepEqual(
+      {
+        repository: result.repository,
+        revision: result.revision,
+        task: result.task,
+        dimensions: result.dimensions,
+        maxLength: result.maxLength,
+        files: result.files.map(({ role, name, path }) => ({ role, name, path })),
+        output: result.output
+      },
+      {
+        repository: REPOSITORY,
+        revision: REVISION,
+        task: undefined,
+        dimensions: 384,
+        maxLength: 96,
+        files: [
+          { role: 'model', name: 'model.onnx', path: 'onnx/model.onnx' },
+          { role: 'tokenizer', name: 'tokenizer.json', path: 'tokenizer.json' },
+          {
+            role: 'tokenizerConfig',
+            name: 'tokenizer_config.json',
+            path: 'tokenizer_config.json'
+          },
+          { role: 'auxiliary', name: 'config.json', path: 'config.json' }
+        ],
+        output: { name: 'last_hidden_state', pooling: 'mean', normalize: true }
+      }
+    );
+    assert.ok(
+      hub.fileRequests.every(([, , remotePath]) => !remotePath.toLowerCase().endsWith('.onnx')),
+      'the metadata-only check must not fetch ONNX bytes'
+    );
+  });
+
   test('creates a descriptor from a conventional Sentence Transformers ONNX repository', async () => {
     const hub = hubFor({
       tokenizer: { truncation: { max_length: 96 } },

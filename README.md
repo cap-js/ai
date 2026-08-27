@@ -276,6 +276,14 @@ npx @cap-js/ai install-model foo/bar
 
 The command locates the enclosing CAP project and uses its root for `.cds/models` and relative `--directory` values, even when invoked from a project subdirectory.
 
+To check whether a Hugging Face repository is likely compatible before downloading it:
+
+```sh
+npx @cap-js/ai check-model foo/bar
+```
+
+`check-model` only reads repository, configuration, and tokenizer metadata from the Hub. It does not download the ONNX artifact or write to the model cache. Its result is therefore a likely-compatibility check; `install-model` is definitive because it also inspects the downloaded ONNX graph and verifies it with the runtime.
+
 To share a model across projects, select another cache root:
 
 ```sh
@@ -336,6 +344,7 @@ SELECT.from('Books').columns`
 - **Automatic provisioning**: Use model-only configuration for warned, on-demand installation into `.cds/models`
 - **Explicit provisioning**: Preinstall local or shared models with `npx @cap-js/ai install-model`
 - **Pinned artifacts**: The provisioned lock pins the revision, artifact sizes, and SHA-256 checksums for later local integrity checks
+- **Compatibility pre-check**: Use `npx @cap-js/ai check-model <model>` to inspect a repository without downloading model weights
 - **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and truncates text to the first model input window
 - **Deterministic**: Same input always produces same output
 - **Automatic output handling**: Pooling and normalization are derived from Sentence Transformers metadata
@@ -344,6 +353,8 @@ SELECT.from('Books').columns`
 #### Compatible encoder models
 
 The Hugging Face `onnx` library filter is a useful starting point, but it is not sufficient: it also includes decoder and masked-language-model exports, which do not produce sentence embeddings. A compatible repository needs a tokenizer JSON and configuration, a single discoverable ONNX encoder graph, and a usable embedding contract.
+
+For candidate discovery, start with the [Hugging Face sentence-similarity ONNX models](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx) and run `npx @cap-js/ai check-model <model>`. Adding the [`sentence-transformers` tag](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&other=sentence-transformers) narrows the list toward repositories with machine-readable pooling metadata. The Hub filters and the check command identify likely candidates only; always use `install-model` before deploying a model.
 
 The graph must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`; all inputs must be rank-2 `int64` tensors. Token-level outputs used with pooling must be floating-point rank-3 tensors whose final dimension matches the model configuration. The runtime requires an unambiguous Sentence Transformers pooling pipeline. Pooling semantics are read from `modules.json` and its pooling configuration. Converted repositories such as `Xenova/*` can declare a single `base_model`; its immutable Sentence Transformers metadata is used to determine mean or CLS pooling and normalization. Unsupported module chains, ambiguous pooling modes, missing metadata, incompatible ONNX inputs or outputs, and explicitly incompatible Hub tasks fail with a compatibility error instead of using guessed defaults.
 
