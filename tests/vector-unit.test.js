@@ -148,6 +148,16 @@ describe('model compatibility', () => {
     assert.deepEqual(Array.from(feeds.input_ids.data), [101n, 200n, 102n]);
     assert.deepEqual(Array.from(feeds.attention_mask.data), [1n, 0n, 1n]);
     assert.deepEqual(Array.from(feeds.token_type_ids.data), [0n, 1n, 1n]);
+
+    const filtered = createFeeds(
+      {
+        ids: [101],
+        attention_mask: [1],
+        token_type_ids: [0]
+      },
+      ['input_ids', 'attention_mask']
+    );
+    assert.deepEqual(Object.keys(filtered), ['input_ids', 'attention_mask']);
   });
 
   test('supports mean, CLS, and already-pooled outputs', () => {
@@ -280,6 +290,28 @@ describe('model download', () => {
       'tokenizer.json',
       'tokenizer_config.json'
     ]);
+  });
+
+  test('authenticates model downloads and honors a custom Hub URL', async () => {
+    const directory = await createTemporaryDirectory();
+    const content = Buffer.from('authenticated model fixture');
+    const model = fixtureModel(content);
+    const requests = [];
+    const fetchImpl = async (url, options) => {
+      requests.push([url, options]);
+      return new Response(content);
+    };
+
+    await downloadModelIfNeeded(directory, model, {
+      fetchImpl,
+      accessToken: 'secret',
+      hubUrl: 'https://hub.example.test///'
+    });
+
+    assert.ok(
+      requests.every(([url]) => url.startsWith('https://hub.example.test/example/model/resolve/'))
+    );
+    assert.ok(requests.every(([, options]) => options.headers.Authorization === 'Bearer secret'));
   });
 
   test('rejects oversized content without exposing a partial cache file', async () => {

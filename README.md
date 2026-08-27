@@ -219,10 +219,10 @@ Configure the embedding model explicitly for every service.
 Install the optional runtime dependencies as development dependencies:
 
 ```sh
-npm add -D @cap-js/sqlite @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1 oxigraph
+npm add -D @cap-js/sqlite @huggingface/hub@^2.15.0 @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1 oxigraph
 ```
 
-These packages are optional peer dependencies of `@cap-js/ai` and are required only for the corresponding local SQLite capabilities. Both database kinds currently require exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
+These packages are optional peer dependencies of `@cap-js/ai` and are required only for the corresponding local SQLite capabilities. `@huggingface/hub` is required for explicit or ad-hoc model provisioning. Both database kinds currently require exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
 
 Tokenization, ONNX inference, pooling, and normalization run synchronously for each `VECTOR_EMBEDDING` call. SQLite user-defined functions cannot await, so inference blocks the Node.js event loop until it completes. The feature is intended for local development and low-volume use; server workloads should precompute or batch embeddings outside SQL.
 
@@ -304,9 +304,11 @@ When `directory` is configured, startup treats it as a pre-installed shared cach
 
 ##### Automatic model discovery
 
-The installer resolves the model's current Hugging Face revision to an immutable commit, selects the conventional `onnx/model.onnx` and tokenizer/configuration files, calculates or obtains their checksums, and derives the dimensions, tokenizer limit, pooling, and normalization metadata. It then writes all resolved metadata to `embedding.lock.json` alongside the downloaded artifacts.
+The installer uses the official Hugging Face Hub client to resolve the model's current revision to an immutable commit, enumerate its files, and retrieve discovery metadata. Selected artifacts are then streamed into the model cache with integrity checks. Set `HF_TOKEN` when installing or starting with a gated or private repository. The resolved lock contains the commit, artifact paths, sizes, checksums, dimensions, tokenizer limit, pooling, and normalization metadata; it is written to `embedding.lock.json` alongside the downloaded artifacts.
 
-Discovery supports compatible Hugging Face ONNX Sentence Transformers models with machine-readable pooling semantics. Repositories with missing or ambiguous artifacts or semantics fail with a compatibility error instead of using guessed defaults. Once installed, startup uses the pinned lock and does not follow later changes to the model repository.
+Discovery is layout-aware rather than tied to one exporter. It prefers `onnx/model.onnx`, then `model.onnx`, a unique nested `model.onnx`, or a sole ONNX file. It similarly uses root tokenizer/configuration files first and otherwise the files adjacent to the selected ONNX model. Common Transformers configuration names for dimensions (`hidden_size`, `n_embd`, `d_model`, and `dim`) and input length are recognized.
+
+The downloaded ONNX graph is inspected before it is accepted. This verifies the inputs, output rank and dimension against the discovered metadata, so a decoder's logits graph cannot accidentally be used as an embedding model. Discovery also rejects repositories explicitly tagged for incompatible tasks such as text generation or masked-language modeling. Once installed, startup uses the pinned lock and does not follow later changes to the model repository.
 
 The HANA-compatible SQL function can then be used in CQL:
 
@@ -341,9 +343,9 @@ SELECT.from('Books').columns`
 
 #### Compatible encoder models
 
-Compatible repositories must provide `onnx/model.onnx`, `tokenizer.json`, `tokenizer_config.json`, and `config.json`. The model must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`, all as `int64` tensors, and expose a `last_hidden_state` float output.
+The Hugging Face `onnx` library filter is a useful starting point, but it is not sufficient: it also includes decoder and masked-language-model exports, which do not produce sentence embeddings. A compatible repository needs a tokenizer JSON and configuration, a single discoverable ONNX encoder graph, and a usable embedding contract.
 
-Pooling semantics are read from Sentence Transformers `modules.json` and its pooling configuration. Converted repositories such as `Xenova/*` can declare a single `base_model`; its immutable Sentence Transformers metadata is used to determine mean or CLS pooling and normalization. Unsupported module chains, ambiguous pooling modes, missing metadata, or incompatible ONNX inputs and outputs fail explicitly.
+The graph must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`; all inputs must be rank-2 `int64` tensors. Token-level outputs used with pooling must be floating-point rank-3 tensors whose final dimension matches the model configuration. The runtime requires an unambiguous Sentence Transformers pooling pipeline. Pooling semantics are read from `modules.json` and its pooling configuration. Converted repositories such as `Xenova/*` can declare a single `base_model`; its immutable Sentence Transformers metadata is used to determine mean or CLS pooling and normalization. Unsupported module chains, ambiguous pooling modes, missing metadata, incompatible ONNX inputs or outputs, and explicitly incompatible Hub tasks fail with a compatibility error instead of using guessed defaults.
 
 Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink. Existing valid locks remain pinned and are reused rather than silently following changes to the repository's default branch.
 

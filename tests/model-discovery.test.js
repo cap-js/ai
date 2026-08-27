@@ -10,8 +10,8 @@ const REPOSITORY = 'example/embedding-model';
 const BASE_REPOSITORY = 'sentence-transformers/base-model';
 
 describe('Hugging Face model discovery', () => {
-  test('creates a validated descriptor from exact artifacts and Sentence Transformers metadata', async () => {
-    const routes = modelRoutes({
+  test('creates a descriptor from a conventional Sentence Transformers ONNX repository', async () => {
+    const hub = hubFor({
       tokenizer: { truncation: { max_length: 96 } },
       tokenizerConfig: { model_max_length: 128 },
       config: { hidden_size: 384, max_position_embeddings: 512 },
@@ -19,7 +19,7 @@ describe('Hugging Face model discovery', () => {
       normalize: true
     });
 
-    const descriptor = await discoverModel(REPOSITORY, { fetchImpl: createFetch(routes) });
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
 
     assert.equal(descriptor.repository, REPOSITORY);
     assert.equal(descriptor.revision, REVISION);
@@ -44,89 +44,97 @@ describe('Hugging Face model discovery', () => {
       ]
     );
     const tokenizerFile = descriptor.files.find(({ role }) => role === 'tokenizer');
-    assert.equal(
-      tokenizerFile.sha256,
-      digest(routes[fileUrl(REPOSITORY, REVISION, 'tokenizer.json')])
-    );
-    assert.equal(
-      tokenizerFile.size,
-      routes[fileUrl(REPOSITORY, REVISION, 'tokenizer.json')].length
+    assert.equal(tokenizerFile.sha256, digest(hub.files[REPOSITORY]['tokenizer.json']));
+    assert.equal(tokenizerFile.size, hub.files[REPOSITORY]['tokenizer.json'].length);
+    assert.deepEqual(hub.fileLists, [[REPOSITORY, REVISION]]);
+  });
+
+  test('selects a unique nested export and adjacent tokenizer/configuration files', async () => {
+    const hub = hubFor({
+      modelPath: 'exports/encoder/model.onnx',
+      assetDirectory: 'exports/encoder',
+      tokenizer: { truncation: null },
+      tokenizerConfig: { model_max_length: 1e30 },
+      config: { d_model: 768, n_positions: 256 },
+      sentenceConfig: undefined
+    });
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.equal(descriptor.dimensions, 768);
+    assert.equal(descriptor.maxLength, 256);
+    assert.deepEqual(
+      descriptor.files.map(({ role, path }) => ({ role, path })),
+      [
+        { role: 'model', path: 'exports/encoder/model.onnx' },
+        { role: 'tokenizer', path: 'exports/encoder/tokenizer.json' },
+        { role: 'tokenizerConfig', path: 'exports/encoder/tokenizer_config.json' },
+        { role: 'auxiliary', path: 'exports/encoder/config.json' }
+      ]
     );
   });
 
-  test('follows a pinned base_model for semantics and Sentence Transformers max length', async () => {
-    const routes = modelRoutes({
+  test('recognizes common Transformers dimension and sequence-limit aliases', async () => {
+    await Promise.all(
+      [
+        [{ n_embd: 32, n_ctx: 1024 }, 32, 1024],
+        [{ d_model: 64, n_positions: 768 }, 64, 768],
+        [{ dim: 128, max_position_embeddings: 512 }, 128, 512]
+      ].map(async ([config, expectedDimensions, expectedLength]) => {
+        const hub = hubFor({
+          tokenizer: { truncation: null },
+          tokenizerConfig: { model_max_length: 1e30 },
+          config,
+          sentenceConfig: undefined
+        });
+        const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+        assert.equal(descriptor.dimensions, expectedDimensions);
+        assert.equal(descriptor.maxLength, expectedLength);
+      })
+    );
+
+    const conflicting = hubFor({
+      config: { hidden_size: 384, d_model: 768, max_position_embeddings: 512 }
+    });
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: conflicting.client }),
+      /Conflicting embedding dimensions/
+    );
+  });
+
+  test('follows a pinned base_model for Sentence Transformers semantics', async () => {
+    const hub = hubFor({
       tokenizer: { truncation: null },
       tokenizerConfig: { model_max_length: 128 },
       config: { hidden_size: 768, max_position_embeddings: 512 },
       modules: false,
       baseModel: BASE_REPOSITORY
     });
-    addBaseModelRoutes(routes, {
+    hub.addBaseModel({
       sentenceConfig: { max_seq_length: 64 },
       pooling: 'cls',
       normalize: false
     });
 
-    const requested = [];
-    const descriptor = await discoverModel(REPOSITORY, {
-      fetchImpl: createFetch(routes, requested)
-    });
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
 
     assert.equal(descriptor.maxLength, 64);
     assert.equal(descriptor.output.pooling, 'cls');
     assert.equal(descriptor.output.normalize, false);
+    assert.ok(hub.modelInfos.includes(BASE_REPOSITORY));
     assert.ok(
-      requested.includes(apiUrl(BASE_REPOSITORY)),
-      'the base repository is resolved through the model API'
-    );
-    assert.ok(
-      requested.some((url) => url.includes(`/resolve/${BASE_REVISION}/modules.json`)),
-      'base-model metadata is read from its immutable revision'
-    );
-  });
-
-  test('falls back from tokenizer configuration to model configuration for max length', async () => {
-    const tokenizerRoutes = modelRoutes({
-      tokenizer: { truncation: null },
-      tokenizerConfig: { model_max_length: 192 },
-      config: { hidden_size: 32, max_position_embeddings: 256 },
-      sentenceConfig: undefined
-    });
-    assert.equal(
-      (await discoverModel(REPOSITORY, { fetchImpl: createFetch(tokenizerRoutes) })).maxLength,
-      192
-    );
-
-    const configRoutes = modelRoutes({
-      tokenizer: { truncation: null },
-      tokenizerConfig: { model_max_length: 1e30 },
-      config: { hidden_size: 32, max_position_embeddings: 256 },
-      sentenceConfig: undefined
-    });
-    assert.equal(
-      (await discoverModel(REPOSITORY, { fetchImpl: createFetch(configRoutes) })).maxLength,
-      256
+      hub.fileRequests.some(
+        ([repository, revision, remotePath]) =>
+          repository === BASE_REPOSITORY &&
+          revision === BASE_REVISION &&
+          remotePath === 'modules.json'
+      )
     );
   });
 
-  test('uses the lowest declared tokenizer and model input limit', async () => {
-    const routes = modelRoutes({
-      tokenizer: { truncation: null },
-      tokenizerConfig: { max_length: 128, model_max_length: 512 },
-      config: { hidden_size: 32, max_position_embeddings: 256 },
-      sentenceConfig: { max_seq_length: 384 }
-    });
-
-    assert.equal(
-      (await discoverModel(REPOSITORY, { fetchImpl: createFetch(routes) })).maxLength,
-      128
-    );
-  });
-
-  test('includes external ONNX data files', async () => {
-    const routes = modelRoutes({ externalData: true });
-    const descriptor = await discoverModel(REPOSITORY, { fetchImpl: createFetch(routes) });
+  test('includes external ONNX data files next to the selected model', async () => {
+    const hub = hubFor({ externalData: true });
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
 
     assert.deepEqual(
       descriptor.files.find(({ path }) => path === 'onnx/model.onnx_data'),
@@ -134,187 +142,185 @@ describe('Hugging Face model discovery', () => {
         role: 'auxiliary',
         name: 'model.onnx_data',
         path: 'onnx/model.onnx_data',
-        size: routes[fileUrl(REPOSITORY, REVISION, 'onnx/model.onnx_data')].length,
-        sha256: digest(routes[fileUrl(REPOSITORY, REVISION, 'onnx/model.onnx_data')])
+        size: hub.files[REPOSITORY]['onnx/model.onnx_data'].length,
+        sha256: digest(hub.files[REPOSITORY]['onnx/model.onnx_data'])
       }
     );
   });
 
-  test('rejects missing exact artifacts and ambiguous runtime semantics', async () => {
-    const missing = modelRoutes({});
-    const info = JSON.parse(missing[apiUrl(REPOSITORY)].toString());
-    info.siblings = info.siblings.filter(({ rfilename }) => rfilename !== 'onnx/model.onnx');
-    missing[apiUrl(REPOSITORY)] = json(info);
-    await assert.rejects(
-      discoverModel(REPOSITORY, { fetchImpl: createFetch(missing) }),
-      /exact file 'onnx\/model\.onnx'/
-    );
-
-    const ambiguous = modelRoutes({ pooling: ['mean', 'cls'] });
-    await assert.rejects(
-      discoverModel(REPOSITORY, { fetchImpl: createFetch(ambiguous) }),
-      /Unsupported or ambiguous Sentence Transformers pooling/
-    );
-
-    const invalidOrder = modelRoutes({ moduleOrder: ['Pooling', 'Transformer'] });
-    await assert.rejects(
-      discoverModel(REPOSITORY, { fetchImpl: createFetch(invalidOrder) }),
-      /unambiguous pooling pipeline/
-    );
-
-    const conflicting = modelRoutes({ pooling: 'mean', poolingMode: 'cls' });
-    await assert.rejects(
-      discoverModel(REPOSITORY, { fetchImpl: createFetch(conflicting) }),
-      /Unsupported or ambiguous Sentence Transformers pooling/
+  test('rejects incompatible Hugging Face tasks before downloading artifacts', async () => {
+    await Promise.all(
+      [
+        ['text-generation', 'openai-community/gpt2'],
+        ['fill-mask', 'FacebookAI/xlm-roberta-base']
+      ].map(async ([task, repository]) => {
+        const hub = createHub({
+          [repository]: { info: { sha: REVISION, pipeline_tag: task }, files: {} }
+        });
+        await assert.rejects(
+          discoverModel(repository, { hubClient: hub.client }),
+          new RegExp(`declares task '${task}', not an embedding task`)
+        );
+        assert.deepEqual(hub.fileLists, []);
+      })
     );
   });
 
-  test('downloads an artifact to derive integrity when Hugging Face has no LFS metadata', async () => {
-    const routes = modelRoutes({ modelMetadata: false });
-    const descriptor = await discoverModel(REPOSITORY, createFetch(routes));
+  test('rejects ambiguous ONNX exports and ambiguous Sentence Transformers semantics', async () => {
+    const ambiguousModel = hubFor({
+      modelPath: 'exports/encoder.onnx',
+      assetDirectory: 'exports',
+      additionalOnnxPath: 'other/encoder.onnx'
+    });
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: ambiguousModel.client }),
+      /ambiguous ONNX exports/
+    );
+
+    const ambiguousPooling = hubFor({ pooling: ['mean', 'cls'] });
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: ambiguousPooling.client }),
+      /Unsupported or ambiguous Sentence Transformers pooling/
+    );
+
+    const invalidOrder = hubFor({ moduleOrder: ['Pooling', 'Transformer'] });
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: invalidOrder.client }),
+      /unambiguous pooling pipeline/
+    );
+  });
+
+  test('downloads an artifact to derive integrity when file metadata has no checksum', async () => {
+    const hub = hubFor({ modelMetadata: false });
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
     const model = descriptor.files.find(({ role }) => role === 'model');
-    const contents = routes[fileUrl(REPOSITORY, REVISION, 'onnx/model.onnx')];
+    const contents = hub.files[REPOSITORY]['onnx/model.onnx'];
     assert.equal(model.size, contents.length);
     assert.equal(model.sha256, digest(contents));
   });
 });
 
-function modelRoutes(options = {}) {
-  const tokenizer = json(options.tokenizer ?? { truncation: { max_length: 96 } });
-  const tokenizerConfig = json(options.tokenizerConfig ?? { model_max_length: 128 });
-  const configValue = options.config ?? { hidden_size: 384, max_position_embeddings: 512 };
-  if (options.externalData) {
-    configValue['transformers.js_config'] = {
-      use_external_data_format: { 'model.onnx': 1 }
-    };
-  }
-  const config = json(configValue);
-  const model = Buffer.from('fake onnx model');
-  const moduleTypes = options.moduleOrder ?? [
-    'Transformer',
-    'Pooling',
-    ...(options.normalize === false ? [] : ['Normalize'])
-  ];
-  const modules = json(
-    moduleTypes.map((type, index) => ({
-      idx: index,
-      name: String(index),
-      path: type === 'Pooling' ? '1_Pooling' : '',
-      type: `sentence_transformers.models.${type}`
-    }))
-  );
-  const pooling = json(poolingConfig(options.pooling ?? 'mean', options.poolingMode));
+function hubFor(options = {}) {
+  const modelPath = options.modelPath ?? 'onnx/model.onnx';
+  const assetDirectory = options.assetDirectory ?? '';
+  const asset = (name) => (assetDirectory ? `${assetDirectory}/${name}` : name);
   const files = {
-    'onnx/model.onnx': model,
-    'tokenizer.json': tokenizer,
-    'tokenizer_config.json': tokenizerConfig,
-    'config.json': config
+    [modelPath]: Buffer.from('fake onnx model'),
+    [asset('tokenizer.json')]: json(options.tokenizer ?? { truncation: { max_length: 96 } }),
+    [asset('tokenizer_config.json')]: json(options.tokenizerConfig ?? { model_max_length: 128 }),
+    [asset('config.json')]: json(
+      options.config ?? { hidden_size: 384, max_position_embeddings: 512 }
+    )
   };
-  if (options.externalData) files['onnx/model.onnx_data'] = Buffer.from('external weights');
+  if (options.externalData) {
+    const dataPath = `${modelPath}_data`;
+    files[dataPath] = Buffer.from('external weights');
+    const config = JSON.parse(files[asset('config.json')].toString());
+    config['transformers.js_config'] = { use_external_data_format: { [modelPath]: 1 } };
+    files[asset('config.json')] = json(config);
+  }
+  if (options.additionalOnnxPath) files[options.additionalOnnxPath] = Buffer.from('another model');
+
   if (options.modules !== false) {
-    files['modules.json'] = modules;
-    files['1_Pooling/config.json'] = pooling;
+    const moduleTypes = options.moduleOrder ?? [
+      'Transformer',
+      'Pooling',
+      ...(options.normalize === false ? [] : ['Normalize'])
+    ];
+    files['modules.json'] = json(
+      moduleTypes.map((type, index) => ({
+        idx: index,
+        name: String(index),
+        path: type === 'Pooling' ? '1_Pooling' : '',
+        type: `sentence_transformers.models.${type}`
+      }))
+    );
+    files['1_Pooling/config.json'] = json(poolingConfig(options.pooling ?? 'mean'));
     if (options.sentenceConfig !== undefined) {
       files['sentence_bert_config.json'] = json(options.sentenceConfig);
     } else if (!Object.hasOwn(options, 'sentenceConfig')) {
       files['sentence_bert_config.json'] = json({ max_seq_length: 256 });
     }
   }
-  const siblings = Object.entries(files).map(([rfilename, contents]) => ({
-    rfilename,
-    ...(rfilename === 'onnx/model.onnx' && options.modelMetadata !== false
-      ? { size: contents.length, lfs: { size: contents.length, sha256: digest(contents) } }
-      : {})
-  }));
-  return {
-    [apiUrl(REPOSITORY)]: json({
-      sha: REVISION,
-      siblings,
-      ...(options.baseModel ? { cardData: { base_model: options.baseModel } } : {})
-    }),
-    ...Object.fromEntries(
-      Object.entries(files).map(([name, contents]) => [
-        fileUrl(REPOSITORY, REVISION, name),
-        contents
-      ])
-    )
-  };
-}
 
-function addBaseModelRoutes(routes, options = {}) {
-  const modules = json([
-    {
-      idx: 0,
-      path: '',
-      type: 'sentence_transformers.models.Transformer'
-    },
-    {
-      idx: 1,
-      path: '1_Pooling',
-      type: 'sentence_transformers.models.Pooling'
-    },
-    ...(options.normalize
-      ? [{ idx: 2, path: '2_Normalize', type: 'sentence_transformers.models.Normalize' }]
-      : [])
-  ]);
-  const pooling = json(poolingConfig(options.pooling ?? 'mean'));
-  const sentenceConfig = json(options.sentenceConfig ?? { max_seq_length: 128 });
-  const files = {
-    'modules.json': modules,
-    '1_Pooling/config.json': pooling,
-    'sentence_bert_config.json': sentenceConfig
+  const info = {
+    sha: REVISION,
+    ...(options.baseModel ? { cardData: { base_model: options.baseModel } } : {})
   };
-  routes[apiUrl(BASE_REPOSITORY)] = json({
-    sha: BASE_REVISION,
-    siblings: Object.keys(files).map((rfilename) => ({ rfilename }))
+  const hub = createHub({
+    [REPOSITORY]: { info, files, modelMetadata: options.modelMetadata }
   });
-  for (const [name, contents] of Object.entries(files)) {
-    routes[fileUrl(BASE_REPOSITORY, BASE_REVISION, name)] = contents;
-  }
-}
-
-function poolingConfig(pooling, poolingMode) {
-  const enabled = Array.isArray(pooling) ? pooling : [pooling];
-  return {
-    ...(poolingMode ? { pooling_mode: poolingMode } : {}),
-    pooling_mode_cls_token: enabled.includes('cls'),
-    pooling_mode_mean_tokens: enabled.includes('mean'),
-    pooling_mode_max_tokens: enabled.includes('max'),
-    pooling_mode_mean_sqrt_len_tokens: false,
-    pooling_mode_weightedmean_tokens: false,
-    pooling_mode_lasttoken: false
+  hub.addBaseModel = (baseOptions = {}) => {
+    const baseFiles = {
+      'modules.json': json([
+        { idx: 0, path: '', type: 'sentence_transformers.models.Transformer' },
+        { idx: 1, path: '1_Pooling', type: 'sentence_transformers.models.Pooling' },
+        ...(baseOptions.normalize
+          ? [{ idx: 2, path: '2_Normalize', type: 'sentence_transformers.models.Normalize' }]
+          : [])
+      ]),
+      '1_Pooling/config.json': json(poolingConfig(baseOptions.pooling ?? 'mean')),
+      'sentence_bert_config.json': json(baseOptions.sentenceConfig ?? { max_seq_length: 128 })
+    };
+    hub.add(BASE_REPOSITORY, { info: { sha: BASE_REVISION }, files: baseFiles });
   };
+  return hub;
 }
 
-function createFetch(routes, requested = []) {
-  return async (input) => {
-    const url = String(input);
-    requested.push(url);
-    const contents = routes[url];
-    if (!contents) return response(Buffer.alloc(0), 404);
-    return response(contents, 200);
-  };
-}
-
-function response(contents, status) {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    async json() {
-      return JSON.parse(contents.toString());
+function createHub(repositories) {
+  const modelInfos = [];
+  const fileLists = [];
+  const fileRequests = [];
+  const client = {
+    async getModelInfo(repository) {
+      modelInfos.push(repository);
+      const entry = repositories[repository];
+      if (!entry) throw new Error(`Unknown test repository ${repository}`);
+      return entry.info;
     },
-    async arrayBuffer() {
+    async getFiles(repository, revision) {
+      fileLists.push([repository, revision]);
+      const entry = repositories[repository];
+      if (!entry) throw new Error(`Unknown test repository ${repository}`);
+      return Object.entries(entry.files).map(([path, contents]) => ({
+        path,
+        ...(path.endsWith('.onnx') && entry.modelMetadata !== false
+          ? { size: contents.length, lfs: { size: contents.length, sha256: digest(contents) } }
+          : {})
+      }));
+    },
+    async getFile(repository, revision, remotePath) {
+      fileRequests.push([repository, revision, remotePath]);
+      const contents = repositories[repository]?.files[remotePath];
+      if (!contents) throw new Error(`Unknown test artifact ${repository}/${remotePath}`);
       return contents;
+    }
+  };
+  return {
+    client,
+    files: Object.fromEntries(
+      Object.entries(repositories).map(([name, entry]) => [name, entry.files])
+    ),
+    modelInfos,
+    fileLists,
+    fileRequests,
+    add(repository, entry) {
+      repositories[repository] = entry;
+      this.files[repository] = entry.files;
     }
   };
 }
 
-function apiUrl(repository) {
-  return `https://huggingface.co/api/models/${repository}?blobs=true`;
-}
-
-function fileUrl(repository, revision, name) {
-  return `https://huggingface.co/${repository}/resolve/${revision}/${name}`;
+function poolingConfig(pooling) {
+  const enabled = Array.isArray(pooling) ? pooling : [pooling];
+  return {
+    pooling_mode_cls_token: enabled.includes('cls'),
+    pooling_mode_mean_tokens: enabled.includes('mean'),
+    pooling_mode_max_tokens: false,
+    pooling_mode_mean_sqrt_len_tokens: false,
+    pooling_mode_weightedmean_tokens: false,
+    pooling_mode_lasttoken: false
+  };
 }
 
 function json(value) {
