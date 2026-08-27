@@ -1,22 +1,14 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
-import fs from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
 import cds from '@sap/cds';
 import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
 
-const MINILM_MODEL = JSON.parse(
-  await fs.readFile(new URL('./fixtures/minilm.embedding-model.json', import.meta.url), 'utf8')
-);
-const MINILM_DIRECTORY = fileURLToPath(new URL('./.models/minilm', import.meta.url));
+const MINILM_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
 let embeddingModule;
 
 before(async () => {
-  embeddingModule = await initializeEmbedding({
-    model: MINILM_MODEL.repository,
-    directory: MINILM_DIRECTORY
-  });
+  embeddingModule = await initializeEmbedding({ model: MINILM_MODEL });
 });
 
 describe('Vector embedding function (standalone)', () => {
@@ -152,24 +144,10 @@ describe('ai-sqlite integration', () => {
     );
   });
 
-  test('requires an explicitly configured embedding directory during startup', async () => {
-    await assert.rejects(
-      cds.connect.to('missing-embedding-directory-db', {
-        kind: 'ai-sqlite',
-        embedding: { model: MINILM_MODEL.repository },
-        credentials: { url: ':memory:' }
-      }),
-      /cds\.env\.requires\.db\.embedding\.directory must be a non-empty string/
-    );
-  });
-
   before(async () => {
     db = await cds.connect.to('vector-db', {
       kind: 'ai-sqlite',
-      embedding: {
-        model: MINILM_MODEL.repository,
-        directory: MINILM_DIRECTORY
-      },
+      embedding: { model: MINILM_MODEL },
       credentials: { url: ':memory:' }
     });
   });
@@ -199,7 +177,7 @@ describe('ai-sqlite integration', () => {
     await assert.rejects(
       cds.connect.to('invalid-vector-db', {
         kind: 'ai-sqlite',
-        embedding: { ...MINILM_MODEL, revision: 'main' },
+        embedding: { model: MINILM_MODEL, revision: 'main' },
         credentials: { url: ':memory:' }
       }),
       /Only model and directory are supported/

@@ -8,6 +8,8 @@ import { runModelCommand } from '../lib/vector_embedding/cli.js';
 import { resolveEmbeddingModel } from '../lib/vector_embedding/embedding.js';
 import {
   MODEL_LOCK_FILE,
+  getModelDirectory,
+  getModelRoot,
   provisionModel,
   readModelLock,
   verifyModelDirectory
@@ -36,19 +38,15 @@ describe('runtime model configuration', () => {
     );
     await assert.rejects(
       resolveEmbeddingModel(model.repository),
-      /embedding must be an object with model and directory/
+      /embedding must be an object with model and optional directory/
     );
     await assert.rejects(
       resolveEmbeddingModel({ ...model }),
       /Only model and directory are supported/
     );
     await assert.rejects(
-      resolveEmbeddingModel({ model: model.repository }),
-      /cds\.env\.requires\.db\.embedding\.directory must be a non-empty string/
-    );
-    await assert.rejects(
       resolveEmbeddingModel({ model: model.repository, directory: '' }),
-      /cds\.env\.requires\.db\.embedding\.directory must be a non-empty string/
+      /embedding\.directory must be a non-empty string/
     );
   });
 });
@@ -306,6 +304,29 @@ describe('explicit model provisioning', () => {
     await assert.rejects(fs.access(path.join(directory, MODEL_LOCK_FILE)));
   });
 
+  test('validates the runtime before publishing a newly installed model', async () => {
+    const parent = await createTemporaryDirectory();
+    const directory = path.join(parent, 'model');
+    const content = Buffer.from('runtime validation fixture');
+    const model = fixtureModel(content);
+    let stagedDirectory;
+
+    await assert.rejects(
+      provisionModel(model, {
+        directory,
+        fetchImpl: createFetch(content),
+        validate(candidate) {
+          stagedDirectory = candidate;
+          throw new Error('incompatible ONNX runtime');
+        }
+      }),
+      /incompatible ONNX runtime/
+    );
+
+    assert.notEqual(stagedDirectory, directory);
+    await assert.rejects(fs.access(directory));
+  });
+
   test('fails verification instead of downloading missing runtime files', async () => {
     const directory = await createTemporaryDirectory();
     const model = fixtureModel(Buffer.from('fixture'));
@@ -315,6 +336,91 @@ describe('explicit model provisioning', () => {
       new RegExp(`Embedding model is not provisioned.*${escapeRegExp(directory)}`, 's')
     );
     assert.deepEqual(await fs.readdir(directory), []);
+  });
+
+  test('downloads a missing model into the project-local default directory and reuses it', async () => {
+    const root = await createTemporaryDirectory();
+    const content = Buffer.from('lazy download fixture');
+    const model = fixtureModel(content);
+    const requestedUrls = [];
+    const warnings = [];
+    let discoveries = 0;
+    const options = {
+      root,
+      fetchImpl: createFetch(content, requestedUrls),
+      discover(name) {
+        discoveries++;
+        assert.equal(name, model.repository);
+        return model;
+      },
+      validate: async () => {},
+      warn: (message) => warnings.push(message)
+    };
+
+    const first = await resolveEmbeddingModel({ model: model.repository }, options);
+    const expectedDirectory = getModelDirectory(getModelRoot(undefined, root), model.repository);
+
+    assert.equal(first.model, model);
+    assert.equal(first.modelDir, expectedDirectory);
+    assert.equal(discoveries, 1);
+    assert.equal(warnings.length, 1);
+    assert.match(warnings[0], /Downloading it now; application startup may be delayed/);
+    assert.equal(requestedUrls.length, model.files.length);
+    assert.deepEqual(await readModelLock(expectedDirectory), model);
+
+    const second = await resolveEmbeddingModel({ model: model.repository }, options);
+    assert.equal(second.modelDir, expectedDirectory);
+    assert.equal(discoveries, 1);
+    assert.equal(warnings.length, 1);
+    assert.equal(requestedUrls.length, model.files.length);
+  });
+
+  test('waits for concurrent ad-hoc provisioning and reuses the completed download', async () => {
+    const root = await createTemporaryDirectory();
+    const content = Buffer.from('concurrent lazy download fixture');
+    const model = fixtureModel(content);
+    const requestedUrls = [];
+    const warnings = [];
+    let releaseDownload;
+    let signalDownloadStarted;
+    let firstRequest = true;
+    const downloadStarted = new Promise((resolve) => {
+      signalDownloadStarted = resolve;
+    });
+    const waitForRelease = new Promise((resolve) => {
+      releaseDownload = resolve;
+    });
+    const fetchImpl = async (url) => {
+      requestedUrls.push(url);
+      if (firstRequest) {
+        firstRequest = false;
+        signalDownloadStarted();
+        await waitForRelease;
+      }
+      return new Response(content, {
+        headers: { 'content-length': String(content.length) }
+      });
+    };
+    const options = {
+      root,
+      fetchImpl,
+      discover: () => model,
+      validate: async () => {},
+      warn: (message) => warnings.push(message),
+      provisionRetryMs: 5,
+      provisionTimeoutMs: 1000
+    };
+
+    const first = resolveEmbeddingModel({ model: model.repository }, options);
+    await downloadStarted;
+    const second = resolveEmbeddingModel({ model: model.repository }, options);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    releaseDownload();
+
+    const resolved = await Promise.all([first, second]);
+    assert.equal(resolved[0].modelDir, resolved[1].modelDir);
+    assert.equal(warnings.length, 2);
+    assert.equal(requestedUrls.length, model.files.length);
   });
 
   test('keeps explicitly configured directories offline', async () => {
@@ -334,100 +440,112 @@ describe('explicit model provisioning', () => {
           }
         }
       ),
-      /cds-ai model install --descriptor <path-to-embedding-model\.json> --directory \.\/models\/minilm/
+      /@cap-js\/ai install-model example\/model --directory \.\/models/
     );
     assert.equal(fetched, false);
   });
 
   test('resolves relative directories from cds.root and preserves absolute directories', async () => {
     const root = await createTemporaryDirectory();
-    const directory = path.join(root, 'models', 'custom');
     const content = Buffer.from('directory resolution fixture');
     const model = fixtureModel(content);
-    await provisionModel(model, { directory, fetchImpl: createFetch(content) });
+    const modelRoot = path.join(root, 'models');
+    const modelDir = getModelDirectory(modelRoot, model.repository);
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
 
     const relative = await resolveEmbeddingModel(
-      { model: model.repository, directory: './models/custom' },
+      { model: model.repository, directory: './models' },
       { root }
     );
     const absolute = await resolveEmbeddingModel(
-      { model: model.repository, directory },
+      { model: model.repository, directory: modelRoot },
       { root: await createTemporaryDirectory() }
     );
 
-    assert.equal(relative.modelDir, directory);
-    assert.equal(absolute.modelDir, directory);
+    assert.equal(relative.modelDir, modelDir);
+    assert.equal(absolute.modelDir, modelDir);
   });
 
   test('rejects a configured model name that does not match the provisioned lock', async () => {
-    const directory = await createTemporaryDirectory();
+    const modelRoot = await createTemporaryDirectory();
     const content = Buffer.from('repository mismatch fixture');
     const model = fixtureModel(content);
-    await provisionModel(model, { directory, fetchImpl: createFetch(content) });
+    const modelDir = getModelDirectory(modelRoot, 'example/other-model');
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
 
     await assert.rejects(
-      resolveEmbeddingModel({ model: 'example/other-model', directory }),
+      resolveEmbeddingModel({ model: 'example/other-model', directory: modelRoot }),
       /contains example\/model, not example\/other-model/
     );
   });
 
-  test('gives models a descriptor-based provisioning command', async () => {
+  test('gives models a model-name provisioning command', async () => {
     const root = await createTemporaryDirectory();
 
     await assert.rejects(
       resolveEmbeddingModel({ model: 'example/custom', directory: './models/custom' }, { root }),
-      /model install --descriptor <path-to-embedding-model\.json> --directory \.\/models\/custom/
+      /@cap-js\/ai install-model example\/custom --directory \.\/models\/custom/
     );
   });
 
   test('requires explicit lock recovery before reinstalling', async () => {
-    const directory = await createTemporaryDirectory();
-    await fs.writeFile(path.join(directory, MODEL_LOCK_FILE), '{}');
+    const modelRoot = await createTemporaryDirectory();
+    const modelDir = getModelDirectory(modelRoot, 'example/model');
+    await fs.mkdir(modelDir, { recursive: true });
+    await fs.writeFile(path.join(modelDir, MODEL_LOCK_FILE), '{}');
 
     await assert.rejects(
-      resolveEmbeddingModel({ model: 'example/model', directory }),
-      /Remove or replace the invalid lock explicitly, then run 'npx cds-ai model install/
+      resolveEmbeddingModel({ model: 'example/model', directory: modelRoot }),
+      /Remove or replace the invalid lock explicitly, then run 'npx @cap-js\/ai install-model/
     );
   });
 
-  test('installs a descriptor through the command API', async () => {
+  test('installs a model by name through the command API', async () => {
     const root = await createTemporaryDirectory();
-    const directory = path.join(root, 'models', 'custom');
-    const descriptor = path.join(root, 'embedding-model.json');
+    const modelRoot = path.join(root, 'models');
     const content = Buffer.from('command fixture');
     const model = fixtureModel(content);
     const output = [];
 
-    await fs.writeFile(descriptor, JSON.stringify(model));
-    await runModelCommand(
-      ['model', 'install', '--descriptor', descriptor, '--directory', directory],
-      {
-        cwd: root,
-        fetchImpl: createFetch(content),
-        stdout: { write: (value) => output.push(value) }
-      }
-    );
+    await runModelCommand(['install-model', model.repository, '--directory', modelRoot], {
+      cwd: root,
+      discover: () => model,
+      fetchImpl: createFetch(content),
+      validate: async () => {},
+      stdout: { write: (value) => output.push(value) }
+    });
 
-    assert.deepEqual(await readModelLock(directory), model);
-    assert.match(output.join(''), /Provisioned example\/model/);
+    const modelDir = getModelDirectory(modelRoot, model.repository);
+    assert.deepEqual(await readModelLock(modelDir), model);
+    assert.match(output.join(''), /Installed example\/model/);
+    assert.match(output.join(''), new RegExp(escapeRegExp(modelDir)));
   });
 
-  test('requires a descriptor and directory when provisioning', async () => {
+  test('installs into the project-local model cache when no directory is provided', async () => {
+    const root = await createTemporaryDirectory();
+    const content = Buffer.from('default command fixture');
+    const model = fixtureModel(content);
+
+    await runModelCommand(['install-model', model.repository], {
+      cwd: root,
+      discover: () => model,
+      fetchImpl: createFetch(content),
+      validate: async () => {},
+      stdout: { write() {} }
+    });
+
+    const modelDir = path.join(root, '.cds', 'models', 'example', 'model');
+    assert.deepEqual(await readModelLock(modelDir), model);
+  });
+
+  test('requires a model name and accepts an optional cache root', async () => {
     await assert.rejects(
-      provisionModel(fixtureModel(Buffer.from('missing directory fixture'))),
-      /non-empty provisioning directory is required/
+      runModelCommand(['install-model', '--directory', './models/custom']),
+      /Specify a model name/
     );
     await assert.rejects(
-      runModelCommand(['model', 'install', '--descriptor', './embedding-model.json']),
-      /--directory is required/
-    );
-    await assert.rejects(
-      runModelCommand(['model', 'install', '--directory', './models/custom']),
-      /--descriptor is required/
-    );
-    await assert.rejects(
-      runModelCommand(['model', 'install', 'example/model', '--directory', './models/custom']),
-      /Unexpected argument 'example\/model'/
+      runModelCommand(['install-model', 'example/model', 'example/other']),
+      /Unexpected argument 'example\/other'/
     );
   });
 });

@@ -221,7 +221,7 @@ npm add @cap-js/sqlite onnxruntime-node@1.20.1
 
 #### Model provisioning
 
-Runtime configuration is intentionally limited to a model name and directory:
+Runtime configuration is intentionally limited to a model name and an optional model-cache root:
 
 ```json
 {
@@ -230,8 +230,7 @@ Runtime configuration is intentionally limited to a model name and directory:
       "db": {
         "kind": "ai-sqlite",
         "embedding": {
-          "model": "organization/model",
-          "directory": "./models/embedding"
+          "model": "foo/bar"
         }
       }
     }
@@ -239,25 +238,47 @@ Runtime configuration is intentionally limited to a model name and directory:
 }
 ```
 
-Both `embedding.model` and `embedding.directory` are required. `ai-sqlite` fails during startup when either is absent. No revision, dimensions, tokenizer, file, pooling, or checksum settings are accepted in runtime configuration.
+`embedding.model` is required. If it is absent, `ai-sqlite` fails during startup. No revision, dimensions, tokenizer, file, pooling, checksum, or descriptor settings are accepted in runtime configuration.
 
-Create an `embedding-model.json` descriptor for the model, then provision it before application startup:
+Without `directory`, the model is stored below the CAP project at `.cds/models/foo/bar`. Startup reuses a valid installation from there. If it is missing, startup logs a warning, discovers and downloads the model, generates `embedding.lock.json`, and reuses that installation on subsequent starts.
+
+To provision the project-local model before startup instead:
 
 ```sh
-npx cds-ai model install --descriptor ./embedding-model.json --directory ./models/embedding
+npx @cap-js/ai install-model foo/bar
 ```
 
-Provisioning downloads the descriptor's pinned artifacts, verifies their sizes and SHA-256 checksums, and writes the validated descriptor to `embedding.lock.json`. The lock content is therefore generated from the descriptor; it is not inferred from the model name.
+To share a model across projects, select another cache root:
 
-The CLI resolves a relative `--directory` from its working directory. Runtime configuration resolves a relative `embedding.directory` from `cds.root`; absolute directories are used unchanged in both cases. Run the install command from `cds.root` or use the same absolute path so both refer to the same model directory.
+```sh
+npx @cap-js/ai install-model foo/bar --directory ~/.cds/models
+```
 
-A configured directory must already contain a valid `embedding.lock.json` and all verified artifacts. Startup remains offline and fails rather than downloading or modifying the directory if it is incomplete.
+```json
+{
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "ai-sqlite",
+        "embedding": {
+          "model": "foo/bar",
+          "directory": "~/.cds/models"
+        }
+      }
+    }
+  }
+}
+```
 
-##### Model metadata
+`directory` always names the cache root; the model is stored below it using the repository path, for example `~/.cds/models/foo/bar`. Relative directories are resolved from `cds.root`, absolute directories are used unchanged, and `~/` is resolved from the user's home directory.
 
-At startup, the runtime reads the immutable revision, artifacts, checksums, dimensions, tokenizer limit, pooling, and normalization from `embedding.lock.json`. It verifies the files and checks that the lock's repository matches `embedding.model`.
+When `directory` is configured, startup treats it as a pre-installed shared cache: it verifies the model but does not download or modify it. This makes runtime deployment deterministic and allows the shared directory to be read-only.
 
-This is local metadata detection, not discovery from a model name or arbitrary Hugging Face repository. A model name alone cannot reliably determine artifact selection, pooling, normalization, or other runtime semantics.
+##### Automatic model discovery
+
+The installer resolves the model's current Hugging Face revision to an immutable commit, selects the conventional `onnx/model.onnx` and tokenizer/configuration files, calculates or obtains their checksums, and derives the dimensions, tokenizer limit, pooling, and normalization metadata. It then writes all resolved metadata to `embedding.lock.json` alongside the downloaded artifacts.
+
+Discovery supports compatible Hugging Face ONNX Sentence Transformers models with machine-readable pooling semantics. Repositories with missing or ambiguous artifacts or semantics fail with a compatibility error instead of using guessed defaults. Once installed, startup uses the pinned lock and does not follow later changes to the model repository.
 
 The HANA-compatible SQL function can then be used in CQL:
 
@@ -280,87 +301,26 @@ SELECT.from('Books').columns`
 **Features:**
 
 - **Initialization**: The ONNX model is loaded when the `ai-sqlite` service starts
-- **Explicit provisioning**: Install models before startup with `cds-ai model install`
+- **Automatic provisioning**: Use model-only configuration for warned, on-demand installation into `.cds/models`
+- **Explicit provisioning**: Preinstall local or shared models with `npx @cap-js/ai install-model`
 - **Verified artifacts**: The provisioned lock pins the revision, artifact sizes, and SHA-256 checksums
 - **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and safely chunks text that exceeds the model limit
 - **Deterministic**: Same input always produces same output
-- **Configurable output handling**: The descriptor controls pooling and L2 normalization
+- **Automatic output handling**: Pooling and normalization are derived from Sentence Transformers metadata
 - **Semantic similarity**: Embeddings capture text meaning for similarity search
 
 #### Compatible encoder models
 
-Create an `embedding-model.json` descriptor for each compatible model. Models are not discovered dynamically: every artifact must belong to an immutable revision and have an expected size and SHA-256 checksum.
+Compatible repositories must provide `onnx/model.onnx`, `tokenizer.json`, `tokenizer_config.json`, and `config.json`. The model must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`, all as `int64` tensors, and expose a `last_hidden_state` float output.
 
-```json
-{
-  "repository": "organization/model",
-  "revision": "0123456789abcdef0123456789abcdef01234567",
-  "dimensions": 768,
-  "maxLength": 512,
-  "files": [
-    {
-      "role": "model",
-      "name": "model.onnx",
-      "path": "onnx/model.onnx",
-      "size": 123456789,
-      "sha256": "<64 lowercase hexadecimal characters>"
-    },
-    {
-      "role": "tokenizer",
-      "name": "tokenizer.json",
-      "path": "tokenizer.json",
-      "size": 123456,
-      "sha256": "<64 lowercase hexadecimal characters>"
-    },
-    {
-      "role": "tokenizerConfig",
-      "name": "tokenizer_config.json",
-      "path": "tokenizer_config.json",
-      "size": 1234,
-      "sha256": "<64 lowercase hexadecimal characters>"
-    }
-  ],
-  "output": {
-    "name": "last_hidden_state",
-    "pooling": "mean",
-    "normalize": true
-  }
-}
-```
+Pooling semantics are read from Sentence Transformers `modules.json` and its pooling configuration. Converted repositories such as `Xenova/*` can declare a single `base_model`; its immutable Sentence Transformers metadata is used to determine mean or CLS pooling and normalization. Unsupported module chains, ambiguous pooling modes, missing metadata, or incompatible ONNX inputs and outputs fail explicitly.
 
-Provision it into an application-managed directory:
-
-```sh
-npx cds-ai model install --descriptor ./embedding-model.json --directory ./models/custom
-```
-
-Then point the service at that locked directory. Runtime configuration contains only the model name and directory; the lock contains the technical model metadata:
-
-```json
-{
-  "cds": {
-    "requires": {
-      "db": {
-        "kind": "ai-sqlite",
-        "embedding": {
-          "model": "organization/model",
-          "directory": "./models/custom"
-        }
-      }
-    }
-  }
-}
-```
-
-Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink.
-
-The runtime accepts no model metadata beyond `embedding.model` and `embedding.directory`. Every model must first be installed from a descriptor into the configured directory.
-
-Compatible models must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`, all as `int64` tensors. Their configured float32 or float64 output must support `mean` or `cls` pooling from `[1, sequence, dimensions]`, or `none` for an already pooled `[dimensions]` or `[1, dimensions]` tensor. Additional pinned ONNX data files can use the `auxiliary` role. Startup probes the model and rejects incompatible input names, output names, types, shapes, or dimensions.
+Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink. Existing valid locks remain pinned and are reused rather than silently following changes to the repository's default branch.
 
 **Error Handling:**
 
-- Starting `ai-sqlite` fails if `cds.env.requires.db.embedding.model` or `cds.env.requires.db.embedding.directory` is not set, or the ONNX model cannot be initialized
+- Starting `ai-sqlite` fails if `cds.env.requires.db.embedding.model` is not set or the ONNX model cannot be initialized
+- A missing model in the project-local `.cds/models` cache is installed after a startup warning
 - Starting `ai-sqlite` fails with a provisioning command if a configured model directory is missing or fails integrity checks
 - Provisioning downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails

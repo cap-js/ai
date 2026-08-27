@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
+import { InferenceSession } from '../lib/vector_embedding/InferenceSession.js';
 import {
   createFeeds,
   createTokenizerState,
@@ -13,10 +14,26 @@ import {
 import {
   downloadFile,
   downloadModelIfNeeded,
+  getModelDirectory,
+  getModelRoot,
   validateModelDescriptor
 } from '../lib/vector_embedding/model-utils.js';
 
 const temporaryDirectories = [];
+
+test('disposes inference sessions at most once', async () => {
+  let disposals = 0;
+  const session = new InferenceSession({
+    dispose() {
+      disposals++;
+    }
+  });
+
+  await session.dispose();
+  await session.dispose();
+
+  assert.equal(disposals, 1);
+});
 
 afterEach(async () => {
   await Promise.all(
@@ -162,6 +179,28 @@ describe('model compatibility', () => {
         }),
       /conflicts with another embedding file/
     );
+  });
+});
+
+describe('model directories', () => {
+  test('uses a project-local default and appends the model repository', () => {
+    const project = path.join(path.sep, 'project');
+    const root = getModelRoot(undefined, project);
+
+    assert.equal(root, path.join(project, '.cds', 'models'));
+    assert.equal(getModelDirectory(root, 'foo/bar'), path.join(root, 'foo', 'bar'));
+  });
+
+  test('resolves relative, absolute, and home-relative roots', () => {
+    const project = path.join(path.sep, 'project');
+    const home = path.join(path.sep, 'home', 'user');
+
+    assert.equal(getModelRoot('./models', project, home), path.join(project, 'models'));
+    assert.equal(
+      getModelRoot(path.join(path.sep, 'shared', 'models'), project, home),
+      path.join(path.sep, 'shared', 'models')
+    );
+    assert.equal(getModelRoot('~/.cds/models', project, home), path.join(home, '.cds', 'models'));
   });
 });
 

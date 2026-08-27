@@ -9,9 +9,10 @@
 ### Added
 
 - Add the `ai-sqlite` kind with a `VECTOR_EMBEDDING` function using compatible ONNX encoder models
-  - Requires `cds.env.requires.db.embedding.model` and `directory`; adds `cds-ai model install` for explicit, checksum-verified model provisioning from a descriptor
+  - Requires `cds.env.requires.db.embedding.model`; automatically discovers model metadata and supports warned, on-demand provisioning into `.cds/models`
+  - Adds `npx @cap-js/ai install-model <model>` with an optional shared model-cache root
   - Uses `@huggingface/tokenizers` and chunks long input without dropping per-chunk special tokens
-  - Configures embedding runtimes only through `model` and a relative or absolute `directory`; model metadata remains in the provisioned lock
+  - Configures embedding runtimes only through `model` and an optional relative, absolute, or home-relative `directory`; discovered metadata remains in the provisioned lock
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
   - Synchronous execution suitable for SQLite user-defined functions
