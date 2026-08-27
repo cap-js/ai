@@ -282,7 +282,7 @@ To check whether a Hugging Face repository is likely compatible before downloadi
 npx @cap-js/ai check-model foo/bar
 ```
 
-`check-model` only reads repository, configuration, and tokenizer metadata from the Hub. It does not download the ONNX artifact or write to the model cache. Its result is therefore a likely-compatibility check; `install-model` is definitive because it also inspects the downloaded ONNX graph and verifies it with the runtime.
+`check-model` only reads repository, configuration, and tokenizer metadata from the Hub. It does not download the ONNX artifact or write to the model cache. Its result is therefore a likely-compatibility check; `install-model` is definitive because it also loads and probes the downloaded model with ONNX Runtime.
 
 To share a model across projects, select another cache root:
 
@@ -316,7 +316,7 @@ The installer uses the official Hugging Face Hub client to resolve the model's c
 
 Discovery is layout-aware rather than tied to one exporter. It prefers `onnx/model.onnx`, then `model.onnx`, a unique nested `model.onnx`, or a sole ONNX file. It similarly uses root tokenizer/configuration files first and otherwise the files adjacent to the selected ONNX model. Common Transformers configuration names for dimensions (`hidden_size`, `n_embd`, `d_model`, and `dim`) and input length are recognized.
 
-The downloaded ONNX graph is inspected before it is accepted. This verifies the inputs, output rank and dimension against the discovered metadata, so a decoder's logits graph cannot accidentally be used as an embedding model. Discovery also rejects repositories explicitly tagged for incompatible tasks such as text generation or masked-language modeling. Once installed, startup uses the pinned lock and does not follow later changes to the model repository.
+The downloaded ONNX model is loaded and probed with ONNX Runtime before it is accepted. This verifies that its inputs, output shape, element type, and dimensions work as an embedding model, so a decoder's logits graph cannot accidentally be installed as one. Discovery also rejects repositories explicitly tagged for incompatible tasks such as text generation or masked-language modeling. Once installed, startup uses the pinned lock and does not follow later changes to the model repository.
 
 The HANA-compatible SQL function can then be used in CQL:
 

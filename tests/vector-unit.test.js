@@ -8,7 +8,9 @@ import {
   createFeeds,
   createTokenizerState,
   poolOutput,
-  tokenizeToWindow
+  processEmbedding,
+  tokenizeToWindow,
+  validateSession
 } from '../lib/vector_embedding/embedding.js';
 import {
   downloadFile,
@@ -177,6 +179,64 @@ describe('model compatibility', () => {
     assert.throws(
       () => poolOutput({ type: 'int64', data: new BigInt64Array([1n]), dims: [1] }, 'none'),
       /must be float32 or float64/
+    );
+  });
+
+  test('rejects sessions without the required input', () => {
+    assert.throws(
+      () =>
+        validateSession(
+          { inputNames: ['attention_mask'], outputNames: ['last_hidden_state'] },
+          { output: { name: 'last_hidden_state' } }
+        ),
+      /must expose the standard int64 input 'input_ids'/
+    );
+  });
+
+  test('rejects unsupported model inputs', () => {
+    assert.throws(
+      () =>
+        validateSession(
+          { inputNames: ['input_ids', 'position_ids'], outputNames: ['last_hidden_state'] },
+          { output: { name: 'last_hidden_state' } }
+        ),
+      /unsupported inputs: position_ids/
+    );
+  });
+
+  test('rejects a missing configured output', () => {
+    assert.throws(
+      () =>
+        validateSession(
+          { inputNames: ['input_ids'], outputNames: ['logits'] },
+          { output: { name: 'last_hidden_state' } }
+        ),
+      /output 'last_hidden_state' not found\. Available outputs: logits/
+    );
+  });
+
+  test('rejects runtime output dimensions that differ from the descriptor', () => {
+    const session = {
+      inputNames: ['input_ids'],
+      run() {
+        return {
+          last_hidden_state: {
+            type: 'float32',
+            data: new Float32Array([1, 2]),
+            dims: [1, 1, 2]
+          }
+        };
+      }
+    };
+    const model = {
+      dimensions: 3,
+      output: { name: 'last_hidden_state', pooling: 'mean', normalize: false }
+    };
+
+    assert.throws(
+      () =>
+        processEmbedding({ ids: [101], attention_mask: [1], token_type_ids: [0] }, session, model),
+      /produced 2 dimensions; configured 3/
     );
   });
 

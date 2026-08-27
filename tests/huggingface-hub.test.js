@@ -5,7 +5,6 @@ import {
   createHuggingFaceClient,
   loadHuggingFaceHub
 } from '../lib/vector_embedding/huggingface-hub.js';
-import { loadOnnxProto } from '../lib/vector_embedding/onnx-inspection.js';
 
 describe('Hugging Face Hub adapter', () => {
   test('pins all operations and forwards authentication and custom transport options', async () => {
@@ -52,7 +51,7 @@ describe('Hugging Face Hub adapter', () => {
     assert.equal(calls[2][1].xet, false);
   });
 
-  test('explains how to install missing optional discovery and inspection peers', async () => {
+  test('explains how to install the missing optional discovery peer', async () => {
     const missingHub = Object.assign(
       new Error("Cannot find package '@huggingface/hub' imported from huggingface-hub.js"),
       { code: 'ERR_MODULE_NOT_FOUND' }
@@ -62,17 +61,6 @@ describe('Hugging Face Hub adapter', () => {
         throw missingHub;
       }),
       /npm add @huggingface\/hub/
-    );
-
-    const missingOnnx = Object.assign(
-      new Error("Cannot find package 'onnx-proto' imported from onnx-inspection.js"),
-      { code: 'ERR_MODULE_NOT_FOUND' }
-    );
-    await assert.rejects(
-      loadOnnxProto(async () => {
-        throw missingOnnx;
-      }),
-      /npm add onnx-proto/
     );
   });
 });
