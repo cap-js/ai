@@ -219,7 +219,9 @@ npm add @cap-js/sqlite onnxruntime-node@1.20.1
 
 `ai-sqlite` currently requires exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
 
-Select `ai-sqlite` and the embedding model by name:
+#### Model provisioning
+
+Runtime configuration is intentionally limited to a model name and an optional directory:
 
 ```json
 {
@@ -236,15 +238,77 @@ Select `ai-sqlite` and the embedding model by name:
 }
 ```
 
-`Xenova/all-MiniLM-L6-v2` is used when the complete `embedding` option is omitted. If `embedding.directory` is not configured, startup checks the default model cache. A missing model is downloaded there after printing a warning, and subsequent starts reuse the verified files.
+The complete `embedding` option can be omitted to use `Xenova/all-MiniLM-L6-v2`. When an `embedding` object is provided, `model` is required and `directory` is optional. No revision, dimensions, tokenizer, file, pooling, or checksum settings are accepted in runtime configuration.
 
-To avoid a download during application startup, provision the model explicitly first:
+The provisioning approaches are:
+
+| Approach | `embedding` configuration | Startup behavior |
+| --- | --- | --- |
+| Ad-hoc download | `{ "model": "Xenova/all-MiniLM-L6-v2" }` or omit `embedding` for the default | Checks the automatically determined default cache directory. If the model is missing or invalid, logs a warning, provisions a verified copy, and reuses it on subsequent starts. |
+| Pre-installed default cache | Same model-only configuration as ad-hoc download | Finds the model in the automatically determined default cache directory; no startup download is needed. |
+| Pre-installed configured directory | `{ "model": "...", "directory": "..." }` | Reads and verifies the provisioned directory. Startup never downloads into or modifies it. |
+
+##### Ad-hoc download
+
+Ad-hoc download is available for built-in model presets. With no `directory`, the model name selects the preset and automatically determines:
+
+- the immutable model revision and verified artifact set
+- embedding dimensions, tokenizer input limit, pooling, and normalization
+- the default cache directory
+
+If the verified files are absent or fail their integrity checks, startup prints a warning and attempts to provision a verified copy. Concurrent processes using the same cold cache wait for the first download and then reuse it. A conflicting or malformed lock is never silently replaced.
+
+The cache root is selected from `CDS_AI_MODEL_CACHE` when set. Otherwise it uses `XDG_DATA_HOME/semantic-search/models` or `~/.local/share/semantic-search/models` on POSIX systems, and `LOCALAPPDATA/semantic-search/models`, `APPDATA/semantic-search/models`, or `~/AppData/Local/semantic-search/models` on Windows. The model-specific subdirectory is derived from its repository, revision, and artifact set.
+
+##### Pre-installed in the default cache
+
+To avoid a runtime download while retaining model-only configuration, install the model before starting or deploying the application:
 
 ```sh
 npx cds-ai model install Xenova/all-MiniLM-L6-v2
 ```
 
-The command uses the same default cache location as the runtime, verifies artifact sizes and SHA-256 checksums, and writes an `embedding.lock.json`.
+The command uses the same automatically determined cache directory as the runtime, verifies artifact sizes and SHA-256 checksums, and writes an `embedding.lock.json`. The application configuration remains:
+
+```json
+{
+  "embedding": {
+    "model": "Xenova/all-MiniLM-L6-v2"
+  }
+}
+```
+
+Use the same `CDS_AI_MODEL_CACHE` value during installation and at runtime when selecting a non-default cache root.
+
+##### Pre-installed in a configured directory
+
+An explicit directory is suitable for application images, read-only mounts, or a model shared by multiple applications:
+
+```sh
+npx cds-ai model install Xenova/all-MiniLM-L6-v2 --directory ./models/minilm
+```
+
+```json
+{
+  "embedding": {
+    "model": "Xenova/all-MiniLM-L6-v2",
+    "directory": "./models/minilm"
+  }
+}
+```
+
+The CLI resolves a relative `--directory` from its working directory. Runtime configuration resolves a relative `embedding.directory` from `cds.root`; absolute directories are used unchanged in both cases. Run the install command from `cds.root` or use the same absolute path so both refer to the same model directory.
+
+A configured directory must already contain a valid `embedding.lock.json` and all verified artifacts. Startup remains offline and fails rather than downloading if the directory is incomplete. `CDS_AI_MODEL_CACHE` has no effect when `embedding.directory` is configured.
+
+##### Automatic model metadata detection
+
+The runtime obtains technical model configuration without exposing it through `cds.requires.db.embedding`:
+
+- Without `directory`, the model name resolves to a built-in preset containing the pinned revision, artifacts, checksums, dimensions, tokenizer limit, and output semantics.
+- With `directory`, the runtime reads those values from `embedding.lock.json`, verifies the artifacts, and checks that its repository matches `embedding.model`. Built-in presets are additionally checked against their complete pinned descriptor.
+
+This is not dynamic discovery of arbitrary Hugging Face repositories. Model-name-only ad-hoc downloads require a built-in preset. Other compatible models must be explicitly provisioned from a descriptor into a configured directory.
 
 The HANA-compatible SQL function can then be used in CQL:
 
@@ -339,7 +403,7 @@ Then point the service at that locked directory. Runtime configuration contains 
 }
 ```
 
-Relative directories are resolved from `cds.root`. Absolute directories are used unchanged, which allows multiple applications to reuse a shared model directory. When `embedding.directory` is configured, startup never downloads or modifies that directory: provision it while building the application image or mount an already provisioned directory. Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink.
+Provisioning canonicalizes symlinked parent directories and rejects a model directory that is itself a symlink.
 
 The runtime accepts no model metadata beyond `embedding.model` and `embedding.directory`. Ad-hoc downloads by model name are available only for built-in presets. Custom models must first be installed from a descriptor into an explicitly configured directory.
 
