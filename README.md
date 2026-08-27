@@ -216,7 +216,7 @@ Configure the embedding model explicitly for every service.
 
 #### Usage
 
-Install the optional runtime dependencies as development dependencies:
+Install the optional peer dependencies as development dependencies:
 
 ```sh
 npm add -D @cap-js/sqlite @huggingface/hub@^2.15.0 @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1 oxigraph
@@ -354,7 +354,7 @@ SELECT.from('Books').columns`
 
 The Hugging Face `onnx` library filter is a useful starting point, but it is not sufficient: it also includes decoder and masked-language-model exports, which do not produce sentence embeddings. A compatible repository needs a tokenizer JSON and configuration, a single discoverable ONNX encoder graph, and a usable embedding contract.
 
-For candidate discovery, start with the [Hugging Face sentence-similarity ONNX models](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx) and run `npx @cap-js/ai check-model <model>`. Adding the [`sentence-transformers` tag](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&other=sentence-transformers) narrows the list toward repositories with machine-readable pooling metadata. The Hub filters and the check command identify likely candidates only; always use `install-model` before deploying a model.
+For candidate discovery, start with the [trending Hugging Face sentence-similarity ONNX models](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&sort=trending) and run `npx @cap-js/ai check-model <model>`. Adding the [`sentence-transformers` tag](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&other=sentence-transformers) narrows the list toward repositories with machine-readable pooling metadata. The Hub filters and the check command identify likely candidates only; always use `install-model` before deploying a model.
 
 The graph must accept `input_ids` and may additionally accept `attention_mask` and `token_type_ids`; all inputs must be rank-2 `int64` tensors. Token-level outputs used with pooling must be floating-point rank-3 tensors whose final dimension matches the model configuration. The runtime requires an unambiguous Sentence Transformers pooling pipeline. Pooling semantics are read from `modules.json` and its pooling configuration. Converted repositories such as `Xenova/*` can declare a single `base_model`; its immutable Sentence Transformers metadata is used to determine mean or CLS pooling and normalization. Unsupported module chains, ambiguous pooling modes, missing metadata, incompatible ONNX inputs or outputs, and explicitly incompatible Hub tasks fail with a compatibility error instead of using guessed defaults.
 
