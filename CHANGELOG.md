@@ -13,6 +13,7 @@
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
   - Synchronous execution suitable for SQLite user-defined functions
+  - Embeds one model input window; applications split long documents and store one vector per chunk
   - **Note**: Produces 384-dimensional vectors (vs. 768 in SAP HANA) for efficiency in local development scenarios
 
 
