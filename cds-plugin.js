@@ -12,6 +12,7 @@ cds.on('served', async (services) => {
     if (name === 'db') continue;
     // eslint-disable-next-line no-await-in-loop
     const srv = await cds.connect.to(name);
+    if (isExternal(srv)) continue; // external services carry no @UI.Recommendations
     registerHandlersForRecommendations(srv);
 
     if (name === 'cds.xt.DeploymentService') {
@@ -19,3 +20,5 @@ cds.on('served', async (services) => {
     }
   }
 });
+
+const isExternal = (srv) => !!(srv.definition?.['@cds.external'] || srv.definition?.is_external);

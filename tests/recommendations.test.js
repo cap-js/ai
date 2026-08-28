@@ -97,6 +97,13 @@ describe('Classification predictions', () => {
       ],
       true
     );
+    // Expression stays on the source field; companion value type must not inherit it
+    // (sibling paths like genre_ID / aiWriteEnabled are not resolvable there).
+    const valueType =
+      cds.model.definitions['CatalogService.Books_Recommendations'].elements[
+        'authorWDynamicRecommendations_ID'
+      ].items.elements.RecommendedFieldValue;
+    assert.strictEqual(valueType['@UI.RecommendationState'], undefined);
 
     const {
       data: { ID }
@@ -196,6 +203,57 @@ describe('Regression predictions', () => {
       `RecommendedFieldValue has unexpected type: ${typeof rec}`
     );
     assert.ok(Number.isFinite(Number(rec)), `RecommendedFieldValue is not numeric: ${rec}`);
+  });
+});
+
+describe('Draft-technical association fields', () => {
+  let capturedContextRows;
+  before(async () => {
+    const aiCore = await cds.connect.to('AICore');
+    aiCore.before('fetchPredictions', (req) => {
+      capturedContextRows = req.data.rows;
+    });
+  });
+
+  test('rows sent to AI Core exclude non-predictive fields', async () => {
+    capturedContextRows = undefined;
+
+    // Put an existing active book into edit-draft so an *active* context row
+    // resolves DraftAdministrativeData to a non-null value
+    await POST(`/odata/v4/catalog/Books(ID=201,IsActiveEntity=true)/CatalogService.draftEdit`, {
+      PreserveChanges: true
+    });
+
+    const {
+      data: { ID }
+    } = await POST(`/odata/v4/catalog/Books`, { ID: Math.round(Math.random() * 10000) });
+    const { status } = await GET(
+      `/odata/v4/catalog/Books(ID=${ID},IsActiveEntity=false)?$expand=SAP_Recommendations`
+    );
+    assert.strictEqual(status, 200);
+
+    assert.ok(capturedContextRows, 'expected fetchPredictions to be called with context rows');
+
+    for (const row of capturedContextRows) {
+      assert.strictEqual(
+        'DraftAdministrativeData' in row,
+        false,
+        `row leaks DraftAdministrativeData: ${JSON.stringify(row)}`
+      );
+      for (const [key, value] of Object.entries(row)) {
+        assert.ok(
+          value === null || typeof value !== 'object',
+          `row carries non-scalar value for "${key}": ${JSON.stringify(row[key])}`
+        );
+      }
+      for (const field of ['computedUiState', 'virtualUiState', 'nonPredictiveFeature']) {
+        assert.strictEqual(
+          field in row,
+          false,
+          `row carries non-predictive field "${field}": ${JSON.stringify(row[field])}`
+        );
+      }
+    }
   });
 });
 
