@@ -12,8 +12,13 @@
   - Uses a file-based database for `ai-sqlite` and an in-memory database for `ai-sqlite:memory`
   - Requires `cds.env.requires.db.embedding.model`; automatically discovers model metadata and supports warned, on-demand provisioning into `.cds/models`
   - Adds `npx @cap-js/ai install-model <model>` with an optional shared model-cache root
+  - Adds metadata-only `npx @cap-js/ai check-model <model>` to report likely model compatibility before downloading model artifacts; installation remains the definitive runtime validation
   - Uses the optional `@huggingface/tokenizers` peer dependency and truncates long input to the first model input window
   - Requires `model`, supports an optional relative, absolute, or home-relative `directory`, and allows additional embedding properties for extensions; discovered metadata remains in the provisioned lock
+  - Discovers compatible Hugging Face ONNX encoder layouts through the optional `@huggingface/hub` peer, recognizes common Transformers configuration aliases, and loads and probes the downloaded model with ONNX Runtime before installation
+  - Bounds Hugging Face discovery requests with timeouts and retries transient network and server failures
+  - Prefers metadata adjacent to nested ONNX exports and supports conventional adjacent external-data sidecars
+  - Rejects incompatible decoder and masked-language-model tasks instead of guessing embedding semantics
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
   - Runs synchronously as required by SQLite user-defined functions and therefore blocks the Node.js event loop during tokenization and inference
