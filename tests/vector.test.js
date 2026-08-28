@@ -1,21 +1,24 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
-import { initializeEmbedding, vector_embedding } from '../lib/vector_embedding/index.js';
 import { createEmbeddingRuntime } from '../lib/vector_embedding/embedding.js';
 
 const MINILM_MODEL = 'Xenova/all-MiniLM-L6-v2';
 
-let embeddingModule;
+let runtime;
 
 before(async () => {
-  embeddingModule = await initializeEmbedding({ model: MINILM_MODEL });
+  runtime = await createEmbeddingRuntime({ model: MINILM_MODEL });
+});
+
+after(async () => {
+  await runtime?.dispose();
 });
 
 describe('Vector embedding function (standalone)', () => {
   describe('vector_embedding', () => {
     test('computes embedding with ONNX model', async () => {
-      const result = vector_embedding('Hello world', 'DOCUMENT', 'SAP_GXY.20250407');
+      const result = runtime.vectorEmbedding('Hello world');
 
       const embedding = JSON.parse(result);
       assert.ok(Array.isArray(embedding), 'Embedding should be an array');
@@ -28,34 +31,32 @@ describe('Vector embedding function (standalone)', () => {
     });
 
     test('deterministic - same input produces same output', async () => {
-      const e1 = vector_embedding('test text', 'DOCUMENT', 'SAP_GXY.20250407');
-      const e2 = vector_embedding('test text', 'DOCUMENT', 'SAP_GXY.20250407');
+      const e1 = runtime.vectorEmbedding('test text');
+      const e2 = runtime.vectorEmbedding('test text');
 
       assert.strictEqual(e1, e2, 'Same input should produce identical embeddings');
     });
 
     test('ignores text beyond the first model input window', () => {
       const firstWindow = new Array(126).fill('token').join(' ');
-      const truncated = vector_embedding(firstWindow, 'DOCUMENT', 'SAP_GXY.20250407');
-      const withAdditionalText = vector_embedding(
-        `${firstWindow} this text must not affect the embedding`,
-        'DOCUMENT',
-        'SAP_GXY.20250407'
+      const truncated = runtime.vectorEmbedding(firstWindow);
+      const withAdditionalText = runtime.vectorEmbedding(
+        `${firstWindow} this text must not affect the embedding`
       );
 
       assert.strictEqual(withAdditionalText, truncated);
     });
 
     test('different inputs produce different outputs', async () => {
-      const e1 = vector_embedding('hello world', 'DOCUMENT', 'SAP_GXY.20250407');
-      const e2 = vector_embedding('goodbye world', 'DOCUMENT', 'SAP_GXY.20250407');
+      const e1 = runtime.vectorEmbedding('hello world');
+      const e2 = runtime.vectorEmbedding('goodbye world');
 
       assert.notStrictEqual(e1, e2, 'Different inputs should produce different embeddings');
     });
 
     test('semantically similar sentences produce similar vectors', async () => {
-      const e1 = vector_embedding('I love programming', 'DOCUMENT', 'SAP_GXY.20250407');
-      const e2 = vector_embedding('I enjoy coding', 'DOCUMENT', 'SAP_GXY.20250407');
+      const e1 = runtime.vectorEmbedding('I love programming');
+      const e2 = runtime.vectorEmbedding('I enjoy coding');
 
       const v1 = JSON.parse(e1);
       const v2 = JSON.parse(e2);
@@ -68,8 +69,8 @@ describe('Vector embedding function (standalone)', () => {
     });
 
     test('semantically different sentences are far apart in vector space', async () => {
-      const e1 = vector_embedding('The cat sat on the mat', 'DOCUMENT', 'SAP_GXY.20250407');
-      const e2 = vector_embedding('Quantum physics is fascinating', 'DOCUMENT', 'SAP_GXY.20250407');
+      const e1 = runtime.vectorEmbedding('The cat sat on the mat');
+      const e2 = runtime.vectorEmbedding('Quantum physics is fascinating');
 
       const v1 = JSON.parse(e1);
       const v2 = JSON.parse(e2);
@@ -82,7 +83,7 @@ describe('Vector embedding function (standalone)', () => {
     });
 
     test('handles empty text', async () => {
-      const result = vector_embedding('', 'DOCUMENT', 'SAP_GXY.20250407');
+      const result = runtime.vectorEmbedding('');
 
       const embedding = JSON.parse(result);
       assert.ok(Array.isArray(embedding), 'Empty text should return zero vector');
@@ -94,7 +95,7 @@ describe('Vector embedding function (standalone)', () => {
     });
 
     test('handles null text', async () => {
-      const result = vector_embedding(null, 'DOCUMENT', 'SAP_GXY.20250407');
+      const result = runtime.vectorEmbedding(null);
 
       const embedding = JSON.parse(result);
       assert.ok(Array.isArray(embedding), 'Null text should return zero vector');
@@ -106,39 +107,27 @@ describe('Vector embedding function (standalone)', () => {
     });
 
     test('embeds text longer than the MiniLM token limit', () => {
-      const result = vector_embedding(
-        new Array(300).fill('semantic').join(' '),
-        'DOCUMENT',
-        'SAP_GXY.20250407'
-      );
+      const result = runtime.vectorEmbedding(new Array(300).fill('semantic').join(' '));
 
       assert.strictEqual(JSON.parse(result).length, 384);
     });
 
     test('uses the configured dimensions for compatibility model identifiers', async () => {
-      const result1 = vector_embedding('test', 'DOCUMENT', 'SAP_GXY.20250407');
+      const result1 = runtime.vectorEmbedding('test');
       const embedding1 = JSON.parse(result1);
       assert.strictEqual(embedding1.length, 384, 'SAP_GXY.20250407 should have 384 dimensions');
 
-      const result2 = vector_embedding('test', 'DOCUMENT', 'SAP_GXY.20240715');
+      const result2 = runtime.vectorEmbedding('test');
       const embedding2 = JSON.parse(result2);
       assert.strictEqual(embedding2.length, 384, 'SAP_GXY.20240715 should have 384 dimensions');
 
-      const result3 = vector_embedding('test', 'DOCUMENT', 'unknown_model');
+      const result3 = runtime.vectorEmbedding('test');
       const embedding3 = JSON.parse(result3);
       assert.strictEqual(
         embedding3.length,
         384,
         'Compatibility identifiers should use the configured model dimensions'
       );
-    });
-
-    test('retains the embedding module wrapper', () => {
-      const result = embeddingModule.embedding('Hello world');
-
-      assert.equal(result.content, 'Hello world');
-      assert.equal(result.embedding.length, 384);
-      assert.deepEqual(Object.keys(result), ['content']);
     });
 
     test('disposes embedding runtimes safely', async () => {

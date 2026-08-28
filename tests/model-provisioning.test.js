@@ -373,6 +373,7 @@ describe('explicit model provisioning', () => {
     assert.equal(discoveries, 1);
     assert.equal(warnings.length, 1);
     assert.match(warnings[0], /Downloading it now; application startup may be delayed/);
+    assert.match(warnings[0], /repositories you trust/);
     assert.equal(requestedUrls.length, model.files.length);
     assert.deepEqual(await readModelLock(expectedDirectory), model);
 
@@ -516,7 +517,7 @@ describe('explicit model provisioning', () => {
     const output = [];
 
     await runModelCommand(['install-model', model.repository, '--directory', modelRoot], {
-      cwd: root,
+      root,
       discover: () => model,
       fetchImpl: createFetch(content),
       validate: async () => {},
@@ -535,7 +536,7 @@ describe('explicit model provisioning', () => {
     const model = fixtureModel(content);
 
     await runModelCommand(['install-model', model.repository], {
-      cwd: root,
+      root,
       discover: () => model,
       fetchImpl: createFetch(content),
       validate: async () => {},
@@ -544,6 +545,40 @@ describe('explicit model provisioning', () => {
 
     const modelDir = path.join(root, '.cds', 'models', 'example', 'model');
     assert.deepEqual(await readModelLock(modelDir), model);
+  });
+
+  test('resolves default and relative command directories from the CAP project root', async () => {
+    const root = await createTemporaryDirectory();
+    const subdirectory = path.join(root, 'srv', 'nested');
+    const content = Buffer.from('project root command fixture');
+    const model = fixtureModel(content);
+    const options = {
+      cwd: subdirectory,
+      discover: () => model,
+      fetchImpl: createFetch(content),
+      validate: async () => {},
+      stdout: { write() {} }
+    };
+    await fs.mkdir(subdirectory, { recursive: true });
+    await fs.writeFile(
+      path.join(root, 'package.json'),
+      JSON.stringify({ dependencies: { '@sap/cds': '^9' } })
+    );
+
+    await runModelCommand(['install-model', model.repository], options);
+    assert.deepEqual(
+      await readModelLock(path.join(root, '.cds', 'models', 'example', 'model')),
+      model
+    );
+
+    await runModelCommand(
+      ['install-model', model.repository, '--directory', './shared-models'],
+      options
+    );
+    assert.deepEqual(
+      await readModelLock(path.join(root, 'shared-models', 'example', 'model')),
+      model
+    );
   });
 
   test('requires a model name and accepts an optional cache root', async () => {

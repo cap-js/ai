@@ -16,9 +16,10 @@
   - Requires `model`, supports an optional relative, absolute, or home-relative `directory`, and allows additional embedding properties for extensions; discovered metadata remains in the provisioned lock
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
-  - Synchronous execution suitable for SQLite user-defined functions
+  - Runs synchronously as required by SQLite user-defined functions and therefore blocks the Node.js event loop during tokenization and inference
   - Embeds one model input window; applications split long documents and store one vector per chunk
-- **Experimental!:** Add local `SPARQL_EXECUTE` and `sparql_table` support to both AI-enabled SQLite kinds through the optional `oxigraph` peer dependency
+  - Uses trust-on-first-use provisioning: the lock pins the first resolved Hugging Face revision and checksums for later integrity checks but does not authenticate the model publisher
+- **Experimental!:** Add local `SPARQL_EXECUTE` and `sparql_table` support to both AI-enabled SQLite kinds through the optional `oxigraph` peer dependency; the process-local RDF store is ephemeral and not transactionally coupled to SQLite
 
 ## Version 1.1.0 - 2026-07-20
 

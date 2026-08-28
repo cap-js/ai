@@ -27,7 +27,7 @@ describe('ai-sqlite knowledge graph', () => {
   });
 
   test('loads Turtle data', async () => {
-    await load(data);
+    assert.strictEqual(await load(data), undefined);
     assert.strictEqual((await triples()).length, 13);
   });
 
@@ -37,10 +37,27 @@ describe('ai-sqlite knowledge graph', () => {
   });
 
   test('rejects malformed SPARQL_EXECUTE calls', async () => {
-    await assert.rejects(
-      db.run(`CALL SPARQL_EXECUTE('SELECT * WHERE { ?s ?p ?o }')`),
-      /Unsupported SPARQL_EXECUTE syntax/
+    for (const query of [
+      `CALL SPARQL_EXECUTE('SELECT * WHERE { ?s ?p ?o }')`,
+      `CALL SPARQL_EXECUTE('SELECT * WHERE { ?s ?p ?o }','', ?)`,
+      `CALL SPARQL_EXECUTE('SELECT * WHERE { ?s ?p ?o }','', NULL, NULL)`,
+      `CALL SPARQL_EXECUTE(?, '', ?, ?)`
+    ]) {
+      // eslint-disable-next-line no-await-in-loop
+      await assert.rejects(db.run(query), /Unsupported SPARQL_EXECUTE syntax/);
+    }
+  });
+
+  test('returns query results through the RESPONSE output', async () => {
+    await load(data);
+    const result = await db.run(
+      `CALL SPARQL_EXECUTE('SELECT ?subject WHERE { ?subject ?predicate ?object }','accept:application/sparql-results+json', ?, ?)`
     );
+
+    assert.deepStrictEqual(Object.keys(result), ['RESPONSE']);
+    const response = JSON.parse(result.RESPONSE);
+    assert.deepStrictEqual(response.head.vars, ['subject']);
+    assert.ok(response.results.bindings.length > 0);
   });
 
   test('rejects RDF files outside the project', async () => {

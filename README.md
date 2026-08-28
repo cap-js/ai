@@ -216,13 +216,15 @@ Configure the embedding model explicitly for every service.
 
 #### Usage
 
-Install the optional runtime dependencies:
+Install the optional runtime dependencies as development dependencies:
 
 ```sh
-npm add @cap-js/sqlite @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
+npm add -D @cap-js/sqlite @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1 oxigraph
 ```
 
-The `@huggingface/tokenizers` and `onnxruntime-node` packages are optional peer dependencies of `@cap-js/ai`, but are required when using either AI-enabled SQLite kind. Both kinds currently require exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
+These packages are optional peer dependencies of `@cap-js/ai` and are required only for the corresponding local SQLite capabilities. Both database kinds currently require exactly `onnxruntime-node` 1.20.1 because synchronous SQLite functions need a version-specific native runtime API.
+
+Tokenization, ONNX inference, pooling, and normalization run synchronously for each `VECTOR_EMBEDDING` call. SQLite user-defined functions cannot await, so inference blocks the Node.js event loop until it completes. The feature is intended for local development and low-volume use; server workloads should precompute or batch embeddings outside SQL.
 
 #### Model provisioning
 
@@ -264,11 +266,15 @@ This configuration uses a file-based SQLite database. For an in-memory database,
 
 Without `directory`, the model is stored below the CAP project at `.cds/models/foo/bar`. Startup reuses a valid installation from there. If it is missing, startup logs a warning, discovers and downloads the model, generates `embedding.lock.json`, and reuses that installation on subsequent starts.
 
+Only install models from repositories you trust. Provisioning is trust-on-first-use: the first download trusts the named repository and its Hugging Face metadata, then pins the resolved revision, sizes, and checksums in `embedding.lock.json`. Subsequent starts detect local corruption or repository drift, but the lock does not authenticate the publisher or make an untrusted model safe. Provisioning loads the downloaded tokenizer and ONNX graph into the native runtime and executes a startup probe in the current process.
+
 To provision the project-local model before startup instead:
 
 ```sh
 npx @cap-js/ai install-model foo/bar
 ```
+
+The command locates the enclosing CAP project and uses its root for `.cds/models` and relative `--directory` values, even when invoked from a project subdirectory.
 
 To share a model across projects, select another cache root:
 
@@ -294,7 +300,7 @@ npx @cap-js/ai install-model foo/bar --directory ~/.cds/models
 
 `directory` always names the cache root; the model is stored below it using the repository path, for example `~/.cds/models/foo/bar`. Relative directories are resolved from `cds.root`, absolute directories are used unchanged, and `~/` is resolved from the user's home directory.
 
-When `directory` is configured, startup treats it as a pre-installed shared cache: it verifies the model but does not download or modify it. This makes runtime deployment deterministic and allows the shared directory to be read-only.
+When `directory` is configured, startup treats it as a pre-installed shared cache: it checks the pinned files but does not download or modify them. Provision models in a trusted build environment, retain the generated lock, and make the shared directory read-only at runtime.
 
 ##### Automatic model discovery
 
@@ -310,7 +316,7 @@ SELECT.from('Books').columns`
 `;
 ```
 
-`VECTOR_EMBEDDING` embeds one model input window. Text beyond the tokenizer's input limit is truncated. For long-document retrieval, split documents before persistence and store one vector per chunk instead of combining chunk embeddings in this function.
+`VECTOR_EMBEDDING` embeds one model input window. Text beyond the tokenizer's input limit is truncated. For long-document retrieval, split documents before persistence and store one vector per chunk instead of combining chunk embeddings in this function. Each invocation performs synchronous inference and blocks the Node.js event loop while it runs.
 
 **Parameters:**
 
@@ -327,7 +333,7 @@ SELECT.from('Books').columns`
 - **Initialization**: The ONNX model is loaded when the AI-enabled SQLite service starts
 - **Automatic provisioning**: Use model-only configuration for warned, on-demand installation into `.cds/models`
 - **Explicit provisioning**: Preinstall local or shared models with `npx @cap-js/ai install-model`
-- **Verified artifacts**: The provisioned lock pins the revision, artifact sizes, and SHA-256 checksums
+- **Pinned artifacts**: The provisioned lock pins the revision, artifact sizes, and SHA-256 checksums for later local integrity checks
 - **Hugging Face tokenization**: Uses `@huggingface/tokenizers` and truncates text to the first model input window
 - **Deterministic**: Same input always produces same output
 - **Automatic output handling**: Pooling and normalization are derived from Sentence Transformers metadata
@@ -348,6 +354,20 @@ Provisioning canonicalizes symlinked parent directories and rejects a model dire
 - Starting either AI-enabled SQLite kind fails with a provisioning command if a configured model directory is missing or fails integrity checks
 - Provisioning downloads are time-limited and accepted only when their expected size and SHA-256 match
 - Throws if embedding generation fails
+
+#### Experimental local knowledge graph
+
+Both AI-enabled SQLite kinds expose a process-local Oxigraph store through `SPARQL_EXECUTE` and `sparql_table`.
+
+The supported procedure-compatible form is:
+
+```sql
+CALL SPARQL_EXECUTE('<SPARQL>', '<headers>', ?, ?)
+```
+
+The final two `?` tokens are required HANA-compatible output placeholders, not input bindings. The local implementation accepts literal SPARQL and header strings only. Query operations return an object with a serialized `RESPONSE`; `LOAD` returns no result. This is a compatibility shim rather than a general stored-procedure implementation.
+
+The Oxigraph store is in memory and tied to the service connection. Its triples are lost on disconnect or process restart, including when `ai-sqlite` uses a file-based SQLite database, and its updates are not transactionally coupled to SQLite.
 
 ## Test the plugin locally
 

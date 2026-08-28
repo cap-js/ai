@@ -18,6 +18,8 @@ import {
   loadTokenizerPackage,
   validateModelDescriptor
 } from '../lib/vector_embedding/model-utils.js';
+import { loadOnnxRuntime } from '../lib/vector_embedding/load-onnx-runtime.js';
+import { loadSQLiteService } from '../lib/sqlite/load-sqlite.js';
 
 const temporaryDirectories = [];
 
@@ -32,6 +34,60 @@ test('explains how to install the optional tokenizer peer dependency', async () 
       throw missing;
     }),
     /npm add @huggingface\/tokenizers@0\.1\.3/
+  );
+});
+
+test('explains how to install the optional SQLite peer dependency', () => {
+  const missing = Object.assign(
+    new Error("Cannot find module '@cap-js/sqlite' required by load-sqlite.js"),
+    { code: 'MODULE_NOT_FOUND' }
+  );
+
+  assert.throws(
+    () =>
+      loadSQLiteService(() => {
+        throw missing;
+      }),
+    /npm add -D @cap-js\/sqlite/
+  );
+});
+
+test('explains how to install the pinned ONNX Runtime peer dependency', () => {
+  const missing = Object.assign(new Error("Cannot find module 'onnxruntime-node/package.json'"), {
+    code: 'MODULE_NOT_FOUND'
+  });
+
+  assert.throws(
+    () =>
+      loadOnnxRuntime(() => {
+        throw missing;
+      }),
+    /npm add -D onnxruntime-node@1\.20\.1/
+  );
+});
+
+test('does not mask unrelated optional-peer loading errors', () => {
+  const sqliteError = Object.assign(new Error('SQLite native binding failed'), {
+    code: 'ERR_DLOPEN_FAILED'
+  });
+  const runtimeError = Object.assign(new Error('ONNX native binding failed'), {
+    code: 'ERR_DLOPEN_FAILED'
+  });
+
+  assert.throws(
+    () =>
+      loadSQLiteService(() => {
+        throw sqliteError;
+      }),
+    sqliteError
+  );
+  assert.throws(
+    () =>
+      loadOnnxRuntime((specifier) => {
+        if (specifier.endsWith('package.json')) return { version: '1.20.1' };
+        throw runtimeError;
+      }),
+    runtimeError
   );
 });
 
