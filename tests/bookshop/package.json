@@ -2,11 +2,12 @@
   "name": "intelligent-cap-app",
   "version": "1.0.0",
   "description": "A simple CAP project.",
-  "repository": "https://github.tools.sap/I538919/intelligent-cap-app",
+  "repository": "https://github.com/cap-js/ai",
   "license": "UNLICENSED",
   "private": true,
   "type": "module",
   "dependencies": {
+    "@cap-js/agents": "git+https://github.com/cap/agents.git",
     "@cap-js/ai": "file:../../",
     "@cap-js/hana": ">=2",
     "@sap-ai-sdk/orchestration": "^2.5.0",
@@ -15,7 +16,7 @@
     "@sap-cloud-sdk/http-client": "^4",
     "@sap-cloud-sdk/resilience": "^4.3.1",
     "@sap/cds": ">=9",
-    "@sap/cds-common-content": "^3.1.0",
+    "@sap/cds-common-content": "^3.2.0",
     "@sap/cds-mtxs": ">=3",
     "@sap/xssec": "^4",
     "express": "^5"
@@ -29,6 +30,7 @@
   },
   "scripts": {
     "start": "cds-serve",
+    "watch": "cds watch",
     "undeploy": "cf undeploy intelligent-cap-app --delete-services --delete-service-keys --delete-service-brokers",
     "deploy": "cf deploy mta_archives/archive.mtar --retries 1"
   },
@@ -43,6 +45,8 @@
       "version": "https://sapui5nightly.int.sap.eu2.hana.ondemand.com"
     },
     "requires": {
+      "n8n": "n8n",
+      "llm": "llm-anthropic",
       "[production]": {
         "auth": "xsuaa",
         "db": {
