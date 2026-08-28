@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import path from 'node:path';
 import { describe, test } from 'node:test';
 
 import { checkModel, discoverModel } from '../lib/vector_embedding/model-discovery.js';
@@ -10,8 +11,8 @@ const REPOSITORY = 'example/embedding-model';
 const BASE_REPOSITORY = 'sentence-transformers/base-model';
 
 describe('Hugging Face model discovery', () => {
-  test('checks a model from Hub metadata without downloading its ONNX artifact', async () => {
-    const hub = hubFor();
+  test('allows a missing Hub task while checking metadata without downloading ONNX', async () => {
+    const hub = hubFor({ omitTask: true });
 
     const result = await checkModel(REPOSITORY, { hubClient: hub.client });
 
@@ -114,6 +115,30 @@ describe('Hugging Face model discovery', () => {
     );
   });
 
+  test('prefers metadata next to a nested ONNX export over repository-root files', async () => {
+    const hub = hubFor({
+      modelPath: 'exports/encoder/model.onnx',
+      assetDirectory: 'exports/encoder',
+      tokenizer: { truncation: { max_length: 96 } },
+      config: { hidden_size: 768, max_position_embeddings: 256 },
+      rootAssets: {
+        tokenizer: { truncation: { max_length: 16 } },
+        tokenizerConfig: { model_max_length: 16 },
+        config: { hidden_size: 16, max_position_embeddings: 16 }
+      }
+    });
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.equal(descriptor.dimensions, 768);
+    assert.equal(descriptor.maxLength, 96);
+    assert.ok(
+      descriptor.files
+        .filter(({ role }) => role !== 'model')
+        .every(({ path }) => path.startsWith('exports/encoder/'))
+    );
+  });
+
   test('recognizes common Transformers dimension and sequence-limit aliases', async () => {
     await Promise.all(
       [
@@ -188,6 +213,15 @@ describe('Hugging Face model discovery', () => {
     );
   });
 
+  test('rejects arbitrary sidecars when external ONNX data is declared', async () => {
+    const hub = hubFor({ externalData: 'weights.bin' });
+
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: hub.client }),
+      /declares external ONNX data but no data file exists/
+    );
+  });
+
   test('rejects incompatible Hugging Face tasks before downloading artifacts', async () => {
     await Promise.all(
       [
@@ -195,7 +229,7 @@ describe('Hugging Face model discovery', () => {
         ['fill-mask', 'FacebookAI/xlm-roberta-base']
       ].map(async ([task, repository]) => {
         const hub = createHub({
-          [repository]: { info: { sha: REVISION, pipeline_tag: task }, files: {} }
+          [repository]: { info: { sha: REVISION, task }, files: {} }
         });
         await assert.rejects(
           discoverModel(repository, { hubClient: hub.client }),
@@ -252,8 +286,16 @@ function hubFor(options = {}) {
       options.config ?? { hidden_size: 384, max_position_embeddings: 512 }
     )
   };
+  if (options.rootAssets) {
+    files['tokenizer.json'] = json(options.rootAssets.tokenizer);
+    files['tokenizer_config.json'] = json(options.rootAssets.tokenizerConfig);
+    files['config.json'] = json(options.rootAssets.config);
+  }
   if (options.externalData) {
-    const dataPath = `${modelPath}_data`;
+    const dataPath =
+      options.externalData === true
+        ? `${modelPath}_data`
+        : `${path.posix.dirname(modelPath)}/${options.externalData}`;
     files[dataPath] = Buffer.from('external weights');
     const config = JSON.parse(files[asset('config.json')].toString());
     config['transformers.js_config'] = { use_external_data_format: { [modelPath]: 1 } };
@@ -285,6 +327,7 @@ function hubFor(options = {}) {
 
   const info = {
     sha: REVISION,
+    ...(!options.omitTask ? { task: options.task ?? 'sentence-similarity' } : {}),
     ...(options.baseModel ? { cardData: { base_model: options.baseModel } } : {})
   };
   const hub = createHub({

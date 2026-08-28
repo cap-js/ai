@@ -16,6 +16,8 @@
   - Uses the optional `@huggingface/tokenizers` peer dependency and truncates long input to the first model input window
   - Requires `model`, supports an optional relative, absolute, or home-relative `directory`, and allows additional embedding properties for extensions; discovered metadata remains in the provisioned lock
   - Discovers compatible Hugging Face ONNX encoder layouts through the optional `@huggingface/hub` peer, recognizes common Transformers configuration aliases, and loads and probes the downloaded model with ONNX Runtime before installation
+  - Bounds Hugging Face discovery requests with timeouts and retries transient network and server failures
+  - Prefers metadata adjacent to nested ONNX exports and supports conventional adjacent external-data sidecars
   - Rejects incompatible decoder and masked-language-model tasks instead of guessing embedding semantics
   - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
   - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
