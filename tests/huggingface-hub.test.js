@@ -7,7 +7,7 @@ import {
 } from '../lib/vector_embedding/huggingface-hub.js';
 
 describe('Hugging Face Hub adapter', () => {
-  test('pins all operations and forwards authentication and custom transport options', async () => {
+  test('pins all operations and forwards custom transport options', async () => {
     const calls = [];
     const fetchImpl = () => {};
     const bindings = {
@@ -28,7 +28,6 @@ describe('Hugging Face Hub adapter', () => {
     const client = createHuggingFaceClient({
       fetchImpl,
       hubUrl: 'https://hub.example.test',
-      accessToken: 'secret',
       bindings
     });
 
@@ -44,7 +43,7 @@ describe('Hugging Face Hub adapter', () => {
     for (const [, options] of calls) {
       assert.equal(options.fetch, fetchImpl);
       assert.equal(options.hubUrl, 'https://hub.example.test');
-      assert.equal(options.accessToken, 'secret');
+      assert.equal('accessToken' in options, false);
     }
     assert.deepEqual(calls[1][1].repo, { type: 'model', name: 'foo/bar' });
     assert.equal(calls[1][1].revision, '2'.repeat(40));

@@ -352,9 +352,9 @@ describe('model download', () => {
     ]);
   });
 
-  test('authenticates model downloads and honors a custom Hub URL', async () => {
+  test('honors a custom Hub URL for model downloads', async () => {
     const directory = await createTemporaryDirectory();
-    const content = Buffer.from('authenticated model fixture');
+    const content = Buffer.from('custom Hub model fixture');
     const model = fixtureModel(content);
     const requests = [];
     const fetchImpl = async (url, options) => {
@@ -364,14 +364,13 @@ describe('model download', () => {
 
     await downloadModelIfNeeded(directory, model, {
       fetchImpl,
-      accessToken: 'secret',
       hubUrl: 'https://hub.example.test///'
     });
 
     assert.ok(
       requests.every(([url]) => url.startsWith('https://hub.example.test/example/model/resolve/'))
     );
-    assert.ok(requests.every(([, options]) => options.headers.Authorization === 'Bearer secret'));
+    assert.ok(requests.every(([, options]) => !('headers' in options)));
   });
 
   test('rejects oversized content without exposing a partial cache file', async () => {

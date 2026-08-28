@@ -312,7 +312,7 @@ When `directory` is configured, startup treats it as a pre-installed shared cach
 
 ##### Automatic model discovery
 
-The installer uses the official Hugging Face Hub client to resolve the model's current revision to an immutable commit, enumerate its files, and retrieve discovery metadata. Selected artifacts are then streamed into the model cache with integrity checks. Set `HF_TOKEN` when installing or starting with a gated or private repository. The resolved lock contains the commit, artifact paths, sizes, checksums, dimensions, tokenizer limit, pooling, and normalization metadata; it is written to `embedding.lock.json` alongside the downloaded artifacts.
+The installer uses the official Hugging Face Hub client to resolve the model's current revision to an immutable commit, enumerate its files, and retrieve discovery metadata. Selected artifacts are then streamed into the model cache with integrity checks. Model discovery and installation currently support public repositories only. The resolved lock contains the commit, artifact paths, sizes, checksums, dimensions, tokenizer limit, pooling, and normalization metadata; it is written to `embedding.lock.json` alongside the downloaded artifacts.
 
 Discovery is layout-aware rather than tied to one exporter. It prefers `onnx/model.onnx`, then `model.onnx`, a unique nested `model.onnx`, or a sole ONNX file. It similarly uses root tokenizer/configuration files first and otherwise the files adjacent to the selected ONNX model. Common Transformers configuration names for dimensions (`hidden_size`, `n_embd`, `d_model`, and `dim`) and input length are recognized.
 
