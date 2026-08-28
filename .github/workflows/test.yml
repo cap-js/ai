@@ -50,7 +50,6 @@ jobs:
           npm pkg set --workspace=tests/bookshop "dependencies.@sap/cds=^9"
       - run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
       - run: npm i
-      - run: npm run test:model:provision
       - run: cd tests/bookshop && cds v -i
       - run: npm run test
 

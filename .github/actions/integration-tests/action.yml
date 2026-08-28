@@ -83,10 +83,6 @@ runs:
       shell: bash
       run: npm install
 
-    - name: Provision embedding test model
-      shell: bash
-      run: npm run test:model:provision
-
     - name: Set node env for HANA
       run: echo "NODE_VERSION_HANA=$(echo ${{ inputs.NODE_VERSION }} | tr . _)" >> $GITHUB_ENV
       shell: bash
