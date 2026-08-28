@@ -13,7 +13,7 @@
   },
   "scripts": {
     "lint": "npx -y eslint@10 .",
-    "test:model:provision": "node bin/cds-ai.js install-model Xenova/all-MiniLM-L6-v2",
+    "test:model:provision": "node tests/provision-model.js",
     "test": "npm run test:model:provision && node --test tests/*.test.js",
     "test:hybrid": "npm run test:model:provision && cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
     "format": "npx -y prettier@3 . --write && format-cds -f",
