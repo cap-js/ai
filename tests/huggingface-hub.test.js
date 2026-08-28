@@ -50,6 +50,22 @@ describe('Hugging Face Hub adapter', () => {
     assert.equal(calls[2][1].xet, false);
   });
 
+  test('rejects unsafe Hub URLs', () => {
+    const bindings = downloadBindings();
+    assert.throws(
+      () => createHuggingFaceClient({ hubUrl: 'http://hub.example.test', bindings }),
+      /must use HTTPS/
+    );
+    assert.throws(
+      () => createHuggingFaceClient({ hubUrl: 'https://user@hub.example.test', bindings }),
+      /must not include credentials/
+    );
+    assert.throws(
+      () => createHuggingFaceClient({ hubUrl: 'https://hub.example.test?mirror=1', bindings }),
+      /must not include a query or fragment/
+    );
+  });
+
   test('matches the installed @huggingface/hub response contract', async () => {
     const revision = '1'.repeat(40);
     const contents = Buffer.from('{"hidden_size":384}');
@@ -168,6 +184,64 @@ describe('Hugging Face Hub adapter', () => {
     assert.equal(attempts, 1);
   });
 
+  test('rejects oversized Hub files from declared response metadata', async () => {
+    const client = createHuggingFaceClient({
+      fetchImpl: async () =>
+        new Response('oversized', {
+          headers: { 'content-length': '9' }
+        }),
+      requestRetries: 0,
+      maxResponseBytes: 8,
+      bindings: downloadBindings()
+    });
+
+    await assert.rejects(
+      client.getFile('foo/bar', '1'.repeat(40), 'config.json'),
+      /exceeds 8 bytes/
+    );
+  });
+
+  test('rejects oversized Hub files from a range probe before downloading them', async () => {
+    const client = createHuggingFaceClient({
+      fetchImpl: async () =>
+        new Response('x', {
+          status: 206,
+          headers: { 'content-length': '1', 'content-range': 'bytes 0-0/9' }
+        }),
+      requestRetries: 0,
+      maxResponseBytes: 8,
+      bindings: downloadBindings()
+    });
+
+    await assert.rejects(
+      client.getFile('foo/bar', '1'.repeat(40), 'config.json'),
+      /exceeds 8 bytes/
+    );
+  });
+
+  test('rejects streamed Hub files that exceed the response limit', async () => {
+    const client = createHuggingFaceClient({
+      fetchImpl: async () =>
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(Buffer.from('four'));
+              controller.enqueue(Buffer.from('more'));
+              controller.close();
+            }
+          })
+        ),
+      requestRetries: 0,
+      maxResponseBytes: 4,
+      bindings: downloadBindings()
+    });
+
+    await assert.rejects(
+      client.getFile('foo/bar', '1'.repeat(40), 'config.json'),
+      /exceeds 4 bytes/
+    );
+  });
+
   test('explains how to install the missing optional discovery peer', async () => {
     const missingHub = Object.assign(
       new Error("Cannot find package '@huggingface/hub' imported from huggingface-hub.js"),
@@ -191,5 +265,15 @@ function fetchOnlyBindings() {
     },
     async *listFiles() {},
     async downloadFile() {}
+  };
+}
+
+function downloadBindings() {
+  return {
+    async modelInfo() {},
+    async *listFiles() {},
+    async downloadFile({ fetch }) {
+      return (await fetch('https://hub.example.test/file')).blob();
+    }
   };
 }

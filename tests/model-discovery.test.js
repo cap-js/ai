@@ -167,6 +167,19 @@ describe('Hugging Face model discovery', () => {
     );
   });
 
+  test('ignores generic tokenizer max_length when determining the model input window', async () => {
+    const hub = hubFor({
+      tokenizer: { truncation: null },
+      tokenizerConfig: { max_length: 32, model_max_length: 128 },
+      config: { hidden_size: 384, max_position_embeddings: 512 },
+      sentenceConfig: undefined
+    });
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.equal(descriptor.maxLength, 128);
+  });
+
   test('follows a pinned base_model for Sentence Transformers semantics', async () => {
     const hub = hubFor({
       tokenizer: { truncation: null },
@@ -261,6 +274,12 @@ describe('Hugging Face model discovery', () => {
     await assert.rejects(
       discoverModel(REPOSITORY, { hubClient: invalidOrder.client }),
       /unambiguous pooling pipeline/
+    );
+
+    const unsupportedStage = hubFor({ moduleOrder: ['Transformer', 'Pooling', 'Dense'] });
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: unsupportedStage.client }),
+      /Unsupported Sentence Transformers module 'sentence_transformers.models.Dense'/
     );
   });
 
