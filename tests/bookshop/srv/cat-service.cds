@@ -75,7 +75,7 @@ service CatalogService {
   };
 
   @requires: 'authenticated-user'
-  action submitOrder(book: Books:ID, quantity: Integer) returns {
+  action   submitOrder(book: Books:ID, quantity: Integer) returns {
     stock : Integer
   };
 
@@ -86,7 +86,7 @@ service CatalogService {
   };
 
   @requires: 'authenticated-user'
-  action callProcedure();
+  action   callProcedure();
 
-  function embedding(text : String) returns LargeString;
+  function embedding(text: String)                        returns LargeString;
 }
