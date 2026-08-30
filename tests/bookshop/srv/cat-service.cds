@@ -87,4 +87,6 @@ service CatalogService {
 
   @requires: 'authenticated-user'
   action callProcedure();
+
+  function embedding(text : String) returns LargeString;
 }

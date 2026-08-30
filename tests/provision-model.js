@@ -7,7 +7,10 @@ import {
   provisionModel
 } from '../lib/vector_embedding/model-utils.js';
 
-const lockUrl = new URL('./fixtures/Xenova/all-MiniLM-L6-v2/embedding.lock.json', import.meta.url);
+const lockUrl = new URL(
+  './fixtures/sentence-transformers/all-MiniLM-L6-v2/embedding.lock.json',
+  import.meta.url
+);
 const { formatVersion, ...model } = JSON.parse(await fs.readFile(lockUrl, 'utf8'));
 if (formatVersion !== 1) throw new Error(`Unsupported test model lock version ${formatVersion}`);
 

@@ -8,23 +8,8 @@
 
 ### Added
 
-- **Beta:** Add the `ai-sqlite` and `ai-sqlite:memory` kinds with a `VECTOR_EMBEDDING` function using compatible ONNX encoder models
-  - Uses a file-based database for `ai-sqlite` and an in-memory database for `ai-sqlite:memory`
-  - Requires `cds.env.requires.db.embedding.model`; automatically discovers model metadata and supports warned, on-demand provisioning into `.cds/models`
-  - Adds `npx @cap-js/ai install-model <model>` with an optional shared model-cache root
-  - Adds metadata-only `npx @cap-js/ai check-model <model>` to report likely model compatibility before downloading model artifacts; installation remains the definitive runtime validation
-  - Uses the optional `@huggingface/tokenizers` peer dependency and truncates long input to the first model input window
-  - Requires `model`, supports an optional relative, absolute, or home-relative `directory`, and allows additional embedding properties for extensions; discovered metadata remains in the provisioned lock
-  - Discovers compatible Hugging Face ONNX encoder layouts through the optional `@huggingface/hub` peer, recognizes common Transformers configuration aliases, and loads and probes the downloaded model with ONNX Runtime before installation
-  - Bounds Hugging Face discovery requests with timeouts and retries transient network and server failures
-  - Prefers metadata adjacent to nested ONNX exports and supports conventional adjacent external-data sidecars
-  - Rejects incompatible decoder and masked-language-model tasks instead of guessing embedding semantics
-  - Supports both 3-parameter `(text, text_type, model_and_version)` and 4-parameter variants with `remote_source`
-  - Compatible with `SAP_GXY.20250407` and `SAP_GXY.20240715` model versions
-  - Runs synchronously as required by SQLite user-defined functions and therefore blocks the Node.js event loop during tokenization and inference
-  - Embeds one model input window; applications split long documents and store one vector per chunk
-  - Uses trust-on-first-use provisioning: the lock pins the first resolved Hugging Face revision and checksums for later integrity checks but does not authenticate the model publisher
-- **Experimental!:** Add local `SPARQL_EXECUTE` and `sparql_table` support to both AI-enabled SQLite kinds through the optional `oxigraph` peer dependency; the process-local RDF store is ephemeral and not transactionally coupled to SQLite
+- **Experimental:** Add `ai-sqlite` and `ai-sqlite:memory` for local CAP development, including `VECTOR_EMBEDDING` with locally managed ONNX models and model provisioning tooling.
+- **Experimental:** Add local `SPARQL_EXECUTE` and `sparql_table` support through the optional `oxigraph` peer dependency.
 
 ## Version 1.1.0 - 2026-07-20
 

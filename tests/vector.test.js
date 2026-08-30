@@ -3,7 +3,7 @@ import assert from 'node:assert';
 import cds from '@sap/cds';
 import { createEmbeddingRuntime } from '../lib/vector_embedding/embedding.js';
 
-const MINILM_MODEL = 'Xenova/all-MiniLM-L6-v2';
+const MINILM_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 
 let runtime;
 

@@ -1,6 +1,6 @@
 {
-  "repository": "Xenova/all-MiniLM-L6-v2",
-  "revision": "751bff37182d3f1213fa05d7196b954e230abad9",
+  "repository": "sentence-transformers/all-MiniLM-L6-v2",
+  "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
   "dimensions": 384,
   "maxLength": 128,
   "files": [
@@ -8,29 +8,29 @@
       "role": "model",
       "name": "model.onnx",
       "path": "onnx/model.onnx",
-      "size": 90387606,
-      "sha256": "759c3cd2b7fe7e93933ad23c4c9181b7396442a2ed746ec7c1d46192c469c46e"
+      "size": 90405214,
+      "sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
     },
     {
       "role": "tokenizer",
       "name": "tokenizer.json",
       "path": "tokenizer.json",
-      "size": 711661,
-      "sha256": "da0e79933b9ed51798a3ae27893d3c5fa4a201126cef75586296df9b4d2c62a0"
+      "size": 466247,
+      "sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
     },
     {
       "role": "tokenizerConfig",
       "name": "tokenizer_config.json",
       "path": "tokenizer_config.json",
-      "size": 366,
-      "sha256": "9261e7d79b44c8195c1cada2b453e55b00aeb81e907a6664974b4d7776172ab3"
+      "size": 350,
+      "sha256": "acb92769e8195aabd29b7b2137a9e6d6e25c476a4f15aa4355c233426c61576b"
     },
     {
       "role": "auxiliary",
       "name": "config.json",
       "path": "config.json",
-      "size": 650,
-      "sha256": "7135149f7cffa1a573466c6e4d8423ed73b62fd2332c575bf738a0d033f70df7"
+      "size": 612,
+      "sha256": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41"
     }
   ],
   "output": {
