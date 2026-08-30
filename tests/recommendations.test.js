@@ -235,7 +235,12 @@ describe('Row-level authorization', () => {
 });
 
 describe('Local vector embeddings', () => {
-  test('Bookshop exposes an embedding preview', async () => {
+  test('Bookshop exposes an embedding preview', async (t) => {
+    if (!cds.env.requires.db.embedding?.model) {
+      t.skip('local SQLite embedding sample');
+      return;
+    }
+
     const { status, data } = await GET(
       "/odata/v4/catalog/embedding(text='A%20book%20about%20travel')"
     );
