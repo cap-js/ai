@@ -89,7 +89,7 @@ Here is a complete Bookshop example.
    }
    ```
 
-3. Add an embedding preview to the Bookshop service:
+3. Add an embedding preview to the Bookshop service. In its service implementation, which imports `cds` from `@sap/cds`:
 
    ```cds
    function embedding(text : String) returns LargeString;

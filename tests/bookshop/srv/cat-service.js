@@ -20,13 +20,15 @@ export default class CatalogService extends cds.ApplicationService {
       } else return req.error(409, `${quantity} exceeds stock for book #${book}`);
     });
 
-    this.on('embedding', async (req) => {
-      const [row] = await cds.db.run(
-        `SELECT VECTOR_EMBEDDING(?, 'DOCUMENT', 'local') AS embedding`,
-        [req.data.text]
-      );
-      return row.embedding;
-    });
+    if (cds.env.requires.db.embedding?.model) {
+      this.on('embedding', async (req) => {
+        const [row] = await cds.db.run(
+          `SELECT VECTOR_EMBEDDING(?, 'DOCUMENT', 'local') AS embedding`,
+          [req.data.text]
+        );
+        return row.embedding;
+      });
+    }
 
     this.before('UPDATE', Books.drafts, async (req) => {
       if (req.data.stock < 0) {
