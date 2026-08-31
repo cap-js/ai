@@ -22,6 +22,9 @@ resources:
     type: org.cloudfoundry.managed-service
 ```
 
+A resource group is SAP AI Core's isolation boundary: it scopes deployments, configurations, and executions so that tenants cannot access each other's resources.
+The plugin provisions one resource group per tenant in multitenant applications, and uses a single resource group otherwise.
+
 Single-tenant applications use the `default` resource group unless configured otherwise:
 
 ```json
