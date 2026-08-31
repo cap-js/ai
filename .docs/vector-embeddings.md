@@ -124,7 +124,11 @@ VECTOR_EMBEDDING(text, text_type, model_and_version)
 VECTOR_EMBEDDING(text, text_type, model_and_version, remote_source)
 ```
 
-Only `text` affects local inference today. `text_type`, `model_and_version`, and `remote_source` preserve the SQL shape for development compatibility; `embedding.model` selects the actual local model. SQL `NULL` remains `NULL`, while empty text returns a zero vector. The result is a JSON string containing the model's vector dimensions.
+`text` is embedded, and `text_type` selects the model's query or document prompt when it has one, discovered from the model, or set through `embedding.prompts.{query,document}` for models whose prompts are not discoverable.
+Models where no `prompts`-metadata is available will ignore `text_type` unless `embedding.prompts` are configured.
+`model_and_version` and `remote_source` preserve the SQL shape for development compatibility but do not affect local inference.
+SQL `NULL` returns `NULL`, and empty or whitespace-only text is treated as no value and returns a zero vector.
+The result is a JSON string containing the model's vector dimensions.
 
 ## Runtime behavior
 
