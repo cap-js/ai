@@ -290,6 +290,15 @@ describe('model compatibility', () => {
         }),
       /conflicts with another embedding file/
     );
+    assert.throws(
+      () =>
+        validateModelDescriptor({
+          ...model,
+          output: { ...model.output, includePrompt: false },
+          prompts: { query: 'query: ' }
+        }),
+      /prompts require embedding\.output\.includePrompt to be true/
+    );
   });
 });
 
@@ -432,6 +441,11 @@ function fixtureModel(content) {
         sha256
       }
     ],
-    output: { name: 'last_hidden_state', pooling: 'mean', normalize: true }
+    output: {
+      name: 'last_hidden_state',
+      pooling: 'mean',
+      normalize: true,
+      includePrompt: true
+    }
   };
 }

@@ -122,6 +122,8 @@ npx @cap-js/ai check-model owner/model
 
 This reports likely compatibility. `install-model` is definitive because it also downloads the artifacts, loads the ONNX model, verifies its inputs and output, and runs a probe inference.
 
+Prompt metadata is part of `embedding.lock.json`. Locks from earlier experimental versions that do not describe prompt semantics are rejected. Remove the affected model directory, then run `install-model` again to regenerate it.
+
 See [Choosing a model](model-selection.md) for discovery filters and the supported model contract.
 
 ## SQL function
@@ -141,8 +143,23 @@ VECTOR_EMBEDDING(text, text_type, model_and_version)
 VECTOR_EMBEDDING(text, text_type, model_and_version, remote_source)
 ```
 
-`text` is embedded, and `text_type` selects the model's query or document prompt when it has one, discovered from the model, or set through `embedding.prompts.{query,document}` for models whose prompts are not discoverable.
-Models where no `prompts`-metadata is available will ignore `text_type` unless `embedding.prompts` are configured.
+`text` is embedded. For models trained with query/document prompts, `text_type` applies the compatible prefix discovered from the model metadata. No additional configuration is normally needed, and `check-model` displays the detected mapping.
+
+If required prompts are not available in model metadata, configure them explicitly:
+
+```json
+{
+  "embedding": {
+    "model": "owner/model",
+    "prompts": {
+      "query": "search_query: ",
+      "document": "search_document: "
+    }
+  }
+}
+```
+
+Configured entries override the corresponding discovered entry; omitted entries continue using discovered metadata. For models with `include_prompt=false`, this runtime cannot apply discovered or configured prompts; prompt-free use remains supported.
 `model_and_version` and `remote_source` preserve the SQL shape for development compatibility but do not affect local inference.
 SQL `NULL` returns `NULL`, and empty or whitespace-only text is treated as no value and returns a zero vector.
 The result is a JSON string containing the model's vector dimensions.

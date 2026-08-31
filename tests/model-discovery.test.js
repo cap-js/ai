@@ -42,7 +42,12 @@ describe('Hugging Face model discovery', () => {
           },
           { role: 'auxiliary', name: 'config.json', path: 'config.json' }
         ],
-        output: { name: 'last_hidden_state', pooling: 'mean', normalize: true }
+        output: {
+          name: 'last_hidden_state',
+          pooling: 'mean',
+          normalize: true,
+          includePrompt: true
+        }
       }
     );
     assert.ok(
@@ -69,7 +74,8 @@ describe('Hugging Face model discovery', () => {
     assert.deepEqual(descriptor.output, {
       name: 'last_hidden_state',
       pooling: 'mean',
-      normalize: true
+      normalize: true,
+      includePrompt: true
     });
     assert.deepEqual(
       descriptor.files.map(({ role, name, path }) => ({ role, name, path })),
@@ -300,6 +306,7 @@ describe('Hugging Face model discovery', () => {
     const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
 
     assert.deepEqual(descriptor.prompts, { query: 'query: ', document: 'passage: ' });
+    assert.equal(descriptor.output.includePrompt, true);
   });
 
   test('should keep a query-only prompt without inventing a document prefix', async () => {
@@ -335,19 +342,56 @@ describe('Hugging Face model discovery', () => {
     );
   });
 
-  test('should reject prompt shapes that cannot be mapped to HANA text types', async () => {
-    const unknownKey = hubFor({ stConfig: { prompts: { classification: 'Classify: ' } } });
-    await assert.rejects(
-      discoverModel(REPOSITORY, { hubClient: unknownKey.client }),
-      /Unsupported Sentence Transformers prompt 'classification'/
-    );
+  test('should preserve prompt-pooling behavior without discovered prompts', async () => {
+    const hub = hubFor({ includePrompt: false });
 
-    const conflicting = hubFor({
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.equal(descriptor.output.includePrompt, false);
+    assert.equal(descriptor.prompts, undefined);
+  });
+
+  test('should reject invalid prompt-pooling metadata', async () => {
+    const hub = hubFor({ includePrompt: 'false' });
+
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: hub.client }),
+      /Invalid include_prompt/
+    );
+  });
+
+  test('should ignore unrelated prompt names and defaults', async () => {
+    const hub = hubFor({
+      stConfig: {
+        prompts: { query: 'query: ', classification: 'Classify: ' },
+        default_prompt_name: 'classification'
+      }
+    });
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.deepEqual(descriptor.prompts, { query: 'query: ' });
+  });
+
+  test('should prefer an explicit document prompt over its passage alias', async () => {
+    const hub = hubFor({
       stConfig: { prompts: { document: 'doc: ', passage: 'passage: ' } }
     });
-    await assert.rejects(
-      discoverModel(REPOSITORY, { hubClient: conflicting.client }),
-      /Conflicting Sentence Transformers 'document' and 'passage' prompts/
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.deepEqual(descriptor.prompts, { document: 'doc: ' });
+  });
+
+  test('should reject unimplemented modules even when their namespace suggests quantization', async () => {
+    await Promise.all(
+      ['sentence_transformers.quantization.Unknown', 'st_quantize.Unknown'].map(async (type) => {
+        const hub = hubFor({ moduleOrder: ['Transformer', 'Pooling', 'Normalize', type] });
+        await assert.rejects(
+          discoverModel(REPOSITORY, { hubClient: hub.client }),
+          new RegExp(`Unsupported Sentence Transformers module '${type.replaceAll('.', '\\.')}'`)
+        );
+      })
     );
   });
 });
@@ -392,7 +436,7 @@ function hubFor(options = {}) {
         idx: index,
         name: String(index),
         path: type === 'Pooling' ? '1_Pooling' : '',
-        type: `sentence_transformers.models.${type}`
+        type: type.includes('.') ? type : `sentence_transformers.models.${type}`
       }))
     );
     files['1_Pooling/config.json'] = json(
@@ -486,7 +530,7 @@ function poolingConfig(pooling, includePrompt) {
     pooling_mode_mean_sqrt_len_tokens: false,
     pooling_mode_weightedmean_tokens: false,
     pooling_mode_lasttoken: false,
-    ...(typeof includePrompt === 'boolean' ? { include_prompt: includePrompt } : {})
+    ...(includePrompt !== undefined ? { include_prompt: includePrompt } : {})
   };
 }
 
