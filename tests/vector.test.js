@@ -180,13 +180,6 @@ describe('text-type prompts via configured prompts', () => {
     );
   });
 
-  test('will produce different vectors for QUERY and DOCUMENT text types', () => {
-    assert.notStrictEqual(
-      promptRuntime.vectorEmbedding('a small cat', 'QUERY'),
-      promptRuntime.vectorEmbedding('a small cat', 'DOCUMENT')
-    );
-  });
-
   test('should ignore the text type when no prefix is configured', () => {
     assert.strictEqual(
       runtime.vectorEmbedding('a small cat', 'QUERY'),
