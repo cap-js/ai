@@ -47,17 +47,6 @@ await aiCore.stop(deployments, { id: '<deployment id>' });
 
 See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, helper methods, and multitenancy.
 
-## SAP HANA vector embeddings
-
-On SAP HANA Cloud, use `VECTOR_EMBEDDING` in calculated vector elements. The plugin also supports models exposed through an SAP AI Core remote source:
-
-```cds
-@cds.api.ignore
-embedding : Vector = (VECTOR_EMBEDDING(descr, 'DOCUMENT', 'SAP_GXY.20250407')) stored;
-```
-
-See [SAP HANA vector embeddings](.docs/hana-vector-embeddings.md) for native models, remote sources, and HDI privileges.
-
 ## Local vector embeddings with SQLite (experimental)
 
 > [!WARNING]
@@ -129,7 +118,6 @@ See [Choosing a model](.docs/model-selection.md) and [Local vector embeddings](.
 
 - [Recommendations](.docs/recommendations.md) — generated service shape, prediction context, regression targets, and lifecycle
 - [SAP AI Core integration](.docs/ai-core.md) — bindings, multitenancy, supported operations, and helper methods
-- [SAP HANA vector embeddings](.docs/hana-vector-embeddings.md) — native models and SAP AI Core remote sources
 - [Local vector embeddings](.docs/vector-embeddings.md) — SQLite kinds, model provisioning, SQL function behavior, and trust boundaries
 - [Choosing a model](.docs/model-selection.md) — Hugging Face filters, compatibility requirements, and size tradeoffs
 - [Local knowledge graph](.docs/knowledge-graph.md) — experimental `SPARQL_EXECUTE` and `sparql_table` support

@@ -3,6 +3,8 @@
 > [!WARNING]
 > Local vector embeddings, the AI-enabled SQLite kinds, local model management, and their CLI tooling are experimental and intended to improve local development. Breaking changes are expected. For production vector search and embeddings, use SAP HANA's vector engine.
 
+`@cap-js/ai` does not add vector functionality to SAP HANA Cloud. HANA already provides vector storage, [`VECTOR_EMBEDDING`](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/vector-embedding-function-vector), and vector search natively. The SQLite implementation provides a similar development-time SQL shape, but it does not reproduce a HANA model or make locally generated vectors interchangeable with HANA-generated vectors.
+
 ## Database kinds and dependencies
 
 - `ai-sqlite` uses a file-based SQLite database.

@@ -1,3 +1,3 @@
-# SAP HANA vector embeddings
+# Vector embeddings
 
-This documentation moved to [`.docs/hana-vector-embeddings.md`](.docs/hana-vector-embeddings.md).
+Documentation for the experimental local SQLite implementation moved to [`.docs/vector-embeddings.md`](.docs/vector-embeddings.md). SAP HANA Cloud provides its vector functionality natively.
