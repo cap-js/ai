@@ -145,28 +145,32 @@ describe('Vector embedding function (standalone)', () => {
   });
 });
 
-describe('text-type prompts (standalone)', () => {
+describe('text-type prompts via configured prompts', () => {
   let promptRuntime;
+  
+  // MiniLM ships no Sentence-Transformers prompts, so there is nothing to discover. 
+  // These prefixes come from `embedding.prompts.{query,document}`, the user-configured override that
+  // takes precedence over discovered prompts — the path a prompt-trained model without
+  // discoverable prompts relies on.
   const PROMPTS = { query: 'query: ', document: 'passage: ' };
 
   before(async () => {
-    // TODO: Does the model referenced by MINILM_MODEL use `prompts`? Does this test make sense?
-    const { model, modelDir } = await resolveEmbeddingModel({ model: MINILM_MODEL });
-    promptRuntime = await createEmbeddingRuntimeFromModel(modelDir, { ...model, prompts: PROMPTS });
+    const { model, modelDir } = await resolveEmbeddingModel({ model: MINILM_MODEL, prompts: PROMPTS });
+    promptRuntime = await createEmbeddingRuntimeFromModel(modelDir, model);
   });
 
   after(async () => {
     await promptRuntime?.dispose();
   });
 
-  test('should prepend the query prompt for the QUERY text type', () => {
+  test('should prepend the configured prompt for the forwarded text-type', () => {
     assert.strictEqual(
       promptRuntime.vectorEmbedding('a small cat', 'QUERY'),
       runtime.vectorEmbedding('query: a small cat')
     );
   });
 
-  test('should prepend the document prompt for the DOCUMENT text type', () => {
+  test('should prepend the configured document prefix for the DOCUMENT text type', () => {
     assert.strictEqual(
       promptRuntime.vectorEmbedding('a small cat', 'DOCUMENT'),
       runtime.vectorEmbedding('passage: a small cat')
@@ -180,7 +184,7 @@ describe('text-type prompts (standalone)', () => {
     );
   });
 
-  test('should ignore the text type for prompt-less models', () => {
+  test('should ignore the text type when no prefix is configured', () => {
     assert.strictEqual(
       runtime.vectorEmbedding('a small cat', 'QUERY'),
       runtime.vectorEmbedding('a small cat', 'DOCUMENT')
@@ -188,6 +192,13 @@ describe('text-type prompts (standalone)', () => {
     assert.strictEqual(
       runtime.vectorEmbedding('a small cat', 'QUERY'),
       runtime.vectorEmbedding('a small cat')
+    );
+  });
+
+  test('should reject a non-string configured prompt before touching the model', async () => {
+    await assert.rejects(
+      resolveEmbeddingModel({ model: MINILM_MODEL, prompts: { query: 42 } }),
+      /embedding\.prompts\.query must be a string/
     );
   });
 });
