@@ -5,7 +5,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
 import { runModelCommand } from '../lib/vector_embedding/cli.js';
-import { resolveEmbeddingModel } from '../lib/vector_embedding/embedding.js';
+import {
+  DEFAULT_EMBEDDING_MODEL,
+  resolveEmbeddingModel
+} from '../lib/vector_embedding/embedding.js';
 import {
   MODEL_LOCK_FILE,
   getModelDirectory,
@@ -26,15 +29,45 @@ afterEach(async () => {
 });
 
 describe('runtime model configuration', () => {
-  test('validates model and directory while allowing additional properties', async () => {
+  test('uses the default model when no model is configured', async () => {
+    const content = Buffer.from('default configuration fixture');
+    const model = fixtureModel(content, DEFAULT_EMBEDDING_MODEL);
+    const root = await createTemporaryDirectory();
+    const modelDir = getModelDirectory(getModelRoot(undefined, root), model.repository);
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
+
+    const resolved = await resolveEmbeddingModel(undefined, { root });
+
+    assert.equal(resolved.modelDir, modelDir);
+    assert.deepEqual(resolved.model, model);
+  });
+
+  test('uses the default model with a configured cache root', async () => {
+    const content = Buffer.from('default shared-cache fixture');
+    const model = fixtureModel(content, DEFAULT_EMBEDDING_MODEL);
+    const directory = await createTemporaryDirectory();
+    const modelDir = getModelDirectory(directory, model.repository);
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
+
+    const resolved = await resolveEmbeddingModel({ directory });
+
+    assert.equal(resolved.modelDir, modelDir);
+    assert.deepEqual(resolved.model, model);
+  });
+
+  test('validates explicit model and directory while allowing additional properties', async () => {
     const content = Buffer.from('configuration fixture');
     const model = fixtureModel(content);
     await assert.rejects(
-      resolveEmbeddingModel(),
+      resolveEmbeddingModel({ model: '' }),
       /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
     );
     await assert.rejects(
-      resolveEmbeddingModel({}),
+      resolveEmbeddingModel({ model: 42 }),
+      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+    );
+    await assert.rejects(
+      resolveEmbeddingModel({ model: null }),
       /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
     );
     await assert.rejects(resolveEmbeddingModel(model.repository), /embedding must be an object/);
@@ -642,10 +675,10 @@ async function createTemporaryDirectory() {
   return directory;
 }
 
-function fixtureModel(content) {
+function fixtureModel(content, repository = 'example/model') {
   const sha256 = createHash('sha256').update(content).digest('hex');
   return {
-    repository: 'example/model',
+    repository,
     revision: 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef',
     dimensions: 2,
     maxLength: 8,

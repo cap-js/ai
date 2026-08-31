@@ -48,18 +48,16 @@
     "requires": {
       "[development]": {
         "db": {
-          "kind": "ai-sqlite:memory",
+          "kind": "sqlite:memory",
           "embedding": {
-            "model": "sentence-transformers/all-MiniLM-L6-v2",
             "directory": "../../.cds/models"
           }
         }
       },
       "[test]": {
         "db": {
-          "kind": "ai-sqlite:memory",
+          "kind": "sqlite:memory",
           "embedding": {
-            "model": "sentence-transformers/all-MiniLM-L6-v2",
             "directory": "../../.cds/models"
           }
         }

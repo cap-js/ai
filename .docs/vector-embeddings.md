@@ -1,19 +1,25 @@
 # Local vector embeddings
 
 > [!WARNING]
-> Local vector embeddings, the AI-enabled SQLite kinds, local model management, and their CLI tooling are experimental and intended to improve local development. Breaking changes are expected. For production vector search and embeddings, use SAP HANA's vector engine.
+> Local vector embeddings, the SQLite extensions, local model management, and their CLI tooling are experimental and intended to improve local development. Breaking changes are expected. For production vector search and embeddings, use SAP HANA's vector engine.
 
 `@cap-js/ai` does not add vector functionality to SAP HANA Cloud. HANA already provides vector storage, [`VECTOR_EMBEDDING`](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/vector-embedding-function-vector), and vector search natively. The SQLite implementation provides a similar development-time SQL shape, but it does not reproduce a HANA model or make locally generated vectors interchangeable with HANA-generated vectors.
 
 ## Database kinds and dependencies
 
-- `ai-sqlite` uses a file-based SQLite database.
-- `ai-sqlite:memory` uses an in-memory SQLite database.
+`@cap-js/ai` redirects CAP's standard SQLite implementations instead of adding separate database kinds:
+
+- `sqlite` uses a file-based SQLite database.
+- `sqlite:memory` uses an in-memory SQLite database.
+
+The redirect and synchronous embedding function require `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1`. The package's other capabilities continue to support `@sap/cds` 9.
+
+This applies to every SQLite service in an application that installs `@cap-js/ai`. Its embedding model is provisioned and initialized when the service starts, even if the application does not call `VECTOR_EMBEDDING`. SAP HANA services are unaffected.
 
 Install the optional peers as development dependencies:
 
 ```sh
-npm add -D @cap-js/sqlite @huggingface/hub@^2.15.0 \
+npm add -D @cap-js/sqlite@^3.1 @huggingface/hub@^2.15.0 \
   @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
 ```
 
@@ -21,14 +27,28 @@ npm add -D @cap-js/sqlite @huggingface/hub@^2.15.0 \
 
 ## Configuration
 
-Every AI-enabled SQLite service requires a model; there is no default:
+Use the standard SQLite configuration:
 
 ```json
 {
   "cds": {
     "requires": {
       "db": {
-        "kind": "ai-sqlite",
+        "kind": "sqlite"
+      }
+    }
+  }
+}
+```
+
+The current default model is `sentence-transformers/all-MiniLM-L6-v2`. It was selected only because, at the time of selection, it was the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license filters used for the sample. This is not a model recommendation. The default may change at any time while the feature is experimental, so configure `embedding.model` explicitly when the model choice must remain stable:
+
+```json
+{
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "sqlite",
         "embedding": {
           "model": "owner/model"
         }
@@ -38,21 +58,18 @@ Every AI-enabled SQLite service requires a model; there is no default:
 }
 ```
 
-Startup fails if `cds.requires.db.embedding.model` is missing. The built-in runtime reads `model` and the optional `directory`; additional properties are allowed for extensions.
+The built-in runtime reads `model` and the optional `directory`; additional properties are allowed for extensions.
 
-Without `directory`, models are stored below `<cds.root>/.cds/models/<owner>/<model>`. If a valid installation is absent, startup prints a warning, downloads the model, generates `embedding.lock.json`, and reuses it on later starts.
+Without `directory`, the configured or default model is stored below `<cds.root>/.cds/models/<owner>/<model>`. If a valid installation is absent, startup prints a warning, downloads the model, generates `embedding.lock.json`, and reuses it on later starts.
 
-Use `ai-sqlite:memory` when the application data itself need not survive a restart:
+Use `sqlite:memory` when the application data itself need not survive a restart:
 
 ```json
 {
   "cds": {
     "requires": {
       "db": {
-        "kind": "ai-sqlite:memory",
-        "embedding": {
-          "model": "owner/model"
-        }
+        "kind": "sqlite:memory"
       }
     }
   }
@@ -80,7 +97,7 @@ npx @cap-js/ai install-model owner/model --directory ~/.cds/models
   "cds": {
     "requires": {
       "db": {
-        "kind": "ai-sqlite",
+        "kind": "sqlite",
         "embedding": {
           "model": "owner/model",
           "directory": "~/.cds/models"

@@ -2,6 +2,7 @@ import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
 import {
+  DEFAULT_EMBEDDING_MODEL,
   createEmbeddingRuntime,
   createEmbeddingRuntimeFromModel,
   resolveEmbeddingModel
@@ -12,7 +13,7 @@ const MINILM_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 let runtime;
 
 before(async () => {
-  runtime = await createEmbeddingRuntime({ model: MINILM_MODEL });
+  runtime = await createEmbeddingRuntime();
 });
 
 after(async () => {
@@ -199,22 +200,20 @@ describe('text-type prompts via configured prompts', () => {
   });
 });
 
-describe('ai-sqlite integration', () => {
+describe('SQLite integration', () => {
   let db;
 
-  test('requires an explicitly configured embedding model during startup', async () => {
-    await assert.rejects(
-      cds.connect.to('missing-embedding-model-db', {
-        kind: 'ai-sqlite:memory'
-      }),
-      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+  test('uses the default embedding model', () => {
+    assert.strictEqual(DEFAULT_EMBEDDING_MODEL, MINILM_MODEL);
+    assert.strictEqual(
+      cds.env.requires.kinds['sqlite:memory'].embedding.model,
+      DEFAULT_EMBEDDING_MODEL
     );
   });
 
   before(async () => {
     db = await cds.connect.to('vector-db', {
-      kind: 'ai-sqlite:memory',
-      embedding: { model: MINILM_MODEL }
+      kind: 'sqlite:memory'
     });
   });
 
@@ -241,8 +240,8 @@ describe('ai-sqlite integration', () => {
 
   test('allows additional embedding properties', async () => {
     const configuredDb = await cds.connect.to('extended-vector-db', {
-      kind: 'ai-sqlite:memory',
-      embedding: { model: MINILM_MODEL, revision: 'main', extension: { enabled: true } }
+      kind: 'sqlite:memory',
+      embedding: { revision: 'main', extension: { enabled: true } }
     });
 
     try {

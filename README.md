@@ -50,28 +50,27 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
 ## Local vector embeddings with SQLite (experimental)
 
 > [!WARNING]
-> `ai-sqlite`, local vector embeddings, local model management, and the related tooling are experimental facilities for local development. Breaking changes are expected, including changes caused by SQLite's synchronous function interface and by local model management. Use SAP HANA's vector engine for production vector workloads.
+> The SQLite extensions, local vector embeddings, local model management, and the related tooling are experimental facilities for local development. Breaking changes are expected, including changes caused by SQLite's synchronous function interface and by local model management. Use SAP HANA's vector engine for production vector workloads.
 
 Here is a complete Bookshop example.
 
 1. Install the local-development dependencies:
 
    ```sh
-   npm add -D @cap-js/ai @cap-js/sqlite @huggingface/hub@^2.15.0 \
+   npm add -D @cap-js/ai @cap-js/sqlite@^3.1 @huggingface/hub@^2.15.0 \
      @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
    ```
 
-2. Configure the database and model in `package.json`:
+   Local vector embeddings require `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1`; the package's other capabilities continue to support `@sap/cds` 9.
+
+2. Use the standard SQLite service. Most CAP projects already do this in development; an explicit configuration looks like this:
 
    ```json
    {
      "cds": {
        "requires": {
          "db": {
-           "kind": "ai-sqlite",
-           "embedding": {
-             "model": "sentence-transformers/all-MiniLM-L6-v2"
-           }
+           "kind": "sqlite"
          }
        }
      }
@@ -106,9 +105,9 @@ Here is a complete Bookshop example.
    curl 'http://localhost:4004/odata/v4/catalog/embedding(text=%27A%20book%20about%20travel%27)'
    ```
 
-The first start warns that the model is missing, downloads it to `.cds/models`, and then initializes it. The response's `value` contains a JSON-encoded vector with 384 numbers. Later starts reuse the installed model.
+`@cap-js/ai` redirects the standard `sqlite` and `sqlite:memory` implementations to add the local capabilities. The first start warns that the default model is missing, downloads it to `.cds/models`, and then initializes it. The response's `value` contains a JSON-encoded vector with 384 numbers. Later starts reuse the installed model.
 
-This example uses [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) because it is the most-downloaded model in the filtered list below and is small enough for a local-development sample. It is an example, not a model recommendation.
+The current default is [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). It was selected only because, at the time of selection, it was the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license filters below. This is not a recommendation, and the default may change at any time while this feature is experimental. Configure `cds.requires.db.embedding.model` explicitly if the choice must remain stable.
 
 Start model discovery with [trending Apache-2.0 sentence-similarity models that provide ONNX artifacts](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&license=license:apache-2.0&sort=trending). These filters select a relevant task, a locally runnable format, and a permissive license, but they do not guarantee compatibility. Choose a model as big as necessary and as small as possible, then validate it with the provided tooling.
 

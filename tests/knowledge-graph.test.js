@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cds from '@sap/cds';
 
-describe('ai-sqlite knowledge graph', () => {
+describe('SQLite knowledge graph', () => {
   let db;
 
   const data = fileURLToPath(new URL('./bookshop/db/data/cap.ttl', import.meta.url));
@@ -13,8 +13,7 @@ describe('ai-sqlite knowledge graph', () => {
 
   before(async () => {
     db = await cds.connect.to('knowledge-graph-db', {
-      kind: 'ai-sqlite:memory',
-      embedding: { model: 'sentence-transformers/all-MiniLM-L6-v2' }
+      kind: 'sqlite:memory'
     });
   });
 

@@ -83,15 +83,16 @@
             "label": "aicore"
           }
         },
-        "ai-sqlite": {
-          "kind": "sqlite",
-          "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js"
-        },
-        "ai-sqlite:memory": {
-          "kind": "sqlite",
+        "sqlite": {
           "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
-          "credentials": {
-            "url": ":memory:"
+          "embedding": {
+            "model": "sentence-transformers/all-MiniLM-L6-v2"
+          }
+        },
+        "sqlite:memory": {
+          "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
+          "embedding": {
+            "model": "sentence-transformers/all-MiniLM-L6-v2"
           }
         }
       }

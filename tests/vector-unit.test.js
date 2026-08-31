@@ -35,7 +35,7 @@ test('explains how to install the optional tokenizer peer dependency', async () 
     loadTokenizerPackage(async () => {
       throw missing;
     }),
-    /npm add @huggingface\/tokenizers@0\.1\.3/
+    /npm add -D @huggingface\/tokenizers@0\.1\.3/
   );
 });
 

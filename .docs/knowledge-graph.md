@@ -9,7 +9,7 @@ Install the optional peer dependency:
 npm add -D oxigraph
 ```
 
-Both `ai-sqlite` and `ai-sqlite:memory` expose a process-local Oxigraph store through `SPARQL_EXECUTE` and `sparql_table`.
+With `@cap-js/ai` installed, both `sqlite` and `sqlite:memory` expose a process-local Oxigraph store through `SPARQL_EXECUTE` and `sparql_table`.
 
 ## Load RDF
 
@@ -54,4 +54,4 @@ await db.run({
 });
 ```
 
-The RDF store lives in memory and is tied to the database service connection. Its contents are lost on disconnect or process restart even with file-based `ai-sqlite`, and RDF updates are not transactionally coupled to SQLite changes.
+The RDF store lives in memory and is tied to the database service connection. Its contents are lost on disconnect or process restart even with file-based `sqlite`, and RDF updates are not transactionally coupled to SQLite changes.
