@@ -205,10 +205,11 @@ describe('SQLite integration', () => {
 
   test('uses the default embedding model', () => {
     assert.strictEqual(DEFAULT_EMBEDDING_MODEL, MINILM_MODEL);
-    assert.strictEqual(
-      cds.env.requires.kinds['sqlite:memory'].embedding.model,
-      DEFAULT_EMBEDDING_MODEL
-    );
+    const kind = cds.env.requires.kinds['sqlite:memory'];
+    assert.strictEqual(kind.impl, '@cap-js/ai/lib/sqlite/AISQLiteService.js');
+    assert.strictEqual(kind.embedding.model, DEFAULT_EMBEDDING_MODEL);
+    assert.strictEqual(kind.credentials.url, ':memory:');
+    assert.strictEqual(kind.pool.max, 1);
   });
 
   before(async () => {
