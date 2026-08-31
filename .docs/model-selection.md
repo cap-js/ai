@@ -20,7 +20,7 @@ For local development, start with the smallest model that meets the application'
 
 The Bookshop sample uses [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2) because it is the most-downloaded candidate in the filtered list and is compact enough for a local sample. This explains the example choice; it is not a recommendation for a particular application or for production.
 
-Production and local models need not be equivalent. For reference, SAP HANA Cloud's [`SAP_GXY.20250407` is based on RoBERTa base](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/vector-embedding-function-vector#available-models-without-remote-source). A local MiniLM vector has different dimensions and semantics and is not interchangeable with a HANA-generated vector. Evaluate and regenerate embeddings when changing models.
+Ideally, production and local should use identical models. For reference, SAP HANA Cloud's [`SAP_GXY.20250407` is based on RoBERTa base](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/vector-embedding-function-vector#available-models-without-remote-source). A local MiniLM vector has different dimensions and semantics and is not interchangeable with a HANA-generated vector. Evaluate and regenerate embeddings when changing models.
 
 ## Check before installing
 
