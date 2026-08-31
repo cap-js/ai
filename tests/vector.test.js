@@ -194,7 +194,7 @@ describe('text-type prompts via configured prompts', () => {
   test('should reject a non-string configured prompt before touching the model', async () => {
     await assert.rejects(
       resolveEmbeddingModel({ model: MINILM_MODEL, prompts: { query: 42 } }),
-      /embedding\.prompts\.query must be a string/
+      /embedding\.prompts\.query must be a non-empty string/
     );
   });
 });
