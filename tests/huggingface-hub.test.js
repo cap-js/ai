@@ -10,25 +10,11 @@ describe('Hugging Face Hub adapter', () => {
   test('pins all operations and forwards custom transport options', async () => {
     const calls = [];
     const fetchImpl = () => {};
-    const bindings = {
-      async modelInfo(options) {
-        calls.push(['modelInfo', options]);
-        return { sha: '1'.repeat(40) };
-      },
-      async *listFiles(options) {
-        calls.push(['listFiles', options]);
-        yield { type: 'directory', path: 'onnx', size: 0 };
-        yield { type: 'file', path: 'onnx/model.onnx', size: 42 };
-      },
-      async downloadFile(options) {
-        calls.push(['downloadFile', options]);
-        return new Blob(['contents']);
-      }
-    };
+    const hubApi = recordingHubApi(calls);
     const client = createHuggingFaceClient({
       fetchImpl,
       hubUrl: 'https://hub.example.test',
-      bindings
+      hubApi
     });
 
     assert.deepEqual(await client.getModelInfo('foo/bar'), { sha: '1'.repeat(40) });
@@ -51,17 +37,17 @@ describe('Hugging Face Hub adapter', () => {
   });
 
   test('rejects unsafe Hub URLs', () => {
-    const bindings = downloadBindings();
+    const hubApi = downloadHubApi();
     assert.throws(
-      () => createHuggingFaceClient({ hubUrl: 'http://hub.example.test', bindings }),
+      () => createHuggingFaceClient({ hubUrl: 'http://hub.example.test', hubApi }),
       /must use HTTPS/
     );
     assert.throws(
-      () => createHuggingFaceClient({ hubUrl: 'https://user@hub.example.test', bindings }),
+      () => createHuggingFaceClient({ hubUrl: 'https://user@hub.example.test', hubApi }),
       /must not include credentials/
     );
     assert.throws(
-      () => createHuggingFaceClient({ hubUrl: 'https://hub.example.test?mirror=1', bindings }),
+      () => createHuggingFaceClient({ hubUrl: 'https://hub.example.test?mirror=1', hubApi }),
       /must not include a query or fragment/
     );
   });
@@ -145,7 +131,7 @@ describe('Hugging Face Hub adapter', () => {
       },
       requestRetries: 1,
       requestRetryMs: 0,
-      bindings: fetchOnlyBindings()
+      hubApi: fetchOnlyHubApi()
     });
 
     await client.getModelInfo('foo/bar');
@@ -162,7 +148,7 @@ describe('Hugging Face Hub adapter', () => {
         }),
       requestRetries: 0,
       requestTimeoutMs: 10,
-      bindings: fetchOnlyBindings()
+      hubApi: fetchOnlyHubApi()
     });
 
     await assert.rejects(client.getModelInfo('foo/bar'), /Timed out after 10 ms/);
@@ -177,7 +163,7 @@ describe('Hugging Face Hub adapter', () => {
       },
       requestRetries: 2,
       requestRetryMs: 0,
-      bindings: fetchOnlyBindings()
+      hubApi: fetchOnlyHubApi()
     });
 
     await assert.rejects(client.getModelInfo('foo/bar'), /status 404/);
@@ -192,7 +178,7 @@ describe('Hugging Face Hub adapter', () => {
         }),
       requestRetries: 0,
       maxResponseBytes: 8,
-      bindings: downloadBindings()
+      hubApi: downloadHubApi()
     });
 
     await assert.rejects(
@@ -210,7 +196,7 @@ describe('Hugging Face Hub adapter', () => {
         }),
       requestRetries: 0,
       maxResponseBytes: 8,
-      bindings: downloadBindings()
+      hubApi: downloadHubApi()
     });
 
     await assert.rejects(
@@ -233,7 +219,7 @@ describe('Hugging Face Hub adapter', () => {
         ),
       requestRetries: 0,
       maxResponseBytes: 4,
-      bindings: downloadBindings()
+      hubApi: downloadHubApi()
     });
 
     await assert.rejects(
@@ -256,7 +242,25 @@ describe('Hugging Face Hub adapter', () => {
   });
 });
 
-function fetchOnlyBindings() {
+function recordingHubApi(calls) {
+  return {
+    async modelInfo(options) {
+      calls.push(['modelInfo', options]);
+      return { sha: '1'.repeat(40) };
+    },
+    async *listFiles(options) {
+      calls.push(['listFiles', options]);
+      yield { type: 'directory', path: 'onnx', size: 0 };
+      yield { type: 'file', path: 'onnx/model.onnx', size: 42 };
+    },
+    async downloadFile(options) {
+      calls.push(['downloadFile', options]);
+      return new Blob(['contents']);
+    }
+  };
+}
+
+function fetchOnlyHubApi() {
   return {
     async modelInfo({ fetch }) {
       const response = await fetch('https://hub.example.test/model');
@@ -268,7 +272,7 @@ function fetchOnlyBindings() {
   };
 }
 
-function downloadBindings() {
+function downloadHubApi() {
   return {
     async modelInfo() {},
     async *listFiles() {},
