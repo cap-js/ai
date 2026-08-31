@@ -291,6 +291,65 @@ describe('Hugging Face model discovery', () => {
     assert.equal(model.size, contents.length);
     assert.equal(model.sha256, digest(contents));
   });
+
+  test('should map sentence-transformers query and passage prompts onto HANA text types', async () => {
+    const hub = hubFor({
+      stConfig: { prompts: { query: 'query: ', passage: 'passage: ' }, default_prompt_name: null }
+    });
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.deepEqual(descriptor.prompts, { query: 'query: ', document: 'passage: ' });
+  });
+
+  test('should keep a query-only prompt without inventing a document prefix', async () => {
+    const hub = hubFor({ stConfig: { prompts: { query: 'query: ' } } });
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.deepEqual(descriptor.prompts, { query: 'query: ' });
+  });
+
+  test('should treat an empty document/passage prompt as no prefix', async () => {
+    const hub = hubFor({ stConfig: { prompts: { query: 'query: ', passage: '' } } });
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.deepEqual(descriptor.prompts, { query: 'query: ' });
+  });
+
+  test('should omit prompts when the model declares none', async () => {
+    const hub = hubFor({ stConfig: { max_seq_length: 256 } });
+
+    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
+
+    assert.equal(descriptor.prompts, undefined);
+  });
+
+  test('should reject models with prompts that exclude prompt tokens from pooling', async () => {
+    const hub = hubFor({ stConfig: { prompts: { query: 'query: ' } }, includePrompt: false });
+
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: hub.client }),
+      /include_prompt=false/
+    );
+  });
+
+  test('shouold reject prompt shapes that cannot be mapped to HANA text types', async () => {
+    const unknownKey = hubFor({ stConfig: { prompts: { classification: 'Classify: ' } } });
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: unknownKey.client }),
+      /Unsupported Sentence Transformers prompt 'classification'/
+    );
+
+    const conflicting = hubFor({
+      stConfig: { prompts: { document: 'doc: ', passage: 'passage: ' } }
+    });
+    await assert.rejects(
+      discoverModel(REPOSITORY, { hubClient: conflicting.client }),
+      /Conflicting Sentence Transformers 'document' and 'passage' prompts/
+    );
+  });
 });
 
 function hubFor(options = {}) {
@@ -336,11 +395,14 @@ function hubFor(options = {}) {
         type: `sentence_transformers.models.${type}`
       }))
     );
-    files['1_Pooling/config.json'] = json(poolingConfig(options.pooling ?? 'mean'));
+    files['1_Pooling/config.json'] = json(poolingConfig(options.pooling ?? 'mean', options.includePrompt));
     if (options.sentenceConfig !== undefined) {
       files['sentence_bert_config.json'] = json(options.sentenceConfig);
     } else if (!Object.hasOwn(options, 'sentenceConfig')) {
       files['sentence_bert_config.json'] = json({ max_seq_length: 256 });
+    }
+    if (options.stConfig !== undefined) {
+      files['config_sentence_transformers.json'] = json(options.stConfig);
     }
   }
 
@@ -413,7 +475,7 @@ function createHub(repositories) {
   };
 }
 
-function poolingConfig(pooling) {
+function poolingConfig(pooling, includePrompt) {
   const enabled = Array.isArray(pooling) ? pooling : [pooling];
   return {
     pooling_mode_cls_token: enabled.includes('cls'),
@@ -421,7 +483,8 @@ function poolingConfig(pooling) {
     pooling_mode_max_tokens: false,
     pooling_mode_mean_sqrt_len_tokens: false,
     pooling_mode_weightedmean_tokens: false,
-    pooling_mode_lasttoken: false
+    pooling_mode_lasttoken: false,
+    ...(typeof includePrompt === 'boolean' ? { include_prompt: includePrompt } : {})
   };
 }
 

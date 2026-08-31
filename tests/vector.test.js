@@ -1,7 +1,11 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
-import { createEmbeddingRuntime } from '../lib/vector_embedding/embedding.js';
+import {
+  createEmbeddingRuntime,
+  createEmbeddingRuntimeFromModel,
+  resolveEmbeddingModel
+} from '../lib/vector_embedding/embedding.js';
 
 const MINILM_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 
@@ -138,6 +142,53 @@ describe('Vector embedding function (standalone)', () => {
 
       assert.throws(() => runtime.embedding('test'), /Inference session has been disposed/);
     });
+  });
+});
+
+describe('text-type prompts (standalone)', () => {
+  let promptRuntime;
+  const PROMPTS = { query: 'query: ', document: 'passage: ' };
+
+  before(async () => {
+    // TODO: Does the model referenced by MINILM_MODEL use `prompts`? Does this test make sense?
+    const { model, modelDir } = await resolveEmbeddingModel({ model: MINILM_MODEL });
+    promptRuntime = await createEmbeddingRuntimeFromModel(modelDir, { ...model, prompts: PROMPTS });
+  });
+
+  after(async () => {
+    await promptRuntime?.dispose();
+  });
+
+  test('should prepend the query prompt for the QUERY text type', () => {
+    assert.strictEqual(
+      promptRuntime.vectorEmbedding('a small cat', 'QUERY'),
+      runtime.vectorEmbedding('query: a small cat')
+    );
+  });
+
+  test('should prepend the document prompt for the DOCUMENT text type', () => {
+    assert.strictEqual(
+      promptRuntime.vectorEmbedding('a small cat', 'DOCUMENT'),
+      runtime.vectorEmbedding('passage: a small cat')
+    );
+  });
+
+  test('will produce different vectors for QUERY and DOCUMENT text types', () => {
+    assert.notStrictEqual(
+      promptRuntime.vectorEmbedding('a small cat', 'QUERY'),
+      promptRuntime.vectorEmbedding('a small cat', 'DOCUMENT')
+    );
+  });
+
+  test('should ignore the text type for prompt-less models', () => {
+    assert.strictEqual(
+      runtime.vectorEmbedding('a small cat', 'QUERY'),
+      runtime.vectorEmbedding('a small cat', 'DOCUMENT')
+    );
+    assert.strictEqual(
+      runtime.vectorEmbedding('a small cat', 'QUERY'),
+      runtime.vectorEmbedding('a small cat')
+    );
   });
 });
 
