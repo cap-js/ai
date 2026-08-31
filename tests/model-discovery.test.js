@@ -395,7 +395,9 @@ function hubFor(options = {}) {
         type: `sentence_transformers.models.${type}`
       }))
     );
-    files['1_Pooling/config.json'] = json(poolingConfig(options.pooling ?? 'mean', options.includePrompt));
+    files['1_Pooling/config.json'] = json(
+      poolingConfig(options.pooling ?? 'mean', options.includePrompt)
+    );
     if (options.sentenceConfig !== undefined) {
       files['sentence_bert_config.json'] = json(options.sentenceConfig);
     } else if (!Object.hasOwn(options, 'sentenceConfig')) {

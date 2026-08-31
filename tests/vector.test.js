@@ -147,15 +147,18 @@ describe('Vector embedding function (standalone)', () => {
 
 describe('text-type prompts via configured prompts', () => {
   let promptRuntime;
-  
-  // MiniLM ships no Sentence-Transformers prompts, so there is nothing to discover. 
+
+  // MiniLM ships no Sentence-Transformers prompts, so there is nothing to discover.
   // These prefixes come from `embedding.prompts.{query,document}`, the user-configured override that
   // takes precedence over discovered prompts — the path a prompt-trained model without
   // discoverable prompts relies on.
   const PROMPTS = { query: 'query: ', document: 'passage: ' };
 
   before(async () => {
-    const { model, modelDir } = await resolveEmbeddingModel({ model: MINILM_MODEL, prompts: PROMPTS });
+    const { model, modelDir } = await resolveEmbeddingModel({
+      model: MINILM_MODEL,
+      prompts: PROMPTS
+    });
     promptRuntime = await createEmbeddingRuntimeFromModel(modelDir, model);
   });
 
