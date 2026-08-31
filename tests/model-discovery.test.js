@@ -335,7 +335,7 @@ describe('Hugging Face model discovery', () => {
     );
   });
 
-  test('shouold reject prompt shapes that cannot be mapped to HANA text types', async () => {
+  test('should reject prompt shapes that cannot be mapped to HANA text types', async () => {
     const unknownKey = hubFor({ stConfig: { prompts: { classification: 'Classify: ' } } });
     await assert.rejects(
       discoverModel(REPOSITORY, { hubClient: unknownKey.client }),
