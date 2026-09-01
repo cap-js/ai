@@ -36,7 +36,8 @@
   "output": {
     "name": "last_hidden_state",
     "pooling": "mean",
-    "normalize": true
+    "normalize": true,
+    "includePrompt": true
   },
-  "formatVersion": 1
+  "formatVersion": 2
 }

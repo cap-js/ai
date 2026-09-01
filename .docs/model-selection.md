@@ -20,7 +20,7 @@ For local development, start with the smallest model that meets the application'
 
 The current default and Bookshop sample use [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). It was selected only because, at the time of selection, it was the most-downloaded reasonably small candidate matching the sentence-similarity, ONNX, and Apache-2.0 filters. This is not a recommendation for any application or for production, and the default may change at any time while local embeddings remain experimental. Configure the model explicitly when that choice must stay stable.
 
-Ideally, production and local should use identical models. For reference, SAP HANA Cloud's [`SAP_GXY.20250407` is based on RoBERTa base](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/vector-embedding-function-vector#available-models-without-remote-source). A local MiniLM vector has different dimensions and semantics and is not interchangeable with a HANA-generated vector. Evaluate and regenerate embeddings when changing models.
+Ideally, identical embedding-models should be employed during development and in production. However, this is not technically required and hard to realize, due to model availability: I.e. local ONNX models and SAP HANA native models will differ. For reference, SAP HANA Cloud's [`SAP_GXY.20250407` is based on RoBERTa base](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-vector-engine-guide/vector-embedding-function-vector#available-models-without-remote-source). A local MiniLM vector has different dimensions and semantics and is not interchangeable with a HANA-generated vector. Never mix vectors from different model setups; regenerate embeddings after a change.
 
 ## Check before installing
 
@@ -43,6 +43,7 @@ Discovery currently requires:
 - a determinable input limit
 - an unambiguous Sentence Transformers pipeline of Transformer, Pooling, and optional Normalize stages
 - mean or CLS pooling
+- when a model declares [prompts it was trained with](https://sbert.net/examples/sentence_transformer/training/prompts/README.html) (typically `query` and `document`): Metadata that maps these prompts to [SAP HANA `VECTOR_EMBEDDING`s `text-type`](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-sql-reference-guide/vector-embedding-function-vector)
 
 The ONNX graph must accept rank-2 `int64` `input_ids`; it may also accept `attention_mask` and `token_type_ids`. A token-level output used for pooling must be a floating-point rank-3 tensor whose final dimension matches the discovered model dimension.
 

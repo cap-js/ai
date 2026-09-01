@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 
 import { validateEmbeddingModel } from '../lib/vector_embedding/embedding.js';
 import {
+  MODEL_LOCK_VERSION,
   getModelDirectory,
   getModelRoot,
   provisionModel
@@ -12,7 +13,9 @@ const lockUrl = new URL(
   import.meta.url
 );
 const { formatVersion, ...model } = JSON.parse(await fs.readFile(lockUrl, 'utf8'));
-if (formatVersion !== 1) throw new Error(`Unsupported test model lock version ${formatVersion}`);
+if (formatVersion !== MODEL_LOCK_VERSION) {
+  throw new Error(`Unsupported test model lock version ${formatVersion}`);
+}
 
 const modelDir = getModelDirectory(getModelRoot(undefined, process.cwd()), model.repository);
 await provisionModel(model, { directory: modelDir, validate: validateEmbeddingModel });

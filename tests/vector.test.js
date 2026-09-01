@@ -153,7 +153,7 @@ describe('text-type prompts via configured prompts', () => {
   // These prefixes come from `embedding.prompts.{query,document}`, the user-configured override that
   // takes precedence over discovered prompts — the path a prompt-trained model without
   // discoverable prompts relies on.
-  const PROMPTS = { query: 'query: ', document: 'passage: ' };
+  const PROMPTS = { query: 'query: ', document: 'document: ' };
 
   before(async () => {
     const { model, modelDir } = await resolveEmbeddingModel({
@@ -177,7 +177,7 @@ describe('text-type prompts via configured prompts', () => {
   test('should prepend the configured document prefix for the DOCUMENT text type', () => {
     assert.strictEqual(
       promptRuntime.vectorEmbedding('a small cat', 'DOCUMENT'),
-      runtime.vectorEmbedding('passage: a small cat')
+      runtime.vectorEmbedding('document: a small cat')
     );
   });
 

@@ -11,6 +11,7 @@ import {
 } from '../lib/vector_embedding/embedding.js';
 import {
   MODEL_LOCK_FILE,
+  MODEL_LOCK_VERSION,
   getModelDirectory,
   getModelRoot,
   provisionModel,
@@ -90,6 +91,47 @@ describe('runtime model configuration', () => {
     assert.equal(resolved.modelDir, modelDir);
     assert.deepEqual(resolved.model, model);
   });
+
+  test('merges configured prompts over discovered prompts per text type', async () => {
+    const directory = await createTemporaryDirectory();
+    const content = Buffer.from('prompt merge fixture');
+    const model = {
+      ...fixtureModel(content),
+      prompts: { query: 'query: ', document: 'document: ' }
+    };
+    const modelDir = getModelDirectory(directory, model.repository);
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
+
+    const resolved = await resolveEmbeddingModel({
+      model: model.repository,
+      directory,
+      prompts: { query: 'custom query: ' }
+    });
+
+    assert.deepEqual(resolved.model.prompts, {
+      query: 'custom query: ',
+      document: 'document: '
+    });
+    assert.deepEqual(await readModelLock(modelDir), model);
+  });
+
+  test('rejects configured prompts when prompt tokens are excluded from pooling', async () => {
+    const directory = await createTemporaryDirectory();
+    const content = Buffer.from('prompt exclusion fixture');
+    const base = fixtureModel(content);
+    const model = { ...base, output: { ...base.output, includePrompt: false } };
+    const modelDir = getModelDirectory(directory, model.repository);
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
+
+    await assert.rejects(
+      resolveEmbeddingModel({
+        model: model.repository,
+        directory,
+        prompts: { query: 'query: ' }
+      }),
+      /excludes prompt tokens from pooling/
+    );
+  });
 });
 
 describe('explicit model provisioning', () => {
@@ -112,7 +154,7 @@ describe('explicit model provisioning', () => {
     assert.deepEqual(await readModelLock(directory), model);
     assert.deepEqual(JSON.parse(await fs.readFile(path.join(directory, MODEL_LOCK_FILE), 'utf8')), {
       ...model,
-      formatVersion: 1
+      formatVersion: MODEL_LOCK_VERSION
     });
     assert.deepEqual((await fs.readdir(directory)).sort(), [
       MODEL_LOCK_FILE,
@@ -181,7 +223,34 @@ describe('explicit model provisioning', () => {
       provisionModel({ ...model, dimensions: model.dimensions + 1 }, { directory }),
       /locked to a different model descriptor/
     );
+    await assert.rejects(
+      provisionModel(
+        { ...model, output: { ...model.output, includePrompt: false } },
+        { directory }
+      ),
+      /locked to a different model descriptor/
+    );
+    await assert.rejects(
+      provisionModel({ ...model, prompts: { query: 'query: ' } }, { directory }),
+      /locked to a different model descriptor/
+    );
     assert.deepEqual(await readModelLock(directory), model);
+  });
+
+  test('rejects legacy model locks that predate prompt semantics', async () => {
+    const directory = await createTemporaryDirectory();
+    const model = fixtureModel(Buffer.from('legacy lock fixture'));
+    const { includePrompt, ...legacyOutput } = model.output;
+    void includePrompt;
+    await fs.writeFile(
+      path.join(directory, MODEL_LOCK_FILE),
+      JSON.stringify({ ...model, output: legacyOutput, formatVersion: 1 })
+    );
+
+    await assert.rejects(
+      readModelLock(directory),
+      /version 1.*predates prompt semantics.*reinstall/
+    );
   });
 
   test('serializes provisioning attempts for the same directory', async () => {
@@ -386,6 +455,7 @@ describe('explicit model provisioning', () => {
     const requestedUrls = [];
     const warnings = [];
     let discoveries = 0;
+    const prompts = { query: 'query: ' };
     const options = {
       root,
       fetchImpl: createFetch(content, requestedUrls),
@@ -398,10 +468,10 @@ describe('explicit model provisioning', () => {
       warn: (message) => warnings.push(message)
     };
 
-    const first = await resolveEmbeddingModel({ model: model.repository }, options);
+    const first = await resolveEmbeddingModel({ model: model.repository, prompts }, options);
     const expectedDirectory = getModelDirectory(getModelRoot(undefined, root), model.repository);
 
-    assert.equal(first.model, model);
+    assert.deepEqual(first.model, { ...model, prompts });
     assert.equal(first.modelDir, expectedDirectory);
     assert.equal(discoveries, 1);
     assert.equal(warnings.length, 1);
@@ -410,7 +480,8 @@ describe('explicit model provisioning', () => {
     assert.equal(requestedUrls.length, model.files.length);
     assert.deepEqual(await readModelLock(expectedDirectory), model);
 
-    const second = await resolveEmbeddingModel({ model: model.repository }, options);
+    const second = await resolveEmbeddingModel({ model: model.repository, prompts }, options);
+    assert.deepEqual(second.model, { ...model, prompts });
     assert.equal(second.modelDir, expectedDirectory);
     assert.equal(discoveries, 1);
     assert.equal(warnings.length, 1);
@@ -627,7 +698,13 @@ describe('explicit model provisioning', () => {
         { role: 'model', name: 'model.onnx', path: 'onnx/model.onnx' },
         { role: 'tokenizer', name: 'tokenizer.json', path: 'tokenizer.json' }
       ],
-      output: { name: 'last_hidden_state', pooling: 'mean', normalize: true }
+      output: {
+        name: 'last_hidden_state',
+        pooling: 'mean',
+        normalize: true,
+        includePrompt: true
+      },
+      prompts: { query: 'query: ', document: 'document: ' }
     };
 
     await runModelCommand(['check-model', checked.repository], {
@@ -640,6 +717,9 @@ describe('explicit model provisioning', () => {
     });
 
     assert.match(output.join(''), /Likely compatible/i);
+    assert.match(output.join(''), /Prompt tokens in pooling: included/);
+    assert.match(output.join(''), /QUERY: "query: "/);
+    assert.match(output.join(''), /DOCUMENT: "document: "/);
     assert.match(output.join(''), /install-model.*definitive/i);
     await assert.rejects(fs.access(path.join(root, '.cds', 'models')), /ENOENT/);
   });
@@ -699,7 +779,12 @@ function fixtureModel(content, repository = 'example/model') {
         sha256
       }
     ],
-    output: { name: 'last_hidden_state', pooling: 'mean', normalize: true }
+    output: {
+      name: 'last_hidden_state',
+      pooling: 'mean',
+      normalize: true,
+      includePrompt: true
+    }
   };
 }
 
