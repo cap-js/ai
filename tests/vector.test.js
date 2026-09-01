@@ -212,16 +212,20 @@ describe('SQLite integration', () => {
   });
 
   const memoryKind = cds.env.requires.kinds['sqlite:memory'];
-  test('inherits the AI-enabled sqlite kind for sqlite:memory', {
-    skip: memoryKind?.kind !== 'sqlite'
-  }, () => {
-    assert.strictEqual(memoryKind.impl, AI_SQLITE_IMPL);
-    assert.strictEqual(memoryKind.embedding.model, DEFAULT_EMBEDDING_MODEL);
-    assert.strictEqual(memoryKind.credentials.url, ':memory:');
-    assert.strictEqual(memoryKind.pool.evictionRunIntervalMillis, 0);
-    assert.strictEqual(memoryKind.pool.min, 1);
-    assert.strictEqual(memoryKind.pool.max, 1);
-  });
+  test(
+    'inherits the AI-enabled sqlite kind for sqlite:memory',
+    {
+      skip: memoryKind?.kind !== 'sqlite'
+    },
+    () => {
+      assert.strictEqual(memoryKind.impl, AI_SQLITE_IMPL);
+      assert.strictEqual(memoryKind.embedding.model, DEFAULT_EMBEDDING_MODEL);
+      assert.strictEqual(memoryKind.credentials.url, ':memory:');
+      assert.strictEqual(memoryKind.pool.evictionRunIntervalMillis, 0);
+      assert.strictEqual(memoryKind.pool.min, 1);
+      assert.strictEqual(memoryKind.pool.max, 1);
+    }
+  );
 
   before(async () => {
     db = await cds.connect.to(
