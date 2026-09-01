@@ -43,7 +43,7 @@ Discovery currently requires:
 - a determinable input limit
 - an unambiguous Sentence Transformers pipeline of Transformer, Pooling, and optional Normalize stages
 - mean or CLS pooling
-- when a model declares prompts, `query`, `document`, or `passage` metadata that maps to `QUERY` and `DOCUMENT`; an explicit `document` prompt takes precedence over `passage`, and unrelated prompt names are ignored
+- when a model declares [prompts it was trained with](https://sbert.net/examples/sentence_transformer/training/prompts/README.html) (typically `query` and `document`): Metadata that maps these prompts to [SAP HANA `VECTOR_EMBEDDING`s `text-type`](https://help.sap.com/docs/hana-cloud-database/sap-hana-cloud-sap-hana-database-sql-reference-guide/vector-embedding-function-vector)
 
 The ONNX graph must accept rank-2 `int64` `input_ids`; it may also accept `attention_mask` and `token_type_ids`. A token-level output used for pooling must be a floating-point rank-3 tensor whose final dimension matches the discovered model dimension.
 

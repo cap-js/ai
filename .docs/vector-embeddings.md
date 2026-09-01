@@ -159,7 +159,7 @@ If required prompts are not available in model metadata, configure them explicit
 }
 ```
 
-Configured entries override the corresponding discovered entry; omitted entries continue using discovered metadata. For models with `include_prompt=false`, this runtime cannot apply discovered or configured prompts; prompt-free use remains supported.
+Configured `embedding.prompts` entries override the corresponding discovered entry; omitted entries continue using discovered metadata. For models with `include_prompt=false`, this runtime cannot apply discovered or configured prompts; For models that were not trained with prompts, prompt-free use is supported.
 `model_and_version` and `remote_source` preserve the SQL shape for development compatibility but do not affect local inference.
 SQL `NULL` returns `NULL`, and empty or whitespace-only text is treated as no value and returns a zero vector.
 The result is a JSON string containing the model's vector dimensions.
