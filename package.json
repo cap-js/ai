@@ -33,7 +33,8 @@
     "@huggingface/hub": "^2.15.0",
     "@huggingface/tokenizers": "0.1.3",
     "onnxruntime-node": "1.20.1",
-    "oxigraph": "^0.5.9"
+    "oxigraph": "^0.5.9",
+    "prettier": "^3.9.6"
   },
   "peerDependencies": {
     "@cap-js/sqlite": ">=2",
@@ -83,11 +84,11 @@
             "label": "aicore"
           }
         },
-      "db": {
-        "kind": "sqlite",
-        "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
-        "embedding": {
-          "model": "sentence-transformers/all-MiniLM-L6-v2"
+        "db": {
+          "kind": "sqlite",
+          "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
+          "embedding": {
+            "model": "sentence-transformers/all-MiniLM-L6-v2"
           }
         }
       }
