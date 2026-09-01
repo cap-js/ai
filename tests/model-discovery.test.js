@@ -298,14 +298,14 @@ describe('Hugging Face model discovery', () => {
     assert.equal(model.sha256, digest(contents));
   });
 
-  test('should map sentence-transformers query and passage prompts onto HANA text types', async () => {
+  test('should map sentence-transformers query and document prompts onto HANA text types', async () => {
     const hub = hubFor({
-      stConfig: { prompts: { query: 'query: ', passage: 'passage: ' }, default_prompt_name: null }
+      stConfig: { prompts: { query: 'query: ', document: 'document: ' }, default_prompt_name: null }
     });
 
     const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
 
-    assert.deepEqual(descriptor.prompts, { query: 'query: ', document: 'passage: ' });
+    assert.deepEqual(descriptor.prompts, { query: 'query: ', document: 'document: ' });
     assert.equal(descriptor.output.includePrompt, true);
   });
 
@@ -317,8 +317,8 @@ describe('Hugging Face model discovery', () => {
     assert.deepEqual(descriptor.prompts, { query: 'query: ' });
   });
 
-  test('should treat an empty document/passage prompt as no prefix', async () => {
-    const hub = hubFor({ stConfig: { prompts: { query: 'query: ', passage: '' } } });
+  test('should treat an empty document prompt as no prefix', async () => {
+    const hub = hubFor({ stConfig: { prompts: { query: 'query: ', document: '' } } });
 
     const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
 
@@ -371,16 +371,6 @@ describe('Hugging Face model discovery', () => {
     const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
 
     assert.deepEqual(descriptor.prompts, { query: 'query: ' });
-  });
-
-  test('should prefer an explicit document prompt over its passage alias', async () => {
-    const hub = hubFor({
-      stConfig: { prompts: { document: 'doc: ', passage: 'passage: ' } }
-    });
-
-    const descriptor = await discoverModel(REPOSITORY, { hubClient: hub.client });
-
-    assert.deepEqual(descriptor.prompts, { document: 'doc: ' });
   });
 
   test('should reject unimplemented modules even when their namespace suggests quantization', async () => {

@@ -97,7 +97,7 @@ describe('runtime model configuration', () => {
     const content = Buffer.from('prompt merge fixture');
     const model = {
       ...fixtureModel(content),
-      prompts: { query: 'query: ', document: 'passage: ' }
+      prompts: { query: 'query: ', document: 'document: ' }
     };
     const modelDir = getModelDirectory(directory, model.repository);
     await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
@@ -110,7 +110,7 @@ describe('runtime model configuration', () => {
 
     assert.deepEqual(resolved.model.prompts, {
       query: 'custom query: ',
-      document: 'passage: '
+      document: 'document: '
     });
     assert.deepEqual(await readModelLock(modelDir), model);
   });
@@ -704,7 +704,7 @@ describe('explicit model provisioning', () => {
         normalize: true,
         includePrompt: true
       },
-      prompts: { query: 'query: ', document: 'passage: ' }
+      prompts: { query: 'query: ', document: 'document: ' }
     };
 
     await runModelCommand(['check-model', checked.repository], {
@@ -719,7 +719,7 @@ describe('explicit model provisioning', () => {
     assert.match(output.join(''), /Likely compatible/i);
     assert.match(output.join(''), /Prompt tokens in pooling: included/);
     assert.match(output.join(''), /QUERY: "query: "/);
-    assert.match(output.join(''), /DOCUMENT: "passage: "/);
+    assert.match(output.join(''), /DOCUMENT: "document: "/);
     assert.match(output.join(''), /install-model.*definitive/i);
     await assert.rejects(fs.access(path.join(root, '.cds', 'models')), /ENOENT/);
   });
