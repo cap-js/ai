@@ -4,6 +4,14 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Version 1.2.0 - tbd
+
+### Added
+
+- **Experimental:** Extend the standard `sqlite` service and its `sqlite:memory` preset for local CAP development with `VECTOR_EMBEDDING`, model provisioning tooling, and `sentence-transformers/all-MiniLM-L6-v2` as a replaceable default that may change while the feature remains experimental.
+- **Experimental:** Add local `SPARQL_EXECUTE` and `sparql_table` support through the optional `oxigraph` peer dependency.
+
+Local vector embeddings require `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1`; the package's other capabilities continue to support `@sap/cds` 9.
 
 ## Version 1.1.0 - 2026-07-20
 

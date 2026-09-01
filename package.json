@@ -8,24 +8,57 @@
   "author": "SAP SE (https://www.sap.com)",
   "homepage": "https://cap.cloud.sap/",
   "main": "cds-plugin.js",
+  "bin": {
+    "cds-ai": "bin/cds-ai.js"
+  },
   "scripts": {
     "lint": "npx -y eslint@10 .",
-    "test": "node --test tests/*.test.js",
-    "test:hybrid": "cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
+    "test:model:provision": "node tests/provision-model.js",
+    "test": "npm run test:model:provision && node --test tests/*.test.js",
+    "test:hybrid": "npm run test:model:provision && cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
     "format": "npx -y prettier@3 . --write && format-cds -f",
     "format:check": "npx -y prettier@3 --check . && format-cds --check"
   },
   "files": [
+    ".docs",
     "CHANGELOG.md",
+    "bin",
     "lib",
     "srv"
   ],
   "devDependencies": {
     "@cap-js/cds-test": "^1",
-    "@cap-js/cds-types": "^0.16.0"
+    "@cap-js/cds-types": "^0.16.0",
+    "@cap-js/sqlite": ">=2",
+    "@huggingface/hub": "^2.15.0",
+    "@huggingface/tokenizers": "0.1.3",
+    "onnxruntime-node": "1.20.1",
+    "oxigraph": "^0.5.9"
   },
   "peerDependencies": {
-    "@sap/cds": ">=9"
+    "@cap-js/sqlite": ">=2",
+    "@huggingface/hub": "^2.15.0",
+    "@huggingface/tokenizers": "0.1.3",
+    "@sap/cds": ">=9",
+    "onnxruntime-node": "1.20.1",
+    "oxigraph": "^0.5.9"
+  },
+  "peerDependenciesMeta": {
+    "@cap-js/sqlite": {
+      "optional": true
+    },
+    "@huggingface/hub": {
+      "optional": true
+    },
+    "@huggingface/tokenizers": {
+      "optional": true
+    },
+    "onnxruntime-node": {
+      "optional": true
+    },
+    "oxigraph": {
+      "optional": true
+    }
   },
   "engines": {
     "node": ">=20.0.0"
@@ -48,6 +81,12 @@
           "resourceGroup": "default",
           "vcap": {
             "label": "aicore"
+          }
+        },
+        "sqlite": {
+          "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
+          "embedding": {
+            "model": "sentence-transformers/all-MiniLM-L6-v2"
           }
         }
       }

@@ -1,244 +1,153 @@
 [![REUSE status](https://api.reuse.software/badge/github.com/cap-js/ai)](https://api.reuse.software/info/github.com/cap-js/ai)
 
-# SAP Cloud Application Programming Model, AI plugin for Node.js
+# CAP AI plugin for Node.js
 
-## About this project
+`@cap-js/ai` adds UI recommendations powered by SAP AI Core, simplified access to SAP AI Core resources, and vector embedding support for CAP applications.
 
-The SAP Cloud Application Programming Model, AI plugin for Node.js bundles two AI capabilities to infuse into your CAP applications:
-1. UI Recommendations
-2. Simplified AI Core usage
+## Recommendations
 
-> [!IMPORTANT]
-> In multi tenancy scenarios with a sidecar the plugin must be included in the sidecar for SAP AI Core handling.
+The plugin adds SAP-RPT-1 recommendations to draft-enabled entities. Fields with a value help are included automatically:
 
-### 1. Use case: Recommendations
-
-Recommendations are implemented leveraging [SAP-RPT-1](https://help.sap.com/docs/sap-ai-core/generative-ai/sap-rpt-1) and AI Core. This plugin generically hooks into any entity which has properties with a value help (detected via `@Common.ValueList` on the property or `@cds.odata.valuelist` on the association target).
-
-```cds 
+```cds
+@odata.draft.enabled
 entity Books {
-  key ID : Integer;
-  title  : String(111);
-  descr  : String(1111);
-  genre : Association to one Genres;
-  status : Association to one Status;
+  key ID    : Integer;
+      title : String;
+      genre : Association to Genres;
+      price : Decimal;
 }
+
 annotate Genres with @cds.odata.valuelist;
-annotate Books with {
-    status @Common.ValueList : {
-        CollectionPath : 'Status',
-        Parameters: [
-            {
-                $Type: 'Common.ValueListParameterInOut'
-                ValueListProperty : 'code',
-                LocalDataProperty : status_code
-            }
-        ]
-    }
-}
 ```
 
 ![Recommendations as default values](./_assets/recommendation-default.png)
-![Recommendation in Value Help](./_assets/recommendation-value-help.png)
-![Accept recommendations](./_assets/accept-recommendations.png)
 
-The genre field on the UI now automatically has recommendations. If you do not want recommendations for a specific field, it can be annotated with `@UI.RecommendationState`.
+Use `@UI.RecommendationState` to opt individual fields in or out:
 
 ```cds
 annotate Books with {
-    genre @UI.RecommendationState : 0;
+  genre @UI.RecommendationState: 0;
+  price @UI.RecommendationState;
 }
 ```
 
-Dynamic expressions as values for `@UI.RecommendationState`, work as well!
+A production deployment requires an [SAP AI Core](https://help.sap.com/docs/sap-ai-core) service binding. Without one, local development uses a mock implementation for UI smoke tests. See [Recommendations](.docs/recommendations.md) for regression targets, request behavior, data handling, and deployment lifecycle.
 
-```cds
-annotate Books with {
-    genre @UI.RecommendationState : (price > 200 ? 0 : 1);
-}
+## SAP AI Core
+
+The plugin provides an `AICore` CAP service for managing resource groups, deployments, and configurations:
+
+```js
+const aiCore = await cds.connect.to('AICore');
+const { resourceGroups, deployments } = aiCore.entities;
+
+const groups = await aiCore.run(SELECT.from(resourceGroups));
+await aiCore.stop(deployments, { id: '<deployment id>' });
 ```
 
-#### Regression Recommendations on fields without a value help
+See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, helper methods, and multitenancy.
 
-By default, the plugin only enhances fields that have a value help list since these columns are good prediction targets for classification. However, some fields are good targets but have no value list: free-form numerics like measurement ranges, calibration values, or planning estimates. Annotate these with `@UI.RecommendationState` to opt in:
-
-```cds
-entity CalibrationData : cuid {
-  measuringRangeMin : Decimal(16, 6) @UI.RecommendationState;
-  measuringRangeMax : Decimal(16, 6) @UI.RecommendationState;
-  operatingPoint    : Decimal(16, 6) @UI.RecommendationState;
-  description       : String         @UI.RecommendationState;
-}
-```
-
-The annotation only takes effect on **scalar** elements (no associations / compositions / unmanaged elements; for those, attach a value help instead). Annotated fields are added to the entity's `<Entity>_Recommendations` companion just like value-helped fields, and Fiori Elements' soft-fill placeholder renders the prediction in the empty input.
-
-`task_type` is chosen automatically per column:
-- numeric scalar (`Integer*`, `Decimal`, `Double`) annotated with `@UI.RecommendationState` → **`regression`** so RPT-1 can interpolate continuous values,
-- everything else → **`classification`**.
-
-> [!NOTE]
-> Numeric fields that have a value help (e.g. a fixed price-point list) stay on classification — `@UI.RecommendationState` is only needed when there is *no* value help. Combining both is unnecessary.
+## Local vector embeddings with SQLite (experimental)
 
 > [!WARNING]
-> SAP Fiori Elements does not yet support rendering recommendations for scalar fields without a value help. The backend correctly provides predictions for these fields, but the Fiori Elements client currently only requests and displays recommendations for fields annotated with `@Common.ValueList` or `@Common.ValueListWithFixedValues`.
+> The SQLite extensions, local vector embeddings, local model management, and the related tooling are experimental facilities for local development. Breaking changes are expected, including changes caused by SQLite's synchronous function interface and by local model management. Use SAP HANA's vector engine for production vector workloads.
 
-<details>
-<summary><b>How recommendations work under the hood</b></summary>
+Here is a complete Bookshop example.
 
-A short FAQ for integrators, so you don't have to read the source.
+1. Install the local-development dependencies:
 
+   ```sh
+   npm add -D @cap-js/ai @cap-js/sqlite@^3.1 @huggingface/hub@^2.15.0 \
+     @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
+   ```
 
-**What does the plugin emit on the OData service?**
-On every draft-enabled entity that has at least one value-helped field, it adds an entity-level annotation `@UI.Recommendations: { '=': 'SAP_Recommendations' }` plus a synthetic companion entity (`<Entity>_Recommendations`, `@cds.persistence.skip`) with one virtual array per recommendable field. Each item carries `RecommendedFieldValue`, `RecommendedFieldDescription`, `RecommendedFieldScoreValue` and `RecommendedFieldIsSuggestion` — the shape Fiori Elements expects for `UI.RecommendationListType`. The first entry per field has `RecommendedFieldIsSuggestion: true` and is rendered as the soft-fill default.
+   Local vector embeddings require `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1`; the package's other capabilities continue to support `@sap/cds` 9.
 
-**When does it run?**
-On READ requests to a draft entity that expand `SAP_Recommendations`. Reads against the active entity return nothing in that field. Reads during `draftActivate` are skipped.
+2. Use the standard SQLite service. Most CAP projects already do this in development; an explicit configuration looks like this:
 
-**What data is sent to RPT-1 as context?**
-Up to 2000 rows from the **active** version of the same entity, restricted to rows where every recommendable field is non-null. The columns `createdAt`, `createdBy`, `modifiedAt`, `modifiedBy` plus any `cds.LargeBinary` / `cds.Vector` elements are stripped. The active row corresponding to the draft (if any) is removed and replaced by the draft row carrying `[PREDICT]` placeholders in the columns to predict. There is no sampling or `ORDER BY` — for tables larger than 2000 rows, which rows make the cut is determined by the database.
+   ```json
+   {
+     "cds": {
+       "requires": {
+         "db": {
+           "kind": "sqlite"
+         }
+       }
+     }
+   }
+   ```
 
-> [!IMPORTANT]
-> Everything in the remaining columns is forwarded to AI Core. Annotate sensitive fields with `@UI.RecommendationState : 0` (or a dynamic expression) to keep them out of both the predictions and the context payload.
+3. Add an embedding preview to the Bookshop service. In its service implementation, which imports `cds` from `@sap/cds`:
 
-**How are descriptions populated?**
-For each predicted value, the plugin issues an extra SELECT against the field's `@Common.Text` association (if set) to fetch the human-readable label. Fields without `@Common.Text` get an empty `RecommendedFieldDescription`.
+   ```cds
+   function embedding(text : String) returns LargeString;
+   ```
 
-**RPT-1 deployment lifecycle**
-First prediction call against a resource group provisions an `sap-rpt-1-small` deployment in scenario `foundation-models` (executable `aicore-sap`) and polls up to 10× with exponential backoff until it reaches `RUNNING`. Subsequent calls reuse the cached deployment. Single-tenant uses the configured `resourceGroup` (default `'default'`); multi-tenant creates one resource group per tenant on subscribe (label `ext.ai.sap.com/CDS_TENANT_ID`) and deletes it on unsubscribe.
+   ```js
+   this.on('embedding', async (req) => {
+     const [row] = await cds.db.run(
+       `SELECT VECTOR_EMBEDDING(?, 'DOCUMENT', 'local') AS embedding`,
+       [req.data.text]
+     );
+     return row.embedding;
+   });
+   ```
 
-**Local development**
-Without an AI Core binding the plugin uses `MockAICoreService`, which returns the first non-null value of each target column from the context as the "prediction" — useful for UI smoke tests, useless as a quality signal. Run `cds bind <your-aicore-instance>` and start with profile `hybrid` to talk to a real AI Core deployment locally.
+4. Start the application and call the function:
 
-</details>
+   ```sh
+   cds w
+   ```
 
-### 2. Use case: Simplified AI Core usage
+   In another terminal:
 
-The plugin introduces an `AICore` CAP service that automatically performs some administrative tasks and offers simplified access to AI Core.
+   ```sh
+   curl 'http://localhost:4004/odata/v4/catalog/embedding(text=%27A%20book%20about%20travel%27)'
+   ```
 
-#### Automatic operations
+`@cap-js/ai` redirects the standard `sqlite` implementation to add the local capabilities. With `@sap/cds` `^10.1`, the standard `sqlite:memory` preset inherits that implementation. The first start warns that the default model is missing, downloads it to `.cds/models`, and then initializes it. The response's `value` contains a JSON-encoded vector with 384 numbers. Later starts reuse the installed model.
 
-- The plugin automatically creates a new SAP AI Core resource group per tenant during tenant onboarding and deletes it during offboarding.
-- The plugin automatically creates an RPT-1 deployment per resource group for the recommendations feature.
+The current default is [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). It was selected only because, at the time of selection, it was the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license filters below. This is not a recommendation, and the default may change at any time while this feature is experimental. Configure `cds.requires.db.embedding.model` explicitly if the choice must remain stable.
 
-#### Simplified AI Core API access
+Start model discovery with [trending Apache-2.0 sentence-similarity models that provide ONNX artifacts](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&license=license:apache-2.0&sort=trending). These filters select a relevant task, a locally runnable format, and a permissive license, but they do not guarantee compatibility. Choose a model as big as necessary and as small as possible, then validate it with the provided tooling.
 
-```js
-const aiCore = await cds.connect.to('AICore');
-const {resourceGroups, deployments, configurations} = aiCore.entities;
-await aiCore.run(SELECT.from(resourceGroups));
-await aiCore.run(SELECT.from(resourceGroups).where({tenantId: cds.context.tenant}));
-await aiCore.run(SELECT.from(deployments).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
-await aiCore.run(SELECT.from(configurations).where({'resourceGroup.resourceGroupId': resourceGroups[0].resourceGroupId}));
-```
+See [Choosing a model](.docs/model-selection.md) and [Local vector embeddings](.docs/vector-embeddings.md) for compatibility checks, explicit or shared provisioning, runtime behavior, and limitations.
 
-Currently, the following `cds.ql` operations are supported:
+## Advanced
 
-| Operation | resourceGroups | deployments | configurations |
-|-----------|---------------|-------------|----------------|
-| **READ (list)** | ✓ | ✓ | ✓ |
-| - limit | ✓ | ✓ | ✓ |
-| - where* | `tenantId`, `resourceGroupId` | `resourceGroup.resourceGroupId` | `resourceGroup.resourceGroupId` |
-| - search | - | - | ✓ |
-| **READ (single)** | ✓ | ✓ | ✓ |
-| **CREATE** | ✓ | ✓ | ✓ |
-| **UPDATE** | ✓ | ✓ | - |
-| - where* | `tenantId`, `resourceGroupId` | `id`, `resourceGroup.resourceGroupId` | - |
-| **UPSERT** | ✓ | ✓ | - |
-| - where* | - | `id`, `resourceGroup.resourceGroupId` | - |
-| **DELETE** | ✓ | ✓ | - |
-| - where* | `tenantId`, `resourceGroupId` | `id`, `resourceGroup.resourceGroupId` | - |
-
-\* Only simple equality checks against the listed properties are supported
-
-Next to CRUD operations the following helper functions can be used:
-
-```js
-const aiCore = await cds.connect.to('AICore');
-const {resourceGroups, deployments, configurations} = aiCore.entities;
-
-// Fetch a resource group for a CDS tenant ID
-const resourceGroupId = await aiCore.resourceGroupForTenant(cds.context.tenant)
-
-// Call the RPT-1 API to fetch predictions - see AICoreService.cds for the schema
-const predictions = await aiCore.predictRowColumns(/** RPT-1 payload */)
-
-/**
- * Returns the deployment ID for RPT-1. If no RPT-1 deployment exists, creates one for the
- * resource group
-*/
-const rpt1DeploymentId = await aiCore.rpt1DeploymentId(resourceGroups, {resourceGroupId})
-
-// Stops an AI Core deployment
-await aiCore.stop(deployments, {id: '<deployment id>'})
-```
-
-## Requirements and Setup
-
-To use the plugin in production scenarios you need an [SAP AI Core](https://help.sap.com/docs/sap-ai-core) service binding. The plugin will automatically create resource groups per tenant in multi-tenancy scenarios and create an RPT-1 deployment in each for the recommendations feature. In single-tenant setups the plugin uses the 'default' resource group and creates an RPT-1 deployment as well if none exists.
-
-For single-tenant deployments you can change the resource group as follows:
-
-```json
-{
-    "cds": {
-        "requires": {
-            "AICore": {
-                "resourceGroup": "CUSTOM_SINGLE_TENANT_RESOURCE_GROUP"
-            }
-        }
-    }
-}
-```
-
-For Cloud Foundry apps an example config could look like this:
-
-```yaml
-modules:
-  - name: incidents-srv
-    type: nodejs
-    path: gen/srv
-    requires:
-      - name: incidents-ai-core
-resources:
-  - name: incidents-ai-core
-    type: org.cloudfoundry.managed-service
-```
-
+- [Recommendations](.docs/recommendations.md) — generated service shape, prediction context, regression targets, and lifecycle
+- [SAP AI Core integration](.docs/ai-core.md) — bindings, multitenancy, supported operations, and helper methods
+- [Local vector embeddings](.docs/vector-embeddings.md) — SQLite kinds, model provisioning, SQL function behavior, and trust boundaries
+- [Choosing a model](.docs/model-selection.md) — Hugging Face filters, compatibility requirements, and size tradeoffs
+- [Local knowledge graph](.docs/knowledge-graph.md) — experimental `SPARQL_EXECUTE` and `sparql_table` support
 
 ## Test the plugin locally
 
-In `tests/bookshop-app/` you can find a sample application that is used to demonstrate how to use the plugin and to run tests against it.
+The sample application is in `tests/bookshop`.
 
-### Local Testing
-
-To execute local tests, simply run:
-
-```bash
-npm run test
+```sh
+npm test
 ```
 
-For tests, the `cds-test` Plugin is used to spin up the application. More information about `cds-test` can be found [here](https://cap.cloud.sap/docs/node.js/cds-test).
+Integration tests require an SAP AI Core binding:
 
-For integration tests you need an AI Core binding.
-
-```bash
+```sh
 cds bind ai-core -2 <your-ai-core-service-instance>
 npm run test:hybrid
 ```
 
-## Support, Feedback, Contributing
+## Support, feedback, and contributing
 
-This project is open to feature requests/suggestions, bug reports etc. via [GitHub issues](https://github.com/cap-js/ai/issues). Contribution and feedback are encouraged and always welcome. For more information about how to contribute, the project structure, as well as additional contribution information, see our [Contribution Guidelines](CONTRIBUTING.md).
+This project welcomes feature requests, bug reports, and contributions through [GitHub issues](https://github.com/cap-js/ai/issues). See the [Contribution Guidelines](CONTRIBUTING.md) for development information.
 
-## Security / Disclosure
+## Security
 
-If you find any bug that may be a security problem, please follow our instructions [in our security policy](https://github.com/cap-js/ai/security/policy) on how to report it. Please do not create GitHub issues for security-related doubts or problems.
+Report potential security issues through the project's [security policy](https://github.com/cap-js/ai/security/policy), not through public issues.
 
 ## Code of Conduct
 
-We as members, contributors, and leaders pledge to make participation in our community a harassment-free experience for everyone. By participating in this project, you agree to abide by its [Code of Conduct](https://github.com/cap-js/.github/blob/main/CODE_OF_CONDUCT.md) at all times.
+Participation in this project is governed by the [Code of Conduct](https://github.com/cap-js/.github/blob/main/CODE_OF_CONDUCT.md).
 
 ## Licensing
 
-Copyright 2026 SAP SE or an SAP affiliate company and ai contributors. Please see our [LICENSE](LICENSE) for copyright and license information. Detailed information including third-party components and their licensing/copyright information is available [via the REUSE tool](https://api.reuse.software/info/github.com/cap-js/ai).
+Copyright 2026 SAP SE or an SAP affiliate company and ai contributors. See [LICENSE](LICENSE) and the [REUSE report](https://api.reuse.software/info/github.com/cap-js/ai).

@@ -1,0 +1,43 @@
+{
+  "repository": "sentence-transformers/all-MiniLM-L6-v2",
+  "revision": "1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
+  "dimensions": 384,
+  "maxLength": 128,
+  "files": [
+    {
+      "role": "model",
+      "name": "model.onnx",
+      "path": "onnx/model.onnx",
+      "size": 90405214,
+      "sha256": "6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452"
+    },
+    {
+      "role": "tokenizer",
+      "name": "tokenizer.json",
+      "path": "tokenizer.json",
+      "size": 466247,
+      "sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+    },
+    {
+      "role": "tokenizerConfig",
+      "name": "tokenizer_config.json",
+      "path": "tokenizer_config.json",
+      "size": 350,
+      "sha256": "acb92769e8195aabd29b7b2137a9e6d6e25c476a4f15aa4355c233426c61576b"
+    },
+    {
+      "role": "auxiliary",
+      "name": "config.json",
+      "path": "config.json",
+      "size": 612,
+      "sha256": "953f9c0d463486b10a6871cc2fd59f223b2c70184f49815e7efbcab5d8908b41"
+    }
+  ],
+  "output": {
+    "name": "last_hidden_state",
+    "pooling": "mean",
+    "normalize": true,
+    "includePrompt": true
+  },
+  "formatVersion": 2
+}

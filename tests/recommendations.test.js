@@ -233,3 +233,22 @@ describe('Row-level authorization', () => {
     );
   });
 });
+
+describe('Local vector embeddings', () => {
+  test('Bookshop exposes an embedding preview', async (t) => {
+    if (cds.env.requires.db.impl !== '@cap-js/ai/lib/sqlite/AISQLiteService.js') {
+      t.skip('local SQLite embedding sample');
+      return;
+    }
+
+    const { status, data } = await GET(
+      "/odata/v4/catalog/embedding(text='A%20book%20about%20travel')"
+    );
+    const embedding = JSON.parse(data.value);
+
+    assert.strictEqual(status, 200);
+    assert.ok(Array.isArray(embedding));
+    assert.ok(embedding.length > 0);
+    assert.ok(embedding.every((value) => typeof value === 'number'));
+  });
+});
