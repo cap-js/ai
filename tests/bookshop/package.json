@@ -48,7 +48,10 @@
     "requires": {
       "[development]": {
         "db": {
-          "kind": "sqlite:memory",
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          },
           "embedding": {
             "directory": "../../.cds/models"
           }
@@ -56,7 +59,10 @@
       },
       "[test]": {
         "db": {
-          "kind": "sqlite:memory",
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          },
           "embedding": {
             "directory": "../../.cds/models"
           }

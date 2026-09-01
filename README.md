@@ -105,7 +105,7 @@ Here is a complete Bookshop example.
    curl 'http://localhost:4004/odata/v4/catalog/embedding(text=%27A%20book%20about%20travel%27)'
    ```
 
-`@cap-js/ai` redirects the standard `sqlite` and `sqlite:memory` implementations to add the local capabilities. The first start warns that the default model is missing, downloads it to `.cds/models`, and then initializes it. The response's `value` contains a JSON-encoded vector with 384 numbers. Later starts reuse the installed model.
+`@cap-js/ai` redirects the standard `sqlite` implementation to add the local capabilities. With `@sap/cds` `^10.1`, the standard `sqlite:memory` preset inherits that implementation. The first start warns that the default model is missing, downloads it to `.cds/models`, and then initializes it. The response's `value` contains a JSON-encoded vector with 384 numbers. Later starts reuse the installed model.
 
 The current default is [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). It was selected only because, at the time of selection, it was the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license filters below. This is not a recommendation, and the default may change at any time while this feature is experimental. Configure `cds.requires.db.embedding.model` explicitly if the choice must remain stable.
 

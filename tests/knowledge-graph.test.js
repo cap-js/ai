@@ -13,7 +13,8 @@ describe('SQLite knowledge graph', () => {
 
   before(async () => {
     db = await cds.connect.to('knowledge-graph-db', {
-      kind: 'sqlite:memory'
+      kind: 'sqlite',
+      credentials: { url: ':memory:' }
     });
   });
 

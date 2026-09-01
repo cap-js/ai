@@ -9,6 +9,7 @@ import {
 } from '../lib/vector_embedding/embedding.js';
 
 const MINILM_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
+const AI_SQLITE_IMPL = '@cap-js/ai/lib/sqlite/AISQLiteService.js';
 
 let runtime;
 
@@ -205,17 +206,30 @@ describe('SQLite integration', () => {
 
   test('uses the default embedding model', () => {
     assert.strictEqual(DEFAULT_EMBEDDING_MODEL, MINILM_MODEL);
-    const kind = cds.env.requires.kinds['sqlite:memory'];
-    assert.strictEqual(kind.impl, '@cap-js/ai/lib/sqlite/AISQLiteService.js');
+    const kind = cds.env.requires.kinds.sqlite;
+    assert.strictEqual(kind.impl, AI_SQLITE_IMPL);
     assert.strictEqual(kind.embedding.model, DEFAULT_EMBEDDING_MODEL);
-    assert.strictEqual(kind.credentials.url, ':memory:');
-    assert.strictEqual(kind.pool.max, 1);
+  });
+
+  const memoryKind = cds.env.requires.kinds['sqlite:memory'];
+  test('inherits the AI-enabled sqlite kind for sqlite:memory', {
+    skip: memoryKind?.kind !== 'sqlite'
+  }, () => {
+    assert.strictEqual(memoryKind.impl, AI_SQLITE_IMPL);
+    assert.strictEqual(memoryKind.embedding.model, DEFAULT_EMBEDDING_MODEL);
+    assert.strictEqual(memoryKind.credentials.url, ':memory:');
+    assert.strictEqual(memoryKind.pool.evictionRunIntervalMillis, 0);
+    assert.strictEqual(memoryKind.pool.min, 1);
+    assert.strictEqual(memoryKind.pool.max, 1);
   });
 
   before(async () => {
-    db = await cds.connect.to('vector-db', {
-      kind: 'sqlite:memory'
-    });
+    db = await cds.connect.to(
+      'vector-db',
+      memoryKind?.kind === 'sqlite'
+        ? { kind: 'sqlite:memory' }
+        : { kind: 'sqlite', credentials: { url: ':memory:' } }
+    );
   });
 
   after(async () => {
@@ -241,7 +255,8 @@ describe('SQLite integration', () => {
 
   test('allows additional embedding properties', async () => {
     const configuredDb = await cds.connect.to('extended-vector-db', {
-      kind: 'sqlite:memory',
+      kind: 'sqlite',
+      credentials: { url: ':memory:' },
       embedding: { revision: 'main', extension: { enabled: true } }
     });
 

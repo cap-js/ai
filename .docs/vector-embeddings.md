@@ -7,7 +7,7 @@
 
 ## Database kinds and dependencies
 
-`@cap-js/ai` redirects CAP's standard SQLite implementations instead of adding separate database kinds:
+`@cap-js/ai` redirects CAP's standard `sqlite` implementation instead of adding a separate database kind. With `@sap/cds` `^10.1`, the standard `sqlite:memory` preset inherits that implementation:
 
 - `sqlite` uses a file-based SQLite database.
 - `sqlite:memory` uses an in-memory SQLite database.
