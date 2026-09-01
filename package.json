@@ -83,7 +83,8 @@
             "label": "aicore"
           }
         },
-        "sqlite": {
+        "db": {
+          "kind": "sqlite",
           "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
           "embedding": {
             "model": "sentence-transformers/all-MiniLM-L6-v2"
