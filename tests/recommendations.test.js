@@ -236,7 +236,7 @@ describe('Row-level authorization', () => {
 
 describe('Local vector embeddings', () => {
   test('Bookshop exposes an embedding preview', async (t) => {
-    if (!cds.env.requires.db.embedding?.model) {
+    if (cds.env.requires.db.impl !== '@cap-js/ai/lib/sqlite/AISQLiteService.js') {
       t.skip('local SQLite embedding sample');
       return;
     }
