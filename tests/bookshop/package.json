@@ -21,7 +21,7 @@
     "express": "^5"
   },
   "devDependencies": {
-    "@cap-js/cds-types": "^0.16.0",
+    "@cap-js/cds-types": "^0.19.0",
     "@cap-js/sqlite": ">=2",
     "@huggingface/hub": "^2.15.0",
     "@huggingface/tokenizers": "0.1.3",
