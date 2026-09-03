@@ -75,14 +75,43 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
 
    The model name is ignored on SQLite — the locally configured model is used — and honored on SAP HANA, so the same definition runs unchanged on both.
 
-3. Search books by meaning. Embed a search phrase as a `QUERY` and rank descriptions by cosine similarity:
+3. Expose the search as an OData function that ranks book descriptions by cosine similarity to an embedded search phrase:
+
+   ```cds
+   using { sap.capire.bookshop.Books } from '@capire/bookshop';
+
+   service SearchService {
+     function searchBooks(phrase : String) returns array of {
+       title : String;
+       relevance : Double;
+     };
+   }
+   ```
 
    ```js
-   const phrase = 'seafaring adventures on the high seas'
-   const books = await SELECT.from('sap.capire.bookshop.Books')
-     .columns`title, cosine_similarity(embedding,
-       vector_embedding(${phrase}, 'QUERY', 'SAP_GXY.20250407')) as relevance`
-     .orderBy`relevance desc`
+   const cds = require('@sap/cds')
+
+   module.exports = class SearchService extends cds.ApplicationService { init() {
+     this.on('searchBooks', ({ data: { phrase } }) =>
+       SELECT.from('sap.capire.bookshop.Books')
+         .columns`title, cosine_similarity(embedding,
+           vector_embedding(${phrase}, 'QUERY', 'SAP_GXY.20250407')) as relevance`
+         .orderBy`relevance desc`
+     )
+     return super.init()
+   }}
+   ```
+
+4. Run the app and call the function:
+
+   ```sh
+   cds watch
+   ```
+
+   In another terminal:
+
+   ```sh
+   curl "http://localhost:4004/odata/v4/search/searchBooks(phrase='seafaring%20adventure')"
    ```
 
 On the first start, `@cap-js/ai` warns that the default model is missing, downloads it to `.cds/models`, and initializes it; later starts reuse it. Embeddings are 384-dimensional vectors.
