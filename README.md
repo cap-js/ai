@@ -52,7 +52,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
 > [!WARNING]
 > The SQLite extensions, local vector embeddings, local model management, and the related tooling are experimental facilities for local development. Breaking changes are expected, including changes caused by SQLite's synchronous function interface and by local model management. Use SAP HANA's vector engine for production vector workloads.
 
-Here is a complete Bookshop example.
+`@cap-js/ai` redirects the standard `sqlite` database so that `VECTOR_EMBEDDING` and the vector functions run locally against a real [ONNX](https://onnx.ai) model — no external service, and no code changes versus SAP HANA. This lets you develop and test semantic search on SQLite. The following searches [Bookshop](https://github.com/capire/bookshop)'s books by the meaning of their descriptions.
 
 1. Install the local-development dependencies:
 
@@ -61,55 +61,33 @@ Here is a complete Bookshop example.
      @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
    ```
 
-   Local vector embeddings require `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1`; the package's other capabilities continue to support `@sap/cds` 9.
+   This requires `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1` (the package's other capabilities still support `@sap/cds` 9). No configuration is needed: the standard `sqlite` and `sqlite:memory` databases pick up the local implementation automatically.
 
-2. Use the standard SQLite service. Most CAP projects already do this in development; an explicit configuration looks like this:
+2. Store an embedding of each book's description. Extend `Books` with a calculated element that is computed on write:
 
-   ```json
-   {
-     "cds": {
-       "requires": {
-         "db": {
-           "kind": "sqlite"
-         }
-       }
-     }
+   ```cds
+   using { sap.capire.bookshop.Books } from '@capire/bookshop';
+
+   extend Books with {
+     embedding : Vector = vector_embedding(descr, 'DOCUMENT', 'SAP_GXY.20250407') stored;
    }
    ```
 
-3. Add an embedding preview to the Bookshop service. In its service implementation, which imports `cds` from `@sap/cds`:
+   The model name is ignored on SQLite — the locally configured model is used — and honored on SAP HANA, so the same definition runs unchanged on both.
 
-   ```cds
-   function embedding(text : String) returns LargeString;
-   ```
+3. Search books by meaning. Embed a search phrase as a `QUERY` and rank descriptions by cosine similarity:
 
    ```js
-   this.on('embedding', async (req) => {
-     const [row] = await cds.db.run(
-       `SELECT VECTOR_EMBEDDING(?, 'DOCUMENT', 'local') AS embedding`,
-       [req.data.text]
-     );
-     return row.embedding;
-   });
+   const phrase = 'seafaring adventures on the high seas'
+   const books = await SELECT.from('sap.capire.bookshop.Books')
+     .columns`title, cosine_similarity(embedding,
+       vector_embedding(${phrase}, 'QUERY', 'SAP_GXY.20250407')) as relevance`
+     .orderBy`relevance desc`
    ```
 
-4. Start the application and call the function:
+On the first start, `@cap-js/ai` warns that the default model is missing, downloads it to `.cds/models`, and initializes it; later starts reuse it. Embeddings are 384-dimensional vectors.
 
-   ```sh
-   cds w
-   ```
-
-   In another terminal:
-
-   ```sh
-   curl 'http://localhost:4004/odata/v4/catalog/embedding(text=%27A%20book%20about%20travel%27)'
-   ```
-
-`@cap-js/ai` redirects the standard `sqlite` implementation to add the local capabilities. With `@sap/cds` `^10.1`, the standard `sqlite:memory` preset inherits that implementation. The first start warns that the default model is missing, downloads it to `.cds/models`, and then initializes it. The response's `value` contains a JSON-encoded vector with 384 numbers. Later starts reuse the installed model.
-
-The current default is [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2). It was selected only because, at the time of selection, it was the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license filters below. This is not a recommendation, and the default may change at any time while this feature is experimental. Configure `cds.requires.db.embedding.model` explicitly if the choice must remain stable.
-
-Start model discovery with [trending Apache-2.0 sentence-similarity models that provide ONNX artifacts](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&license=license:apache-2.0&sort=trending). These filters select a relevant task, a locally runnable format, and a permissive license, but they do not guarantee compatibility. Choose a model as big as necessary and as small as possible, then validate it with the provided tooling.
+The current default is [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), chosen only as the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license. This is not a recommendation and may change while the feature is experimental — set `cds.requires.db.embedding.model` to pin it. Browse alternatives among [trending Apache-2.0 sentence-similarity models with ONNX artifacts](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&license=license:apache-2.0&sort=trending), then validate your choice with the provided tooling.
 
 See [Choosing a model](.docs/model-selection.md) and [Local vector embeddings](.docs/vector-embeddings.md) for compatibility checks, explicit or shared provisioning, runtime behavior, and limitations.
 
