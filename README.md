@@ -111,7 +111,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    In another terminal:
 
    ```sh
-   curl "http://localhost:4004/odata/v4/search/searchBooks(phrase='seafaring%20adventure')"
+   curl "http://localhost:4004/odata/v4/search/searchBooks(phrase='a%20haunting%20poem%20about%20lost%20love')"
    ```
 
 On the first start, `@cap-js/ai` warns that the default model is missing, downloads it to `.cds/models`, and initializes it; later starts reuse it. Embeddings are 384-dimensional vectors.
