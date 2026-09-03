@@ -63,19 +63,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
 
    This requires `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1` (the package's other capabilities still support `@sap/cds` 9). No configuration is needed: the standard `sqlite` and `sqlite:memory` databases pick up the local implementation automatically.
 
-2. Store an embedding of each book's description. Extend `Books` with a calculated element that is computed on write:
-
-   ```cds
-   using { sap.capire.bookshop.Books } from '@capire/bookshop';
-
-   extend Books with {
-     embedding : Vector = vector_embedding(descr, 'DOCUMENT', 'SAP_GXY.20250407') stored;
-   }
-   ```
-
-   The model name is ignored on SQLite — the locally configured model is used — and honored on SAP HANA, so the same definition runs unchanged on both.
-
-3. Expose the search as an OData function that ranks book descriptions by cosine similarity to an embedded search phrase:
+2. Expose the search as an OData function. It ranks books by the cosine similarity between an embedded search phrase and each book's embedded description:
 
    ```cds
    using { sap.capire.bookshop.Books } from '@capire/bookshop';
@@ -94,7 +82,8 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    module.exports = class SearchService extends cds.ApplicationService { init() {
      this.on('searchBooks', ({ data: { phrase } }) =>
        SELECT.from('sap.capire.bookshop.Books')
-         .columns`title, cosine_similarity(embedding,
+         .columns`title, cosine_similarity(
+           vector_embedding(descr, 'DOCUMENT', 'SAP_GXY.20250407'),
            vector_embedding(${phrase}, 'QUERY', 'SAP_GXY.20250407')) as relevance`
          .orderBy`relevance desc`
      )
@@ -102,7 +91,9 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    }}
    ```
 
-4. Run the app and call the function:
+   The model name is ignored on SQLite — the locally configured model is used — and honored on SAP HANA, so the same query runs unchanged on both. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
+
+3. Run the app and call the function:
 
    ```sh
    cds watch
@@ -114,7 +105,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    curl "http://localhost:4004/odata/v4/search/searchBooks(phrase='a%20haunting%20poem%20about%20lost%20love')"
    ```
 
-On the first start, `@cap-js/ai` warns that the default model is missing, downloads it to `.cds/models`, and initializes it; later starts reuse it. Embeddings are returned as a JSON-encoded vector.
+On the first start, `@cap-js/ai` warns that the default model is missing, downloads it to `.cds/models`, and initializes it; later starts reuse it. The function returns the books ranked by relevance to the phrase.
 
 The current default is [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), chosen only as the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license. This is not a recommendation and may change while the feature is experimental — set `cds.requires.db.embedding.model` to pin it. Browse alternatives among [trending Apache-2.0 sentence-similarity models with ONNX artifacts](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&license=license:apache-2.0&sort=trending), then validate your choice with the provided tooling.
 
