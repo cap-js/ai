@@ -105,7 +105,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    curl "http://localhost:4004/odata/v4/search/searchBooks(phrase='a%20haunting%20poem%20about%20lost%20love')"
    ```
 
-On the first start, `@cap-js/ai` warns that the default model is missing, downloads it to `.cds/models`, and initializes it; later starts reuse it. The function returns the books ranked by relevance to the phrase.
+On the first start, `@cap-js/ai` warns if the configured model is missing, downloads it to `.cds/models`, and initializes it; later starts reuse it. The function returns the books ranked by relevance to the phrase.
 
 The current default is [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), chosen only as the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license. This is not a recommendation and may change while the feature is experimental — set `cds.requires.db.embedding.model` to pin it. Browse alternatives among [trending Apache-2.0 sentence-similarity models with ONNX artifacts](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&license=license:apache-2.0&sort=trending), then validate your choice with the provided tooling.
 
