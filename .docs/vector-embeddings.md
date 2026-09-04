@@ -132,7 +132,7 @@ Use the HANA-shaped function from CQL or SQL:
 
 ```js
 SELECT.from('Books').columns`
-  VECTOR_EMBEDDING(title, 'DOCUMENT', 'local') as embedding
+  VECTOR_EMBEDDING(title, 'DOCUMENT', 'SAP_GXY.20250407') as embedding
 `;
 ```
 
