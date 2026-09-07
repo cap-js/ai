@@ -56,7 +56,17 @@ export function cleanDbFiles() {
  */
 export function startSidecar() {
   return new Promise((resolve, reject) => {
-    const sidecarEnv = { ...process.env, FORCE_COLOR: '0' };
+    const sidecarEnv = {
+      ...process.env,
+      FORCE_COLOR: '0',
+      // Force sqlite for tenant DBs. The [mtx-sidecar] profile's [production]
+      // preset sets db.kind='hana', and the presence of VCAP_SERVICES (below,
+      // ai-core is kept) activates that profile in CI. cds-mtxs' hana plugin
+      // throws at load ("No Service Manager credentials found") when kind is
+      // 'hana' without an SM binding — so pin the kind, not just the binding.
+      CDS_REQUIRES_DB_KIND: 'sqlite',
+      CDS_REQUIRES_DB_CREDENTIALS_URL: 'db.sqlite'
+    };
     // Strip HANA DB binding — sidecar uses sqlite for local tenant DBs.
     // Keep ai-core binding so the subscribe handler can create resource groups.
     if (sidecarEnv.VCAP_SERVICES) {
