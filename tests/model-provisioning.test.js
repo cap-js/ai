@@ -12,6 +12,8 @@ import {
 import {
   MODEL_LOCK_FILE,
   MODEL_LOCK_VERSION,
+  downloadFile,
+  downloadModelIfNeeded,
   getModelDirectory,
   getModelRoot,
   provisionModel,
@@ -475,7 +477,7 @@ describe('explicit model provisioning', () => {
     assert.equal(first.modelDir, expectedDirectory);
     assert.equal(discoveries, 1);
     assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /Downloading it now; application startup may be delayed/);
+    assert.match(warnings[0], /Downloading it now; startup is blocked until it finishes/);
     assert.match(warnings[0], /repositories you trust/);
     assert.equal(requestedUrls.length, model.files.length);
     assert.deepEqual(await readModelLock(expectedDirectory), model);
@@ -737,6 +739,106 @@ describe('explicit model provisioning', () => {
       runModelCommand(['check-model', 'example/model', '--directory', './models']),
       /Unknown option '--directory'/
     );
+  });
+});
+
+describe('download progress and timeouts', () => {
+  test('aborts a stalled download after the idle timeout', async () => {
+    const directory = await createTemporaryDirectory();
+    const outputPath = path.join(directory, 'model.onnx');
+    // A body that never emits and only errors when the download aborts, so the idle
+    // timer is the sole thing that can end the read.
+    const fetchImpl = async (url, { signal }) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            signal.addEventListener('abort', () =>
+              controller.error(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+            );
+          }
+        })
+      );
+
+    await assert.rejects(
+      downloadFile(
+        'https://hub.test/example/model/resolve/rev/onnx/model.onnx',
+        outputPath,
+        { name: 'model.onnx', size: 10, sha256: '0'.repeat(64) },
+        { fetchImpl, idleTimeoutMs: 20 }
+      ),
+      /Stalled while downloading .* no data received for 0s/
+    );
+  });
+
+  test('enforces the absolute per-file ceiling even while data trickles in', async () => {
+    const directory = await createTemporaryDirectory();
+    const outputPath = path.join(directory, 'model.onnx');
+    // Drip one byte forever: the idle timer keeps resetting, so only the absolute
+    // ceiling can stop it.
+    const fetchImpl = async (url, { signal }) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            const timer = setInterval(() => controller.enqueue(new Uint8Array([0])), 5);
+            signal.addEventListener('abort', () => {
+              clearInterval(timer);
+              controller.error(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+            });
+          }
+        })
+      );
+
+    await assert.rejects(
+      downloadFile(
+        'https://hub.test/example/model/resolve/rev/onnx/model.onnx',
+        outputPath,
+        { name: 'model.onnx', size: 1_000_000, sha256: '0'.repeat(64) },
+        { fetchImpl, idleTimeoutMs: 10_000, downloadTimeoutMs: 60 }
+      ),
+      /Timed out after 60 ms while downloading/
+    );
+  });
+
+  test('reports plan, per-file, and completion progress events', async () => {
+    const content = Buffer.from('progress fixture content');
+    const model = fixtureModel(content);
+    const directory = await createTemporaryDirectory();
+    const modelDir = getModelDirectory(directory, model.repository);
+    const events = [];
+
+    await provisionModel(model, {
+      directory: modelDir,
+      fetchImpl: createFetch(content),
+      validate: async () => {},
+      onProgress: (event) => events.push(event)
+    });
+
+    const phases = events.map((event) => event.phase);
+    assert.equal(phases[0], 'plan');
+    assert.equal(events[0].pendingFiles, model.files.length);
+    assert.equal(events[0].totalBytes, content.length * model.files.length);
+    assert.ok(phases.includes('progress'));
+    assert.equal(phases.filter((phase) => phase === 'file:done').length, model.files.length);
+    assert.equal(phases.at(-1), 'done');
+    assert.equal(events.at(-1).totalBytes, content.length * model.files.length);
+  });
+
+  test('reports files that are already present as skipped', async () => {
+    const content = Buffer.from('skip fixture content');
+    const model = fixtureModel(content);
+    const directory = await createTemporaryDirectory();
+    const events = [];
+
+    await downloadModelIfNeeded(directory, model, { fetchImpl: createFetch(content) });
+    await downloadModelIfNeeded(directory, model, {
+      fetchImpl: createFetch(content),
+      onProgress: (event) => events.push(event)
+    });
+
+    const plan = events.find((event) => event.phase === 'plan');
+    assert.equal(plan.pendingFiles, 0);
+    assert.equal(plan.skippedFiles, model.files.length);
+    assert.equal(events.filter((event) => event.phase === 'file:skip').length, model.files.length);
   });
 });
 

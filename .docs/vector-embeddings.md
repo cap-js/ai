@@ -60,7 +60,7 @@ The current default model is `sentence-transformers/all-MiniLM-L6-v2`. It was se
 
 The built-in runtime reads `model` and the optional `directory`; additional properties are allowed for extensions.
 
-Without `directory`, the configured or default model is stored below `<cds.root>/.cds/models/<owner>/<model>`. If a valid installation is absent, startup prints a warning, downloads the model, generates `embedding.lock.json`, and reuses it on later starts.
+Without `directory`, the configured or default model is stored below `<cds.root>/.cds/models/<owner>/<model>`. If a valid installation is absent, startup prints a warning, downloads the model while logging progress (percentage, downloaded/total, and an ETA), generates `embedding.lock.json`, and reuses it on later starts. Startup is blocked until the download finishes. A download aborts only after it stalls (no data received for a while) rather than on a fixed deadline, so large models on slow links still complete; if it cannot finish, startup fails with guidance to provision the model ahead of time. For large models, prefer [explicit provisioning](#explicit-provisioning) so the download does not block startup.
 
 Use `sqlite:memory` when the application data itself need not survive a restart:
 
