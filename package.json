@@ -2,23 +2,16 @@
   "name": "@cap-js/ai",
   "version": "1.2.0",
   "description": "CAP cds-plugin for AI capabilities",
-  "repository": "cap-js/ai",
-  "type": "module",
+  "homepage": "https://cap.cloud.sap/",
   "license": "Apache-2.0",
   "author": "SAP SE (https://www.sap.com)",
-  "homepage": "https://cap.cloud.sap/",
-  "main": "cds-plugin.js",
+  "repository": "cap-js/ai",
   "bin": {
     "cds-ai": "bin/cds-ai.js"
   },
-  "scripts": {
-    "lint": "npx -y eslint@10 .",
-    "test:model:provision": "node tests/provision-model.js",
-    "test": "npm run test:model:provision && node --test tests/*.test.js",
-    "test:hybrid": "npm run test:model:provision && cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
-    "format": "npx -y prettier@3 . --write && format-cds -f",
-    "format:check": "npx -y prettier@3 --check . && format-cds --check"
-  },
+  "workspaces": [
+    "tests/*"
+  ],
   "files": [
     ".docs",
     "CHANGELOG.md",
@@ -26,6 +19,16 @@
     "lib",
     "srv"
   ],
+  "type": "module",
+  "main": "cds-plugin.js",
+  "scripts": {
+    "lint": "npx -y eslint@10 .",
+    "test:model:provision": "node tests/provision-model.js",
+    "test": "npm run test:model:provision && node --test tests/*.test.js",
+    "test:hybrid": "npm run test:model:provision && cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
+    "format": "npx -y oxfmt@0.70.0 && format-cds -f",
+    "format:check": "npx -y oxfmt@0.70.0 --check && format-cds --check"
+  },
   "devDependencies": {
     "@cap-js/cds-test": "^1",
     "@cap-js/cds-types": "^0.19.0",
@@ -91,8 +94,5 @@
         }
       }
     }
-  },
-  "workspaces": [
-    "tests/*"
-  ]
+  }
 }

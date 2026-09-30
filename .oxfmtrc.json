@@ -1,0 +1,28 @@
+{
+  "useTabs": false,
+  "tabWidth": 2,
+  "printWidth": 100,
+  "trailingComma": "none",
+  "singleQuote": true,
+  "ignorePatterns": [
+    ".idea/**",
+    ".vscode/**",
+    "node_modules/**",
+    ".gitignore",
+    ".xmake.cfg",
+    "Jenkinsfile",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "renovate.json",
+    "ui5.yaml",
+    "ui5-local.yaml",
+    "ui5-mock.yaml",
+    "*.yaml",
+    "*.yml",
+    "Makefile*.mta",
+    "mta_archives",
+    "mta-*",
+    "_assets/**"
+  ]
+}
