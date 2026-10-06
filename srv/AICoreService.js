@@ -17,6 +17,7 @@ import {
   rpt1ForResourceGroup
 } from './ai-core/deployments.js';
 import { createConfiguration, readConfigurations } from './ai-core/configurations.js';
+import { token } from './compat.js'; // cds11: replace with `const { token } = cds.utils`
 
 const LOG = cds.log('@cap-js/ai');
 
@@ -114,32 +115,8 @@ export default class AICore extends cds.ApplicationService {
   resourceRPTMappings = new Map();
   resourceOrchestrationMappings = new Map();
 
-  /**
-   * Because AI Core is not tenant specific, the token is cached in this.token. Based on this.expiration_date
-   * the function will return the existing token or generate a new one for AI Core.
-   * @returns OAuth Token
-   */
   async _getToken() {
-    if (this.token && this.expiration_date.toISOString() > new Date().toISOString()) {
-      return this.token;
-    }
-    const aiCore = cds.env.requires['AICore'];
-    const response = await fetch(`${aiCore.credentials.url}/oauth/token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: new URLSearchParams({
-        client_id: aiCore.credentials.clientid,
-        client_secret: aiCore.credentials.clientsecret,
-        grant_type: 'client_credentials'
-      })
-    });
-    const data = await response.json();
-    this.expiration_date = new Date();
-    this.expiration_date.setSeconds(this.expiration_date.getSeconds() + data.expires_in);
-    this.token = data.access_token;
-    return data.access_token;
+    return token(cds.env.requires.AICore.credentials, { path: '/oauth/token' });
   }
 
   async _fetchPrediction(req) {
