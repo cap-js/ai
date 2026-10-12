@@ -4,6 +4,12 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Version 1.2.1 - 2026-10-12
+
+### Fixed
+
+- Relax `onnxruntime-node` peer dependency from an exact `1.20.1` pin to `^1.20.1`, allowing any compatible 1.x release. The synchronous SQLite integration now handles the native binding API changes introduced in 1.21.0 (`initOrt` initialization requirement, `inputMetadata`/`outputMetadata` replacing `inputNames`/`outputNames`).
+
 ## Version 1.2.0 - 2026-09-07
 
 ### Added
