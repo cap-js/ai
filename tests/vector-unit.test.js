@@ -54,7 +54,7 @@ test('explains how to install the optional SQLite peer dependency', () => {
   );
 });
 
-test('explains how to install the pinned ONNX Runtime peer dependency', () => {
+test('explains how to install the ONNX Runtime peer dependency', () => {
   const missing = Object.assign(new Error("Cannot find module 'onnxruntime-node/package.json'"), {
     code: 'MODULE_NOT_FOUND'
   });
@@ -64,7 +64,7 @@ test('explains how to install the pinned ONNX Runtime peer dependency', () => {
       loadOnnxRuntime(() => {
         throw missing;
       }),
-    /npm add -D onnxruntime-node@1\.20\.1/
+    /npm add -D onnxruntime-node@\^1\.20\.1/
   );
 });
 
