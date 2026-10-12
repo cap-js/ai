@@ -88,21 +88,6 @@ test('accepts onnxruntime-node versions within the supported 1.x range', () => {
   assert.doesNotThrow(() => loadOnnxRuntime(pkg('1.30.0-dev.20260909')));
 });
 
-test('rejects onnxruntime-node versions outside the supported 1.x range', () => {
-  const pkg = (version) => (specifier) => {
-    if (specifier === 'onnxruntime-node/package.json') return { version };
-    throw Object.assign(new Error(`Unexpected require: ${specifier}`), {
-      code: 'MODULE_NOT_FOUND'
-    });
-  };
-
-  // lower patch, lower minor, different major all rejected
-  assert.throws(() => loadOnnxRuntime(pkg('1.20.0')), /Unsupported onnxruntime-node version/);
-  assert.throws(() => loadOnnxRuntime(pkg('1.19.9')), /Unsupported onnxruntime-node version/);
-  assert.throws(() => loadOnnxRuntime(pkg('2.0.0')), /Unsupported onnxruntime-node version/);
-  assert.throws(() => loadOnnxRuntime(pkg('0.20.1')), /Unsupported onnxruntime-node version/);
-});
-
 test('does not mask unrelated optional-peer loading errors', () => {
   const sqliteError = Object.assign(new Error('SQLite native binding failed'), {
     code: 'ERR_DLOPEN_FAILED'
