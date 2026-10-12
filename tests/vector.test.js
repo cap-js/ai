@@ -204,6 +204,11 @@ describe('text-type prompts via configured prompts', () => {
 describe('SQLite integration', () => {
   let db;
 
+  test('opts into CAP embedding defaults', () => {
+    const { embeddings } = cds.env.requires;
+    assert.ok(embeddings === true || typeof embeddings?.model === 'string');
+  });
+
   test('uses the default embedding model', () => {
     assert.strictEqual(DEFAULT_EMBEDDING_MODEL, MINILM_MODEL);
     const kind = cds.env.requires.kinds.sqlite;

@@ -4,6 +4,12 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Next
+
+### Added
+
+- Opt into CAP's vector embedding defaults while keeping the HANA model configuration separate from the local SQLite embedding model.
+
 ## Version 1.2.0 - 2026-09-07
 
 ### Added

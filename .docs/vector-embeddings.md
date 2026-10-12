@@ -136,6 +136,10 @@ SELECT.from('Books').columns`
 `;
 ```
 
+`@cap-js/ai` opts into CAP's embedding defaults. With `@sap/cds` and `@cap-js/db-service` versions that support these defaults, CQN queries can omit the configured `cds.requires.embeddings.model`. A one-argument call additionally defaults the text type to `QUERY`; keep `DOCUMENT` explicit for document-side expressions. Older supported CAP versions and plain SQL calls must provide all required arguments.
+
+The HANA model setting is independent of the local model configured through `cds.requires.db.embedding.model`. SQLite uses the local Hugging Face model and ignores the HANA model argument.
+
 The service accepts both the three-argument form and a four-argument form with `remote_source`:
 
 ```sql
