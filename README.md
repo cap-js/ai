@@ -91,7 +91,9 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    }}
    ```
 
-   The model name is ignored on SQLite — the locally configured model is used — and honored on SAP HANA, so the same query runs unchanged on both. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
+   `@cap-js/ai` opts into CAP's embedding defaults. With `@sap/cds` and `@cap-js/db-service` versions that support these defaults, CQN queries can omit the model argument; one-argument calls default to the `QUERY` text type, while document expressions must keep `DOCUMENT` explicit. Older supported CAP versions must continue to provide all three arguments as shown above.
+
+   The HANA model is configured independently through `cds.requires.embeddings.model`; SQLite ignores that model name and uses its locally configured Hugging Face model. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
 
 3. Run the app and call the function:
 
