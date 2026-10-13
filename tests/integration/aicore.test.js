@@ -51,7 +51,7 @@ describe('AICore Service - cds.ql integration', { concurrency: false }, () => {
 
   describe('resourceGroups', { concurrency: false }, () => {
     let insertedResourceGroupId;
-    const testTenantId = `test-aicore-${Date.now()}`;
+    const testTenantId = `test-aicore-${process.env.CAP_AI_TEST_ID ?? Date.now()}`;
 
     test('INSERT creates a new resource group', async () => {
       const rgId = cds.utils.uuid();

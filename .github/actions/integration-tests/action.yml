@@ -83,34 +83,51 @@ runs:
       shell: bash
       run: npm install
 
-    - name: Set node env for HANA
-      run: echo "NODE_VERSION_HANA=$(echo ${{ inputs.NODE_VERSION }} | tr . _)" >> $GITHUB_ENV
+    - name: Derive HANA test identifiers
       shell: bash
-    - name: Set env for CDS version (safe for service names)
-      run: echo "CDS_VERSION_HANA=$(echo ${{ inputs.CDS_VERSION }} | tr . _)" >> $GITHUB_ENV
-      shell: bash
+      env:
+        NODE_VERSION: ${{ inputs.NODE_VERSION }}
+        CDS_VERSION: ${{ inputs.CDS_VERSION }}
+      run: |
+        node_version_hana=$(printf '%s' "$NODE_VERSION" | tr '.' '_')
+        cds_version_hana=$(printf '%s' "$CDS_VERSION" | tr '.' '_')
+        test_id="${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${node_version_hana}-${cds_version_hana}"
+        hdi_service_name="cap-js-ai-hana-${GITHUB_RUN_ID}-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}-${node_version_hana}-${cds_version_hana}"
+        {
+          printf 'NODE_VERSION_HANA=%s\n' "$node_version_hana"
+          printf 'CDS_VERSION_HANA=%s\n' "$cds_version_hana"
+          printf 'CAP_AI_TEST_ID=%s\n' "$test_id"
+          printf 'CAP_AI_HDI_SERVICE_NAME=%s\n' "$hdi_service_name"
+        } >> "$GITHUB_ENV"
     - name: CDS Versions being used
       run: cds v -i
       shell: bash
 
     # Deploy model to HANA
-    - name: Create HDI Container
+    - name: Create HDI container
       shell: bash
-      run: cf create-service hana hdi-shared cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
-    - run: cd tests/bookshop/ && cds deploy --to hana:cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
+      run: cf create-service hana hdi-shared "$CAP_AI_HDI_SERVICE_NAME"
+    - name: Deploy bookshop model to HDI
+      run: cd tests/bookshop/ && cds deploy --to hana:"$CAP_AI_HDI_SERVICE_NAME"
       shell: bash
 
     # Bind against BTP services
-    - name: Bind HANA
-      run: cds bind db -2 cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA -o package.json
+    - name: Bind HDI container
+      run: cds bind db -2 "$CAP_AI_HDI_SERVICE_NAME" -o package.json
       shell: bash
     - name: Bind AI Core
       run: cds bind ai-core -2 cap-js-ai-core -o package.json
       shell: bash
 
     # Run tests in hybrid mode
-    - run: npm run test:hybrid
+    - name: Run hybrid integration tests
+      run: npm run test:hybrid
       shell: bash
+
+    - name: Report failed HDI service state
+      if: ${{ failure() }}
+      shell: bash
+      run: cf service "$CAP_AI_HDI_SERVICE_NAME" || true
 
     # Cleanup AI Core test resource groups
     - name: Cleanup AI Core test resource groups
@@ -121,7 +138,7 @@ runs:
     # Cleanup BTP services
     - name: Delete HDI Container Key
       if: ${{ always() }}
-      run: cf delete-service-key cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA-key -f
+      run: cf delete-service-key "$CAP_AI_HDI_SERVICE_NAME" "$CAP_AI_HDI_SERVICE_NAME-key" -f
       shell: bash
 
     # Note: The initial delete attempt often fails due to an "ongoing operation on service binding" error.
@@ -130,7 +147,7 @@ runs:
       shell: bash
       run: |
         for i in {1..3}; do
-          cf delete-service cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA -f && break
+          cf delete-service "$CAP_AI_HDI_SERVICE_NAME" -f && break
           echo "HDI container delete failed, retrying ($i/3)..."
           sleep 10
           if [ "$i" -eq 3 ]; then

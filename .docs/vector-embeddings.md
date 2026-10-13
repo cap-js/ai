@@ -19,11 +19,12 @@ This applies to every SQLite service in an application that installs `@cap-js/ai
 Install the local development dependencies:
 
 ```sh
-npm add -D @cap-js/sqlite @huggingface/hub \
+npm add -D @cap-js/sqlite@^3.1.0 @huggingface/hub \
   @huggingface/tokenizers onnxruntime-node
 ```
 
-`@huggingface/hub` is needed for model discovery and provisioning. `@huggingface/tokenizers` (any `^0.2.0`) and `onnxruntime-node` are needed for inference.
+`@huggingface/hub` is needed for model discovery and provisioning. 
+`@huggingface/tokenizers` and `onnxruntime-node` are needed for inference.
 
 ## Configuration
 
