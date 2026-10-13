@@ -20,10 +20,10 @@ Install the optional peers as development dependencies:
 
 ```sh
 npm add -D @cap-js/sqlite@^3.1 @huggingface/hub@^2.15.0 \
-  @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
+  @huggingface/tokenizers@^0.2.0 onnxruntime-node@^1.20.1
 ```
 
-`@huggingface/hub` is needed for model discovery and provisioning. `@huggingface/tokenizers` and `onnxruntime-node` are needed for inference. The exact ONNX Runtime version is currently required because synchronous SQLite functions use a version-specific native runtime interface.
+`@huggingface/hub` is needed for model discovery and provisioning. `@huggingface/tokenizers` (any `^0.2.0`) and `onnxruntime-node` are needed for inference.
 
 ## Configuration
 
