@@ -58,7 +58,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
 
    ```sh
    npm add -D @cap-js/ai @cap-js/sqlite@^3.1 @huggingface/hub@^2.15.0 \
-     @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
+     @huggingface/tokenizers@^0.2.0 onnxruntime-node@1.20.1
    ```
 
    This requires `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1` (the package's other capabilities still support `@sap/cds` 9). No configuration is needed: the standard `sqlite` and `sqlite:memory` databases pick up the local implementation automatically.

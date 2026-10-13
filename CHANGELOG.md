@@ -4,6 +4,12 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Version 1.2.1 - 2026-10-13
+
+### Fixed
+
+- Relax `@huggingface/tokenizers` peer dependency from an exact `0.1.3` pin to `^0.2.0`. The `Tokenizer` constructor, `encode` signature, and return shape are identical across `0.1.3` and `0.2.0`.
+
 ## Version 1.2.0 - 2026-09-07
 
 ### Added
