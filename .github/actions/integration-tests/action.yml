@@ -97,7 +97,8 @@ runs:
     - name: Create HDI Container
       shell: bash
       run: cf create-service hana hdi-shared cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
-    - run: cd tests/bookshop/ && cds deploy --to hana:cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
+    - name: Deploy bookshop model to HDI
+      run: cd tests/bookshop/ && cds deploy --to hana:cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
       shell: bash
 
     # Bind against BTP services
@@ -109,8 +110,14 @@ runs:
       shell: bash
 
     # Run tests in hybrid mode
-    - run: npm run test:hybrid
+    - name: Run hybrid integration tests
+      run: npm run test:hybrid
       shell: bash
+
+    - name: Report failed HDI service state
+      if: ${{ failure() }}
+      shell: bash
+      run: cf service cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA || true
 
     # Cleanup AI Core test resource groups
     - name: Cleanup AI Core test resource groups

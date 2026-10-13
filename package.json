@@ -36,29 +36,7 @@
     "oxigraph": "^0.5.9"
   },
   "peerDependencies": {
-    "@cap-js/sqlite": ">=2",
-    "@huggingface/hub": "^2.15.0",
-    "@huggingface/tokenizers": "^0.2.0",
-    "@sap/cds": ">=9",
-    "onnxruntime-node": "^1.20.1",
-    "oxigraph": "^0.5.9"
-  },
-  "peerDependenciesMeta": {
-    "@cap-js/sqlite": {
-      "optional": true
-    },
-    "@huggingface/hub": {
-      "optional": true
-    },
-    "@huggingface/tokenizers": {
-      "optional": true
-    },
-    "onnxruntime-node": {
-      "optional": true
-    },
-    "oxigraph": {
-      "optional": true
-    }
+    "@sap/cds": ">=9"
   },
   "engines": {
     "node": ">=20.0.0"
