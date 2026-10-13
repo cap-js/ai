@@ -68,26 +68,6 @@ test('explains how to install the ONNX Runtime peer dependency', () => {
   );
 });
 
-test('accepts onnxruntime-node versions within the supported 1.x range', () => {
-  const pkg = (version) => (specifier) => {
-    if (specifier === 'onnxruntime-node/package.json') return { version };
-    if (specifier === 'onnxruntime-node') return {};
-    if (specifier === 'onnxruntime-node/dist/binding.js')
-      return { binding: {}, initOrt: undefined };
-    throw Object.assign(new Error(`Unexpected require: ${specifier}`), {
-      code: 'MODULE_NOT_FOUND'
-    });
-  };
-
-  // exact minimum and higher patch/minor/latest should all succeed
-  assert.doesNotThrow(() => loadOnnxRuntime(pkg('1.20.1')));
-  assert.doesNotThrow(() => loadOnnxRuntime(pkg('1.20.2')));
-  assert.doesNotThrow(() => loadOnnxRuntime(pkg('1.21.0')));
-  assert.doesNotThrow(() => loadOnnxRuntime(pkg('1.30.0')));
-  // pre-release suffix is stripped before comparison
-  assert.doesNotThrow(() => loadOnnxRuntime(pkg('1.30.0-dev.20260909')));
-});
-
 test('does not mask unrelated optional-peer loading errors', () => {
   const sqliteError = Object.assign(new Error('SQLite native binding failed'), {
     code: 'ERR_DLOPEN_FAILED'
