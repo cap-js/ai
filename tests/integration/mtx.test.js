@@ -13,7 +13,7 @@ import {
 } from './mtx-setup.js';
 
 let sidecar;
-const testTenantId = `mtx-test-${process.env.CAP_AI_TEST_ID ?? Date.now()}`;
+const testTenantId = `mtx-test-${Date.now()}`;
 
 before(async () => {
   ensureSidecarPlugin();

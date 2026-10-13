@@ -2,27 +2,21 @@ const cds = require('@sap/cds');
 
 async function main() {
   const aiCore = await cds.connect.to('AICore');
+  const groups = await aiCore.run(SELECT.from('AICore.resourceGroups'));
   let deletedGroups = 0;
-  const testId = process.env.CAP_AI_TEST_ID;
-  if (testId) {
-    const testTenantIds = new Set([`test-aicore-${testId}`, `mtx-test-${testId}`]);
-    const groups = await aiCore.run(SELECT.from('AICore.resourceGroups'));
-    for (const g of groups) {
-      const belongsToThisRun = g.labels?.some(
-        (label) => label.key === 'ext.ai.sap.com/CDS_TENANT_ID' && testTenantIds.has(label.value)
+  for (const g of groups) {
+    const tenantLabel = g.labels?.find((l) => l.key === 'ext.ai.sap.com/CDS_TENANT_ID');
+    if (!tenantLabel) continue;
+    const isTestGroup = tenantLabel.value.startsWith('test-aicore-');
+    if (!isTestGroup) continue;
+    try {
+      await aiCore.run(
+        DELETE.from('AICore.resourceGroups').where({ resourceGroupId: g.resourceGroupId })
       );
-      if (!belongsToThisRun) continue;
-      try {
-        await aiCore.run(
-          DELETE.from('AICore.resourceGroups').where({ resourceGroupId: g.resourceGroupId })
-        );
-        deletedGroups++;
-      } catch {
-        /* best-effort */
-      }
+      deletedGroups++;
+    } catch {
+      /* best-effort */
     }
-  } else {
-    console.log('Skipped test resource group cleanup without CAP_AI_TEST_ID');
   }
   console.log('Cleaned up ' + deletedGroups + ' test resource groups');
 
