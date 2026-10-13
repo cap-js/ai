@@ -8,6 +8,7 @@
 
 ### Fixed
 
+- Relax `onnxruntime-node` peer dependency from an exact `1.20.1` pin to `^1.20.1`, allowing any compatible 1.x release. The synchronous SQLite integration now handles the native binding API changes introduced in 1.21.0 (`initOrt` initialization requirement, `inputMetadata`/`outputMetadata` replacing `inputNames`/`outputNames`).
 - Relax `@huggingface/tokenizers` peer dependency from an exact `0.1.3` pin to `^0.2.0`. The `Tokenizer` constructor, `encode` signature, and return shape are identical across `0.1.3` and `0.2.0`.
 
 ## Version 1.2.0 - 2026-09-07
