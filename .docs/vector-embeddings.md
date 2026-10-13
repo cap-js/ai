@@ -23,7 +23,7 @@ npm add -D @cap-js/sqlite@^3.1 @huggingface/hub@^2.15.0 \
   @huggingface/tokenizers@^0.2.0 onnxruntime-node@^1.20.1
 ```
 
-`@huggingface/hub` is needed for model discovery and provisioning. `@huggingface/tokenizers` (any `^0.2.0`) and `onnxruntime-node` are needed for inference. Any `1.x` release `>=1.20.1` is supported; the synchronous SQLite integration uses the runtime's private native binding, which is stable within the 1.x line.
+`@huggingface/hub` is needed for model discovery and provisioning. `@huggingface/tokenizers` (any `^0.2.0`) and `onnxruntime-node` (any `^1.20.1`) are needed for inference. The synchronous SQLite integration uses the runtime's private native binding, which is stable within the 1.x line.
 
 ## Configuration
 
