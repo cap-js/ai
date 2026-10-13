@@ -23,7 +23,7 @@ npm add -D @cap-js/sqlite@^3.1.0 @huggingface/hub \
   @huggingface/tokenizers onnxruntime-node
 ```
 
-`@huggingface/hub` is needed for model discovery and provisioning. 
+`@huggingface/hub` is needed for model discovery and provisioning.
 `@huggingface/tokenizers` and `onnxruntime-node` are needed for inference.
 
 ## Configuration
