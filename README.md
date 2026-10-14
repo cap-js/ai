@@ -91,7 +91,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    }}
    ```
 
-   `@cap-js/ai` opts into CAP's embedding defaults. With `@sap/cds` and `@cap-js/db-service` versions that support these defaults, CQN queries can omit the model argument; one-argument calls default to the `QUERY` text type, while document expressions must keep `DOCUMENT` explicit. Older supported CAP versions must continue to provide all three arguments as shown above.
+   `@cap-js/ai` opts into CAP's embedding defaults. With `@sap/cds` and `@cap-js/db-service` versions that support these defaults, CQN queries can omit the model argument; one-argument calls default to the `QUERY` text type, while document expressions must keep `DOCUMENT` explicit. A stored vector element can select a named HANA embedding configuration with `@cds.embeddings.model`; see [Local vector embeddings](.docs/vector-embeddings.md) for that setup. Older supported CAP versions must continue to provide all three arguments as shown above.
 
    The HANA model is configured independently through `cds.requires.embeddings.model`; SQLite ignores that model name and uses its locally configured Hugging Face model. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
 

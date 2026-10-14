@@ -245,13 +245,15 @@ describe('SQLite integration', () => {
     await db?.disconnect();
   });
 
-  test('registers VECTOR_EMBEDDING for three and four arguments', async () => {
+  test('keeps the local model for HANA model and remote-source arguments', async () => {
     const [row] = await db.run(`SELECT
-      VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS local,
+      VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407') AS defaultModel,
+      VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'a-secondary-hana-model') AS selectedModel,
       VECTOR_EMBEDDING('Hello world', 'DOCUMENT', 'SAP_GXY.20250407', 'remote') AS remote`);
 
-    assert.strictEqual(JSON.parse(row.local).length, 384);
-    assert.strictEqual(row.remote, row.local);
+    assert.strictEqual(JSON.parse(row.defaultModel).length, 384);
+    assert.strictEqual(row.selectedModel, row.defaultModel);
+    assert.strictEqual(row.remote, row.defaultModel);
   });
 
   test('preserves SQL null semantics', async () => {
