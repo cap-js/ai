@@ -136,9 +136,9 @@ SELECT.from('Books').columns`
 `;
 ```
 
-`@cap-js/ai` opts into CAP's embedding defaults. With `@sap/cds` and `@cap-js/db-service` versions that support these defaults, CQN queries can omit the configured `cds.requires.embeddings.model`. A one-argument call additionally defaults the text type to `QUERY`; keep `DOCUMENT` explicit for document-side expressions. Older supported CAP versions and plain SQL calls must provide all required arguments.
+`@cap-js/ai` opts into SQLite CQN defaults provided by `@cap-js/db-service`. In a SQLite CQN query, the configured `cds.requires.embeddings.model` can be omitted; a one-argument call additionally defaults the text type to `QUERY`. Keep `DOCUMENT` explicit for document-side expressions. This does not change HANA runtime CQN or plain SQL calls: provide their arguments explicitly unless the selected HANA adapter transforms them separately.
 
-For a stored vector element, `@cds.embeddings.model` selects a named `cds.requires` configuration of kind `embeddings`; its value is the configuration name, not a technical model name. CDS resolves that configuration's HANA model while compiling the element's `vector_embedding` expression. Without the annotation, it uses the global `cds.requires.embeddings` configuration:
+For a stored vector element, `@cds.embeddings.model` selects a named `cds.requires` configuration of kind `embeddings`; its value is the configuration name, not a technical model name. CDS resolves that configuration's HANA model and fills a missing `DOCUMENT` text type while compiling the element's `vector_embedding` expression. Without the annotation, it uses the global `cds.requires.embeddings` configuration:
 
 ```json
 {
