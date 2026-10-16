@@ -26,8 +26,8 @@
     "test:model:provision": "node tests/provision-model.js",
     "test": "npm run test:model:provision && node --test tests/*.test.js",
     "test:hybrid": "npm run test:model:provision && cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
-    "format": "npx -y oxfmt@0.70.0",
-    "format:check": "npx -y oxfmt@0.70.0 --check"
+    "format": "npx -y oxfmt@0.70.0 && format-cds -f",
+    "format:check": "npx -y oxfmt@0.70.0 --check && format-cds --check"
   },
   "devDependencies": {
     "@cap-js/cds-test": "^1",
