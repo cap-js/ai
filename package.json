@@ -26,8 +26,8 @@
     "test:model:provision": "node tests/provision-model.js",
     "test": "npm run test:model:provision && node --test tests/*.test.js",
     "test:hybrid": "npm run test:model:provision && cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
-    "format": "npx -y oxfmt@0.70.0 && format-cds -f",
-    "format:check": "npx -y oxfmt@0.70.0 --check && format-cds --check"
+    "format": "oxfmt && format-cds -f",
+    "format:check": "oxfmt --check && format-cds --check"
   },
   "devDependencies": {
     "@cap-js/cds-test": "^1",
@@ -36,6 +36,7 @@
     "@huggingface/hub": "^2.15.0",
     "@huggingface/tokenizers": "^0.2.0",
     "onnxruntime-node": "^1.20.1",
+    "oxfmt": ">=0.70.0",
     "oxigraph": "^0.5.9"
   },
   "peerDependencies": {
