@@ -4,6 +4,12 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- **Experimental:** Report model-download progress and replace the fixed per-file timeout with a stall-based one. `install-model` shows a live percentage/rate/ETA line (plain milestone lines when output is piped), and ad-hoc provisioning at startup logs throttled progress. Downloads now abort only after stalling (no data received for a while) plus a generous absolute ceiling, so large models on slow links finish; a stalled startup download fails with guidance to pre-provision via `install-model`.
+
 ## Version 1.2.1 - 2026-10-13
 
 ### Fixed
