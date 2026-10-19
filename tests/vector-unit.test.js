@@ -305,8 +305,8 @@ describe('model compatibility', () => {
 
 describe('model directories', () => {
   test('uses a home default and searches the project cache first', () => {
-    const project = path.join(path.sep, 'project');
-    const home = path.join(path.sep, 'home', 'user');
+    const project = path.resolve(path.sep, 'project');
+    const home = path.resolve(path.sep, 'home', 'user');
     const root = getModelRoot(undefined, project, home);
 
     assert.equal(root, path.join(home, '.cds', 'models'));
@@ -320,13 +320,13 @@ describe('model directories', () => {
   });
 
   test('resolves relative, absolute, and home-relative roots', () => {
-    const project = path.join(path.sep, 'project');
-    const home = path.join(path.sep, 'home', 'user');
+    const project = path.resolve(path.sep, 'project');
+    const home = path.resolve(path.sep, 'home', 'user');
 
     assert.equal(getModelRoot('./models', project, home), path.join(project, 'models'));
     assert.equal(
-      getModelRoot(path.join(path.sep, 'shared', 'models'), project, home),
-      path.join(path.sep, 'shared', 'models')
+      getModelRoot(path.resolve(path.sep, 'shared', 'models'), project, home),
+      path.resolve(path.sep, 'shared', 'models')
     );
     assert.equal(getModelRoot('~/.cds/models', project, home), path.join(home, '.cds', 'models'));
     assert.equal(getModelRoot('~', project, home), home);
