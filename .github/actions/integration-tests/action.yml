@@ -78,8 +78,6 @@ runs:
         npm pkg set "overrides.@sap/cds-mtxs=^3"
         npm pkg set "devDependencies.@sap/cds=^9"
         npm pkg set --workspace=tests/bookshop "dependencies.@sap/cds=^9"
-        # Lock pins the CDS-latest stack; let this leg re-resolve against the ^9 downgrade.
-        rm -f package-lock.json
 
     - name: Install all dependencies
       shell: bash
