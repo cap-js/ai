@@ -53,6 +53,25 @@ jobs:
       - run: cd tests/bookshop && cds v -i
       - run: npm run test
 
+  model-cache:
+    name: Model cache on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: requires-approval
+    if: always() && (needs.requires-approval.result == 'success' || needs.requires-approval.result == 'skipped')
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: 24.x
+      - run: node --test --test-name-pattern="default model caches|model directories|home cache|home model cache|home by default|concurrent ad-hoc" tests/model-provisioning.test.js tests/vector-unit.test.js
+
   integration-tests:
     name: Integration Tests with Node.js ${{ matrix.node-version }} (CDS ${{ matrix.cds-version }})
     runs-on: ubuntu-latest

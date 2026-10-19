@@ -34,7 +34,7 @@ describe('runtime model configuration', () => {
     const content = Buffer.from('default configuration fixture');
     const model = fixtureModel(content, DEFAULT_EMBEDDING_MODEL);
     const root = await createTemporaryDirectory();
-    const modelDir = getModelDirectory(getModelRoot(undefined, root), model.repository);
+    const modelDir = getModelDirectory(getModelRoot('.cds/models', root), model.repository);
     await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
 
     const resolved = await resolveEmbeddingModel(undefined, { root });
@@ -130,6 +130,174 @@ describe('runtime model configuration', () => {
         prompts: { query: 'query: ' }
       }),
       /excludes prompt tokens from pooling/
+    );
+  });
+});
+
+describe('default model caches', () => {
+  test('prefers the project model over a different revision in the home cache', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const content = Buffer.from('project override fixture');
+    const model = fixtureModel(content);
+    const homeModel = { ...model, revision: '1'.repeat(40) };
+    const projectDirectory = getModelDirectory(getModelRoot('.cds/models', root), model.repository);
+    const homeDirectory = getModelDirectory(getModelRoot(undefined, root, home), model.repository);
+    await provisionModel(model, { directory: projectDirectory, fetchImpl: createFetch(content) });
+    await provisionModel(homeModel, { directory: homeDirectory, fetchImpl: createFetch(content) });
+
+    const resolved = await resolveEmbeddingModel(
+      { model: model.repository },
+      { root, home, fetchImpl: () => assert.fail('cached models must not fetch') }
+    );
+
+    assert.equal(resolved.modelDir, projectDirectory);
+    assert.deepEqual(resolved.model, model);
+    assert.deepEqual(await readModelLock(homeDirectory), homeModel);
+  });
+
+  test('uses an installed home model without discovery or downloads', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const content = Buffer.from('home fallback fixture');
+    const model = fixtureModel(content);
+    const modelDir = getModelDirectory(getModelRoot(undefined, root, home), model.repository);
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
+
+    const resolved = await resolveEmbeddingModel(
+      { model: model.repository },
+      { root, home, fetchImpl: () => assert.fail('home cache must not fetch') }
+    );
+
+    assert.equal(resolved.modelDir, modelDir);
+    assert.deepEqual(resolved.model, model);
+    await assert.rejects(fs.access(path.join(root, '.cds')), /ENOENT/);
+  });
+
+  test('does not bypass or modify a project model with missing, malformed, or mismatched locks', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const content = Buffer.from('invalid project fixture');
+    const model = fixtureModel(content);
+    const projectDirectory = getModelDirectory(getModelRoot('.cds/models', root), model.repository);
+    const homeDirectory = getModelDirectory(getModelRoot(undefined, root, home), model.repository);
+    await provisionModel(model, { directory: homeDirectory, fetchImpl: createFetch(content) });
+    await fs.mkdir(projectDirectory, { recursive: true });
+    const resolve = () =>
+      resolveEmbeddingModel(
+        { model: model.repository },
+        { root, home, fetchImpl: () => assert.fail('invalid project overrides must not fetch') }
+      );
+
+    await assert.rejects(resolve(), /lock not found.*--directory \.cds\/models/);
+    assert.deepEqual(await fs.readdir(projectDirectory), []);
+
+    const lockPath = path.join(projectDirectory, MODEL_LOCK_FILE);
+    await fs.writeFile(lockPath, '{}');
+    await assert.rejects(resolve(), /invalid lock explicitly.*--directory \.cds\/models/);
+    assert.equal(await fs.readFile(lockPath, 'utf8'), '{}');
+
+    const mismatch = JSON.stringify({
+      ...model,
+      repository: 'example/other',
+      formatVersion: MODEL_LOCK_VERSION
+    });
+    await fs.writeFile(lockPath, mismatch);
+    await assert.rejects(resolve(), /contains example\/other, not example\/model/);
+    assert.equal(await fs.readFile(lockPath, 'utf8'), mismatch);
+  });
+
+  test('does not repair invalid project artifacts or fall back to home', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const content = Buffer.from('damaged project fixture');
+    const model = fixtureModel(content);
+    const projectDirectory = getModelDirectory(getModelRoot('.cds/models', root), model.repository);
+    const homeDirectory = getModelDirectory(getModelRoot(undefined, root, home), model.repository);
+    await provisionModel(model, { directory: projectDirectory, fetchImpl: createFetch(content) });
+    await provisionModel(model, { directory: homeDirectory, fetchImpl: createFetch(content) });
+    const modelPath = path.join(projectDirectory, 'model.onnx');
+    await fs.writeFile(modelPath, 'damaged');
+
+    await assert.rejects(
+      resolveEmbeddingModel(
+        { model: model.repository },
+        { root, home, fetchImpl: () => assert.fail('project artifacts must not be repaired') }
+      ),
+      /failed integrity checks.*--directory \.cds\/models/
+    );
+    assert.equal(await fs.readFile(modelPath, 'utf8'), 'damaged');
+  });
+
+  test('repairs a home model using its existing lock without rediscovery', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const content = Buffer.from('damaged home fixture');
+    const model = fixtureModel(content);
+    const modelDir = getModelDirectory(getModelRoot(undefined, root, home), model.repository);
+    await provisionModel(model, { directory: modelDir, fetchImpl: createFetch(content) });
+    await fs.writeFile(path.join(modelDir, 'model.onnx'), 'damaged');
+    const requestedUrls = [];
+
+    const resolved = await resolveEmbeddingModel(
+      { model: model.repository },
+      {
+        root,
+        home,
+        fetchImpl: createFetch(content, requestedUrls),
+        discover: () => assert.fail('repair must reuse the installed lock'),
+        validate: async () => {},
+        warn() {}
+      }
+    );
+
+    assert.equal(resolved.modelDir, modelDir);
+    assert.deepEqual(await readModelLock(modelDir), model);
+    await verifyModelDirectory(modelDir, model);
+    assert.equal(requestedUrls.length, model.files.length);
+    await assert.rejects(fs.access(path.join(root, '.cds')), /ENOENT/);
+  });
+
+  test('rejects malformed home locks without downloads', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const modelDir = path.join(home, '.cds', 'models', 'example', 'model');
+    await fs.mkdir(modelDir, { recursive: true });
+    await fs.writeFile(path.join(modelDir, MODEL_LOCK_FILE), '{}');
+
+    await assert.rejects(
+      resolveEmbeddingModel(
+        { model: 'example/model' },
+        {
+          root,
+          home,
+          fetchImpl: () => assert.fail('malformed locks must not trigger downloads')
+        }
+      ),
+      /Remove or replace the invalid lock explicitly/
+    );
+  });
+
+  test('an explicit missing cache does not fall back to an installed home model', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const content = Buffer.from('explicit cache fixture');
+    const model = fixtureModel(content);
+    await provisionModel(model, {
+      directory: getModelDirectory(getModelRoot(undefined, root, home), model.repository),
+      fetchImpl: createFetch(content)
+    });
+
+    await assert.rejects(
+      resolveEmbeddingModel(
+        { model: model.repository, directory: './custom' },
+        {
+          root,
+          home,
+          fetchImpl: () => assert.fail('explicit caches must stay offline')
+        }
+      ),
+      /lock not found.*--directory \.\/custom/
     );
   });
 });
@@ -448,8 +616,9 @@ describe('explicit model provisioning', () => {
     assert.deepEqual(await fs.readdir(directory), []);
   });
 
-  test('downloads a missing model into the project-local default directory and reuses it', async () => {
+  test('downloads a missing model into the home cache and reuses it across projects', async () => {
     const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
     const content = Buffer.from('lazy download fixture');
     const model = fixtureModel(content);
     const requestedUrls = [];
@@ -458,6 +627,7 @@ describe('explicit model provisioning', () => {
     const prompts = { query: 'query: ' };
     const options = {
       root,
+      home,
       fetchImpl: createFetch(content, requestedUrls),
       discover(name) {
         discoveries++;
@@ -469,7 +639,10 @@ describe('explicit model provisioning', () => {
     };
 
     const first = await resolveEmbeddingModel({ model: model.repository, prompts }, options);
-    const expectedDirectory = getModelDirectory(getModelRoot(undefined, root), model.repository);
+    const expectedDirectory = getModelDirectory(
+      getModelRoot(undefined, root, home),
+      model.repository
+    );
 
     assert.deepEqual(first.model, { ...model, prompts });
     assert.equal(first.modelDir, expectedDirectory);
@@ -477,19 +650,27 @@ describe('explicit model provisioning', () => {
     assert.equal(warnings.length, 1);
     assert.match(warnings[0], /Downloading it now; application startup may be delayed/);
     assert.match(warnings[0], /repositories you trust/);
+    assert.ok(warnings[0].includes(expectedDirectory));
     assert.equal(requestedUrls.length, model.files.length);
     assert.deepEqual(await readModelLock(expectedDirectory), model);
+    await assert.rejects(fs.access(path.join(root, '.cds', 'models')), /ENOENT/);
 
-    const second = await resolveEmbeddingModel({ model: model.repository, prompts }, options);
+    const otherRoot = await createTemporaryDirectory();
+    const second = await resolveEmbeddingModel(
+      { model: model.repository, prompts },
+      { ...options, root: otherRoot }
+    );
     assert.deepEqual(second.model, { ...model, prompts });
     assert.equal(second.modelDir, expectedDirectory);
     assert.equal(discoveries, 1);
     assert.equal(warnings.length, 1);
     assert.equal(requestedUrls.length, model.files.length);
+    await assert.rejects(fs.access(path.join(otherRoot, '.cds', 'models')), /ENOENT/);
   });
 
   test('waits for concurrent ad-hoc provisioning and reuses the completed download', async () => {
     const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
     const content = Buffer.from('concurrent lazy download fixture');
     const model = fixtureModel(content);
     const requestedUrls = [];
@@ -516,6 +697,7 @@ describe('explicit model provisioning', () => {
     };
     const options = {
       root,
+      home,
       fetchImpl,
       discover: () => model,
       validate: async () => {},
@@ -526,12 +708,16 @@ describe('explicit model provisioning', () => {
 
     const first = resolveEmbeddingModel({ model: model.repository }, options);
     await downloadStarted;
-    const second = resolveEmbeddingModel({ model: model.repository }, options);
+    const second = resolveEmbeddingModel(
+      { model: model.repository },
+      { ...options, root: await createTemporaryDirectory() }
+    );
     await new Promise((resolve) => setTimeout(resolve, 20));
     releaseDownload();
 
     const resolved = await Promise.all([first, second]);
     assert.equal(resolved[0].modelDir, resolved[1].modelDir);
+    assert.equal(resolved[0].modelDir, path.join(home, '.cds', 'models', 'example', 'model'));
     assert.equal(warnings.length, 2);
     assert.equal(requestedUrls.length, model.files.length);
   });
@@ -634,30 +820,35 @@ describe('explicit model provisioning', () => {
     assert.match(output.join(''), new RegExp(escapeRegExp(modelDir)));
   });
 
-  test('installs into the project-local model cache when no directory is provided', async () => {
+  test('installs into the home model cache when no directory is provided', async () => {
     const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
     const content = Buffer.from('default command fixture');
     const model = fixtureModel(content);
 
     await runModelCommand(['install-model', model.repository], {
       root,
+      home,
       discover: () => model,
       fetchImpl: createFetch(content),
       validate: async () => {},
       stdout: { write() {} }
     });
 
-    const modelDir = path.join(root, '.cds', 'models', 'example', 'model');
+    const modelDir = path.join(home, '.cds', 'models', 'example', 'model');
     assert.deepEqual(await readModelLock(modelDir), model);
+    await assert.rejects(fs.access(path.join(root, '.cds', 'models')), /ENOENT/);
   });
 
-  test('resolves default and relative command directories from the CAP project root', async () => {
+  test('uses home by default and resolves relative command directories from the CAP project root', async () => {
     const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
     const subdirectory = path.join(root, 'srv', 'nested');
     const content = Buffer.from('project root command fixture');
     const model = fixtureModel(content);
     const options = {
       cwd: subdirectory,
+      home,
       discover: () => model,
       fetchImpl: createFetch(content),
       validate: async () => {},
@@ -671,7 +862,7 @@ describe('explicit model provisioning', () => {
 
     await runModelCommand(['install-model', model.repository], options);
     assert.deepEqual(
-      await readModelLock(path.join(root, '.cds', 'models', 'example', 'model')),
+      await readModelLock(path.join(home, '.cds', 'models', 'example', 'model')),
       model
     );
 
@@ -687,6 +878,7 @@ describe('explicit model provisioning', () => {
 
   test('checks a model by name without provisioning it', async () => {
     const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
     const output = [];
     const checked = {
       repository: 'example/model',
@@ -709,6 +901,7 @@ describe('explicit model provisioning', () => {
 
     await runModelCommand(['check-model', checked.repository], {
       cwd: root,
+      home,
       check: async (repository) => {
         assert.equal(repository, checked.repository);
         return checked;
@@ -722,6 +915,7 @@ describe('explicit model provisioning', () => {
     assert.match(output.join(''), /DOCUMENT: "document: "/);
     assert.match(output.join(''), /install-model.*definitive/i);
     await assert.rejects(fs.access(path.join(root, '.cds', 'models')), /ENOENT/);
+    await assert.rejects(fs.access(path.join(home, '.cds', 'models')), /ENOENT/);
   });
 
   test('requires a model name and accepts an optional cache root', async () => {

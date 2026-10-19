@@ -61,7 +61,11 @@ The current default model is `sentence-transformers/all-MiniLM-L6-v2`. It was se
 
 The built-in runtime reads `model` and the optional `directory`; additional properties are allowed for extensions.
 
-Without `directory`, the configured or default model is stored below `<cds.root>/.cds/models/<owner>/<model>`. If a valid installation is absent, startup prints a warning, downloads the model, generates `embedding.lock.json`, and reuses it on later starts.
+Without `directory`, the runtime looks for the configured or default model below `<cds.root>/.cds/models/<owner>/<model>` first, then `~/.cds/models/<owner>/<model>`. When neither installation exists, startup prints a warning, downloads the model into the home cache, generates `embedding.lock.json`, and reuses it across projects. Automatic downloads and repairs never modify the project cache.
+
+An existing project model with missing or invalid metadata or artifacts causes an error instead of falling back to a different installation. Repair it explicitly with `install-model --directory .cds/models`. Invalid home artifacts can be repaired automatically using their valid lock; malformed or mismatched locks require explicit recovery.
+
+The home cache uses Node.js's `os.homedir()`: typically `/Users/<user>/.cds/models` on macOS and `C:\Users\<user>\.cds\models` on Windows. No shell expansion of `~` is required for the default.
 
 Use `sqlite:memory` when the application data itself need not survive a restart:
 
@@ -79,19 +83,23 @@ Use `sqlite:memory` when the application data itself need not survive a restart:
 
 ## Explicit provisioning
 
-Provision the project-local model before startup:
+Provision the shared home model before startup:
 
 ```sh
 npx @cap-js/ai install-model owner/model
 ```
 
-The command finds the enclosing CAP project even when run from a subdirectory. It installs into `.cds/models` at the project root.
+The command installs into `~/.cds/models` by default. The same model can be reused across projects without additional configuration.
 
-To reuse a model across projects, select a shared cache root:
+To provision a project-local override, select its cache root explicitly:
 
 ```sh
-npx @cap-js/ai install-model owner/model --directory ~/.cds/models
+npx @cap-js/ai install-model owner/model --directory .cds/models
 ```
+
+Relative directories resolve from the enclosing CAP project root, including when the command runs from a subdirectory. Absolute directories and quoted home-relative paths such as `--directory "~/.cds/models"` are also supported.
+
+To restrict runtime lookup to a pre-installed cache, configure `directory`:
 
 ```json
 {
@@ -109,7 +117,7 @@ npx @cap-js/ai install-model owner/model --directory ~/.cds/models
 }
 ```
 
-`directory` is the cache root, so this example installs the artifacts below `~/.cds/models/owner/model`. Relative paths resolve from `cds.root`, absolute paths remain absolute, and `~/` resolves from the user's home directory.
+`directory` is the cache root, so this example reads the artifacts below `~/.cds/models/owner/model`. Relative paths resolve from `cds.root`, absolute paths remain absolute, and `~/` resolves from the user's home directory on macOS and Windows.
 
 When `directory` is configured, startup treats it as a pre-installed cache. It validates the lock and files but does not download or modify them. Provision shared models in a controlled environment and consider making the directory read-only at runtime.
 
