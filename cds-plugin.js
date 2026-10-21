@@ -12,7 +12,7 @@ cds.on('served', async (services) => {
     if (name === 'db') continue;
     // eslint-disable-next-line no-await-in-loop
     const srv = await cds.connect.to(name);
-    registerHandlersForRecommendations(srv);
+    if (srv.isAppService) registerHandlersForRecommendations(srv);
 
     if (name === 'cds.xt.DeploymentService') {
       registerMtxHandlers(srv);
