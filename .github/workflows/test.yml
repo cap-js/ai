@@ -42,7 +42,6 @@ jobs:
           node-version: ${{ matrix.node-version }}
       - run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
       - run: npm i
-      # Force the CDS 9 stack over the locked (CDS-latest) install; -f tolerates the peer downgrade.
       - name: Pin CDS 9 compatible stack
         if: matrix.cds-version == '9'
         run: npm i -f @sap/cds@9 @cap-js/sqlite@2 @sap/cds-mtxs@3 @cap-js/hana@2

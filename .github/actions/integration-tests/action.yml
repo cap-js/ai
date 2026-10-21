@@ -72,13 +72,10 @@ runs:
     - name: Install all dependencies
       shell: bash
       run: npm install
-
-    # Force the CDS 9 stack over the locked (CDS-latest) install; -f tolerates the peer downgrade.
     - name: Pin CDS 9 compatible stack
       if: inputs.CDS_VERSION == '9'
       shell: bash
       run: npm i -f @sap/cds@9 @cap-js/sqlite@2 @sap/cds-mtxs@3 @cap-js/hana@2
-
     - name: Set node env for HANA
       run: echo "NODE_VERSION_HANA=$(echo ${{ inputs.NODE_VERSION }} | tr . _)" >> $GITHUB_ENV
       shell: bash
