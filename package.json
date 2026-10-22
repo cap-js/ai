@@ -35,6 +35,7 @@
     "@cap-js/sqlite": ">=2",
     "@huggingface/hub": "^2.15.0",
     "@huggingface/tokenizers": "^0.2.0",
+    "@sap/cds-lsp": ">=10",
     "onnxruntime-node": "^1.20.1",
     "oxfmt": ">=0.70.0",
     "oxigraph": "^0.5.9"
