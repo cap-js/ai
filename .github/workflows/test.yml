@@ -40,16 +40,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node-version }}
-      - name: Pin CDS 9 compatible stack
-        if: matrix.cds-version == '9'
-        run: |
-          npm pkg set "devDependencies.@cap-js/sqlite=^2"
-          npm pkg set "overrides.@cap-js/hana=^2"
-          npm pkg set "overrides.@sap/cds-mtxs=^3"
-          npm pkg set "devDependencies.@sap/cds=^9"
-          npm pkg set --workspace=tests/bookshop "dependencies.@sap/cds=^9"
       - run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
       - run: npm i
+      - name: Pin CDS 9 compatible stack
+        if: matrix.cds-version == '9'
+        run: npm i -f @sap/cds@9 @cap-js/sqlite@2 @sap/cds-mtxs@3 @cap-js/hana@2
       - run: cd tests/bookshop && cds v -i
       - run: npm run test
 
