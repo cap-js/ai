@@ -4,6 +4,12 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Fixed
+
+- Register recommendation handlers only on application services. A `READ` handler on the messaging service creates an Event Mesh subscription for the topic `READ`.
+
 ## Version 1.2.1 - 2026-10-14
 
 ### Fixed
