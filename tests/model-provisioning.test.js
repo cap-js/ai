@@ -468,12 +468,11 @@ describe('explicit model provisioning', () => {
       'tokenizer.json',
       'tokenizer_config.json'
     ]);
-    const modes = await Promise.all(
-      [MODEL_LOCK_FILE, ...model.files.map(({ name }) => name)].map(async (file) =>
-        fs.stat(path.join(directory, file)).then(({ mode }) => mode & 0o777)
+    await Promise.all(
+      [MODEL_LOCK_FILE, ...model.files.map(({ name }) => name)].map((file) =>
+        assertProvisionedPermissions(path.join(directory, file), 0o644)
       )
     );
-    assert.deepEqual(modes, new Array(modes.length).fill(0o644));
   });
 
   test('restores readable permissions on already valid artifacts', async () => {
@@ -482,11 +481,13 @@ describe('explicit model provisioning', () => {
     const model = fixtureModel(content);
     const modelPath = path.join(directory, model.files[0].name);
     await provisionModel(model, { directory, fetchImpl: createFetch(content) });
-    await fs.chmod(modelPath, 0o600);
+    // Windows chmod only controls the readonly attribute; POSIX also distinguishes other users.
+    await fs.chmod(modelPath, process.platform === 'win32' ? 0o400 : 0o600);
+    assert.equal((await fs.stat(modelPath)).mode & 0o222, process.platform === 'win32' ? 0 : 0o200);
 
     await provisionModel(model, { directory, fetchImpl: createFetch(content) });
 
-    assert.equal((await fs.stat(modelPath)).mode & 0o777, 0o644);
+    await assertProvisionedPermissions(modelPath, 0o644);
   });
 
   test('makes newly provisioned directories traversable across runtime users', async () => {
@@ -508,11 +509,13 @@ describe('explicit model provisioning', () => {
       process.umask(originalUmask);
     }
 
-    assert.equal((await fs.stat(modelsDirectory)).mode & 0o777, 0o755);
-    assert.equal((await fs.stat(directory)).mode & 0o777, 0o755);
-    assert.equal((await fs.stat(path.join(directory, 'onnx'))).mode & 0o777, 0o755);
-    assert.equal((await fs.stat(path.join(directory, 'onnx/model.onnx'))).mode & 0o777, 0o644);
-    assert.equal((await fs.stat(path.join(directory, MODEL_LOCK_FILE))).mode & 0o777, 0o644);
+    await Promise.all([
+      assertProvisionedPermissions(modelsDirectory, 0o755),
+      assertProvisionedPermissions(directory, 0o755),
+      assertProvisionedPermissions(path.join(directory, 'onnx'), 0o755),
+      assertProvisionedPermissions(path.join(directory, 'onnx/model.onnx'), 0o644),
+      assertProvisionedPermissions(path.join(directory, MODEL_LOCK_FILE), 0o644)
+    ]);
   });
 
   test('does not repurpose a directory locked to a different descriptor', async () => {
@@ -1089,6 +1092,17 @@ async function snapshotDirectory(directory) {
       (await fs.readFile(path.join(directory, name))).toString('hex')
     ])
   );
+}
+
+async function assertProvisionedPermissions(file, expectedMode) {
+  const stats = await fs.stat(file);
+  const { mode } = stats;
+  if (process.platform === 'win32') {
+    // Windows stat synthesizes read/write bits rather than exposing POSIX modes or ACLs.
+    assert.equal(mode & 0o666, 0o666, file);
+  } else assert.equal(mode & 0o777, expectedMode, file);
+  if (stats.isDirectory()) await fs.readdir(file);
+  else await fs.readFile(file);
 }
 
 async function createTemporaryDirectory() {
