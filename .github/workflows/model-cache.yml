@@ -12,16 +12,18 @@ permissions:
 
 jobs:
   model-cache:
-    name: Model cache on ${{ matrix.os }}
+    name: Model cache on ${{ matrix.os }} (Node.js ${{ matrix.node-version }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
     strategy:
       fail-fast: false
       matrix:
         os: [macos-latest, windows-latest]
+        node-version: [22.x, 24.x]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
-          node-version: 24.x
-      - run: node --test --test-name-pattern="default model caches|model directories|home cache|home model cache|home by default|concurrent ad-hoc" tests/model-provisioning.test.js tests/vector-unit.test.js
+          node-version: ${{ matrix.node-version }}
+      - run: npm install --ignore-scripts
+      - run: node --test tests/model-provisioning.test.js tests/vector-unit.test.js tests/models-api.test.js tests/model-service.test.js

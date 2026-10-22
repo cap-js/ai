@@ -24,6 +24,7 @@
     "CHANGELOG.md",
     "bin",
     "lib",
+    "models.js",
     "srv"
   ],
   "devDependencies": {
