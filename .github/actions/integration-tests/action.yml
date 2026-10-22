@@ -68,21 +68,13 @@ runs:
     - name: Install global CDS
       shell: bash
       run: npm i -g @sap/cds-dk@${{ inputs.CDS_VERSION }}
-
-    - name: Pin CDS 9 compatible stack
-      if: inputs.CDS_VERSION == '9'
-      shell: bash
-      run: |
-        npm pkg set "devDependencies.@cap-js/sqlite=^2"
-        npm pkg set "overrides.@cap-js/hana=^2"
-        npm pkg set "overrides.@sap/cds-mtxs=^3"
-        npm pkg set "devDependencies.@sap/cds=^9"
-        npm pkg set --workspace=tests/bookshop "dependencies.@sap/cds=^9"
-
     - name: Install all dependencies
       shell: bash
       run: npm install
-
+    - name: Pin CDS 9 compatible stack
+      if: inputs.CDS_VERSION == '9'
+      shell: bash
+      run: npm i -f @sap/cds@9 @cap-js/sqlite@2 @sap/cds-mtxs@3 @cap-js/hana@2
     - name: Set node env for HANA
       run: echo "NODE_VERSION_HANA=$(echo ${{ inputs.NODE_VERSION }} | tr . _)" >> $GITHUB_ENV
       shell: bash
