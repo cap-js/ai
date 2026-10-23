@@ -1,6 +1,7 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
+import { loadSQLiteService } from '../lib/sqlite/load-sqlite.js';
 import {
   DEFAULT_EMBEDDING_MODEL,
   createEmbeddingRuntime,
@@ -10,6 +11,10 @@ import {
 
 const MINILM_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 const AI_SQLITE_IMPL = '@cap-js/ai/lib/sqlite/AISQLiteService.js';
+const [CDS_MAJOR, CDS_MINOR] = cds.version.split('.').map(Number);
+const HAS_EMBEDDING_DEFAULTS = CDS_MAJOR > 10 || (CDS_MAJOR === 10 && CDS_MINOR >= 2);
+const HAS_VECTOR_ADAPTER =
+  typeof loadSQLiteService().CQN2SQL.Functions.vector_embedding === 'function';
 
 let runtime;
 
@@ -204,9 +209,15 @@ describe('text-type prompts via configured prompts', () => {
 describe('SQLite integration', () => {
   let db;
 
-  test('opts into CAP embedding defaults', () => {
+  test('enables the embeddings configuration independently of the local model', () => {
     const { embeddings } = cds.env.requires;
-    assert.ok(embeddings === true || typeof embeddings?.model === 'string');
+    if (!HAS_EMBEDDING_DEFAULTS) {
+      assert.strictEqual(embeddings, true);
+    } else {
+      assert.strictEqual(embeddings.model, 'SAP_GXY.20250407');
+      assert.strictEqual(embeddings.model_kind, 'embeddings');
+      assert.notStrictEqual(embeddings.model, cds.env.requires.kinds.sqlite.embedding.model);
+    }
   });
 
   test('uses the default embedding model', () => {
@@ -281,6 +292,123 @@ describe('SQLite integration', () => {
     }
   });
 });
+
+describe(
+  'CQN embedding defaults with the local SQLite runtime',
+  {
+    skip: !HAS_EMBEDDING_DEFAULTS
+      ? 'CQN defaults require CDS 10.2 or later'
+      : !HAS_VECTOR_ADAPTER && 'CQN defaults require the upcoming SQLite vector adapter release'
+  },
+  () => {
+    const TEXT = 'a small cat';
+    const PROMPTS = { query: 'query: ', document: 'document: ' };
+    let db;
+    let embeddings;
+    let selectedEmbeddings;
+
+    before(async () => {
+      embeddings = cds.env.requires.embeddings;
+      selectedEmbeddings = cds.env.requires['selected-embeddings'];
+      cds.env.requires.embeddings = { model: 'GLOBAL.HANA.MODEL', model_kind: 'embeddings' };
+      cds.env.requires['selected-embeddings'] = {
+        model: 'SELECTED.HANA.MODEL',
+        model_kind: 'embeddings'
+      };
+      const model = cds.linked(
+        cds.compile.to.csn(`
+        entity EmbeddingDocuments {
+          key ID : Integer;
+          @cds.embeddings.model: 'selected-embeddings'
+          selected : Vector;
+          fallback : Vector;
+        }
+      `)
+      );
+      db = await cds.connect.to('cqn-vector-db', {
+        kind: 'sqlite',
+        credentials: { url: ':memory:' },
+        model,
+        embedding: { model: MINILM_MODEL, prompts: PROMPTS }
+      });
+      await db.run('CREATE TABLE EmbeddingDocuments (ID INTEGER, selected TEXT, fallback TEXT)');
+      const embedding = runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`);
+      await db.run(
+        cds.ql.INSERT.into('EmbeddingDocuments').entries({
+          ID: 1,
+          selected: embedding,
+          fallback: embedding
+        })
+      );
+    });
+
+    after(async () => {
+      try {
+        await db?.disconnect();
+      } finally {
+        cds.env.requires.embeddings = embeddings;
+        if (selectedEmbeddings === undefined) delete cds.env.requires['selected-embeddings'];
+        else cds.env.requires['selected-embeddings'] = selectedEmbeddings;
+      }
+    });
+
+    test('defaults to QUERY and keeps an explicit DOCUMENT prompt with the local model', async () => {
+      const query = cds.ql.SELECT.from('EmbeddingDocuments').columns`
+        vector_embedding(${TEXT}) as queryEmbedding,
+        vector_embedding(${TEXT}, 'DOCUMENT') as documentEmbedding
+      `;
+      const { sql } = db.cqn2sql(query);
+      assert.match(sql, /vector_embedding\(\?,'QUERY','GLOBAL\.HANA\.MODEL'\)/);
+      assert.match(sql, /vector_embedding\(\?,\?,'GLOBAL\.HANA\.MODEL'\)/);
+
+      const [row] = await db.run(query);
+      assert.strictEqual(row.queryEmbedding, runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`));
+      assert.strictEqual(
+        row.documentEmbedding,
+        runtime.vectorEmbedding(`${PROMPTS.document}${TEXT}`)
+      );
+      assert.notStrictEqual(row.queryEmbedding, row.documentEmbedding);
+      assert.notStrictEqual(row.queryEmbedding, runtime.vectorEmbedding(TEXT));
+      assert.strictEqual(JSON.parse(row.queryEmbedding).length, 384);
+    });
+
+    for (const expression of [
+      "cosine_similarity(selected, vector_embedding('a small cat'))",
+      "cosine_similarity(vector_embedding('a small cat'), selected)",
+      "l2distance(selected, vector_embedding('a small cat'))",
+      "l2distance(vector_embedding('a small cat'), selected)"
+    ]) {
+      test(`uses the selected configuration with the local model for ${expression}`, async () => {
+        const query = cds.parse.cql(`SELECT from EmbeddingDocuments { ${expression} as score }`);
+        const { sql, values } = db.cqn2sql(query);
+        assert.match(sql, /vector_embedding\(\?,'QUERY','SELECTED\.HANA\.MODEL'\)/);
+        assert.deepStrictEqual(values, [TEXT]);
+
+        const [row] = await db.run(query);
+        const expected = expression.startsWith('cosine_similarity') ? 1 : 0;
+        assert.ok(Math.abs(row.score - expected) < 1e-6, `${expression}: ${row.score}`);
+        assert.strictEqual(db.options.embedding.model, MINILM_MODEL);
+      });
+    }
+
+    test('uses the global fallback and preserves explicit model arguments', async () => {
+      const query = cds.ql.SELECT.from('EmbeddingDocuments').columns`
+        cosine_similarity(fallback, vector_embedding(${TEXT})) as score,
+        vector_embedding(${TEXT}, 'DOCUMENT', 'EXPLICIT.HANA.MODEL') as documentEmbedding
+      `;
+      const { sql, values } = db.cqn2sql(query);
+      assert.match(sql, /vector_embedding\(\?,'QUERY','GLOBAL\.HANA\.MODEL'\)/);
+      assert.deepStrictEqual(values, [TEXT, TEXT, 'DOCUMENT', 'EXPLICIT.HANA.MODEL']);
+
+      const [row] = await db.run(query);
+      assert.ok(Math.abs(row.score - 1) < 1e-6);
+      assert.strictEqual(
+        row.documentEmbedding,
+        runtime.vectorEmbedding(`${PROMPTS.document}${TEXT}`)
+      );
+    });
+  }
+);
 
 // Helper function to calculate cosine similarity between two vectors
 function cosineSimilarity(a, b) {
