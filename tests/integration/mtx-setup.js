@@ -1,4 +1,5 @@
-import { spawn, execSync } from 'child_process';
+import { spawn, execFileSync } from 'child_process';
+import { createRequire } from 'node:module';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -10,6 +11,7 @@ const __dirname = path.dirname(__filename);
 export const BOOKSHOP_DIR = path.join(__dirname, '..', 'bookshop');
 export const SIDECAR_DIR = path.join(BOOKSHOP_DIR, 'mtx', 'sidecar');
 export const ROOT_DIR = path.join(__dirname, '..', '..');
+const require = createRequire(path.join(ROOT_DIR, 'package.json'));
 
 /**
  * Pack @cap-js/ai and install in sidecar to avoid dual @sap/cds load.
@@ -19,16 +21,26 @@ export function ensureSidecarPlugin() {
   const pkgPath = path.join(SIDECAR_DIR, 'package.json');
   const originalPkg = fs.readFileSync(pkgPath, 'utf-8');
   const tmpDir = os.tmpdir();
-  const tgz = execSync(`npm pack --pack-destination ${tmpDir}`, {
-    cwd: ROOT_DIR,
-    encoding: 'utf-8'
-  }).trim();
-  execSync(`npm install ${path.join(tmpDir, tgz)}`, {
-    cwd: SIDECAR_DIR,
-    encoding: 'utf-8',
-    stdio: 'ignore'
+  // Broad sidecar ranges can select SQLite's CDS 10 stack when CI selected CDS 9.
+  const stack = ['@sap/cds', '@cap-js/sqlite', '@sap/cds-mtxs'].map((name) => {
+    const { version } = JSON.parse(
+      fs.readFileSync(require.resolve(`${name}/package.json`), 'utf-8')
+    );
+    return `${name}@${version}`;
   });
-  fs.writeFileSync(pkgPath, originalPkg);
+  try {
+    const tgz = execFileSync('npm', ['pack', '--pack-destination', tmpDir], {
+      cwd: ROOT_DIR,
+      encoding: 'utf-8'
+    }).trim();
+    execFileSync('npm', ['install', path.join(tmpDir, tgz), ...stack], {
+      cwd: SIDECAR_DIR,
+      encoding: 'utf-8',
+      stdio: 'inherit'
+    });
+  } finally {
+    fs.writeFileSync(pkgPath, originalPkg);
+  }
 }
 
 /**

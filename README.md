@@ -57,8 +57,8 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
 1. Install the local-development dependencies:
 
    ```sh
-   npm add -D @cap-js/ai @cap-js/sqlite@^3.1 @huggingface/hub@^2.15.0 \
-     @huggingface/tokenizers@^0.2.0 onnxruntime-node@^1.20.1
+   npm add -D @cap-js/ai @cap-js/sqlite@^3.1 @huggingface/hub \
+     @huggingface/tokenizers onnxruntime-node
    ```
 
    This requires `@sap/cds` `^10.1` and `@cap-js/sqlite` `^3.1` (the package's other capabilities still support `@sap/cds` 9). No configuration is needed: the standard `sqlite` and `sqlite:memory` databases pick up the local implementation automatically.
@@ -105,7 +105,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    curl "http://localhost:4004/odata/v4/search/searchBooks(phrase='a%20haunting%20poem%20about%20lost%20love')"
    ```
 
-On the first start, `@cap-js/ai` warns if the configured model is missing, downloads it to `.cds/models` while logging progress, and initializes it; later starts reuse it. The download blocks startup, so pre-install large models with `npx @cap-js/ai install-model <model>` to avoid a slow or stalled first boot. The function returns the books ranked by relevance to the phrase.
+`@cap-js/ai` looks for the configured model in the project's `.cds/models` first, then in `~/.cds/models`. If it is missing, startup warns, downloads it to `~/.cds/models` while logging progress, and initializes it; later starts and other projects reuse that cache. The download blocks startup, so pre-install large models with `npx @cap-js/ai install-model <model>` to avoid a slow or stalled first boot. The function returns the books ranked by relevance to the phrase.
 
 The current default is [`sentence-transformers/all-MiniLM-L6-v2`](https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2), chosen only as the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license. This is not a recommendation and may change while the feature is experimental — set `cds.requires.db.embedding.model` to pin it. Browse alternatives among [trending Apache-2.0 sentence-similarity models with ONNX artifacts](https://huggingface.co/models?pipeline_tag=sentence-similarity&library=onnx&license=license:apache-2.0&sort=trending), then validate your choice with the provided tooling.
 

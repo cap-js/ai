@@ -9,13 +9,24 @@
 ### Added
 
 - **Experimental:** Report model-download progress and replace the fixed per-file timeout with a stall-based one. `install-model` shows a live percentage/rate/ETA line (plain milestone lines when output is piped), and ad-hoc provisioning at startup logs throttled progress. Downloads now abort only after stalling (no data received for a while) plus a generous absolute ceiling, so large models on slow links finish; a stalled startup download fails with guidance to pre-provision via `install-model`.
+- Add per-service `embedding.root` for model lookup without changing the CAP project root, and `embedding.offline` for read-only local-then-home model lookup.
+- Export `installModel` from `@cap-js/ai/models.js` for validated programmatic provisioning without CAP plugin hooks on import; existing package entrypoints and deep paths remain available.
 
-## Version 1.2.1 - 2026-10-13
+### Changed
+
+- Download local embedding models into `~/.cds/models` by default on macOS and Windows, shared across projects. Runtime lookup still prefers project-local `.cds/models`; explicit directories remain offline and project-local overrides require explicit repair.
+
+### Fixed
+
+- Register recommendation handlers only on application services. A `READ` handler on the messaging service creates an Event Mesh subscription for the topic `READ`.
+
+## Version 1.2.1 - 2026-10-14
 
 ### Fixed
 
 - Relax `onnxruntime-node` peer dependency from an exact `1.20.1` pin to `^1.20.1`, allowing any compatible 1.x release. The synchronous SQLite integration now handles the native binding API changes introduced in 1.21.0 (`initOrt` initialization requirement, `inputMetadata`/`outputMetadata` replacing `inputNames`/`outputNames`).
 - Relax `@huggingface/tokenizers` peer dependency from an exact `0.1.3` pin to `^0.2.0`. The `Tokenizer` constructor, `encode` signature, and return shape are identical across `0.1.3` and `0.2.0`.
+- Remove local development dependencies from peer dependencies so they are not included in production deployments.
 
 ## Version 1.2.0 - 2026-09-07
 

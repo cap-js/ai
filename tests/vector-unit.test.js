@@ -17,6 +17,7 @@ import {
   downloadModelIfNeeded,
   getModelDirectory,
   getModelRoot,
+  getModelRoots,
   loadTokenizerPackage,
   validateModelDescriptor
 } from '../lib/vector_embedding/model-utils.js';
@@ -303,24 +304,42 @@ describe('model compatibility', () => {
 });
 
 describe('model directories', () => {
-  test('uses a project-local default and appends the model repository', () => {
-    const project = path.join(path.sep, 'project');
-    const root = getModelRoot(undefined, project);
+  test('uses a home default and searches the project cache first', () => {
+    const project = path.resolve(path.sep, 'project');
+    const home = path.resolve(path.sep, 'home', 'user');
+    const root = getModelRoot(undefined, project, home);
 
-    assert.equal(root, path.join(project, '.cds', 'models'));
+    assert.equal(root, path.join(home, '.cds', 'models'));
     assert.equal(getModelDirectory(root, 'foo/bar'), path.join(root, 'foo', 'bar'));
+    assert.deepEqual(getModelRoots(undefined, project, home), [
+      path.join(project, '.cds', 'models'),
+      root
+    ]);
+    assert.deepEqual(getModelRoots(undefined, home, home), [root]);
+    assert.deepEqual(getModelRoots('./models', project, home), [path.join(project, 'models')]);
   });
 
   test('resolves relative, absolute, and home-relative roots', () => {
-    const project = path.join(path.sep, 'project');
-    const home = path.join(path.sep, 'home', 'user');
+    const project = path.resolve(path.sep, 'project');
+    const home = path.resolve(path.sep, 'home', 'user');
 
     assert.equal(getModelRoot('./models', project, home), path.join(project, 'models'));
     assert.equal(
-      getModelRoot(path.join(path.sep, 'shared', 'models'), project, home),
-      path.join(path.sep, 'shared', 'models')
+      getModelRoot(path.resolve(path.sep, 'shared', 'models'), project, home),
+      path.resolve(path.sep, 'shared', 'models')
     );
     assert.equal(getModelRoot('~/.cds/models', project, home), path.join(home, '.cds', 'models'));
+    assert.equal(getModelRoot('~', project, home), home);
+    assert.equal(
+      getModelRoot(`~${path.sep}.cds${path.sep}models`, project, home),
+      path.join(home, '.cds', 'models')
+    );
+  });
+
+  test('rejects repository names that are unsafe filesystem components on Windows', () => {
+    for (const repository of ['CON', 'owner/NUL', 'COM1/model', 'owner/prn.onnx', 'owner/model.']) {
+      assert.throws(() => getModelDirectory('/models', repository), /safe Hugging Face repository/);
+    }
   });
 });
 
