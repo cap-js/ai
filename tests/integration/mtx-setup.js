@@ -23,10 +23,14 @@ export function ensureSidecarPlugin() {
     cwd: ROOT_DIR,
     encoding: 'utf-8'
   }).trim();
-  execSync(`npm install ${path.join(tmpDir, tgz)}`, {
+  // --force: on the CDS 9 leg the sidecar's unpinned @cap-js/sqlite resolves to
+  // sqlite@3 (peer @sap/cds ^10) while cds is pinned to 9.x, so a plain install
+  // dead-ends on ERESOLVE. --force keeps cds@9 and installs the mismatched sqlite
+  // anyway; --legacy-peer-deps would instead silently upgrade the sidecar to cds@10.
+  // No stdio:'ignore' — a failing install here must surface, not be swallowed.
+  execSync(`npm install ${path.join(tmpDir, tgz)} --force`, {
     cwd: SIDECAR_DIR,
-    encoding: 'utf-8',
-    stdio: 'ignore'
+    encoding: 'utf-8'
   });
   fs.writeFileSync(pkgPath, originalPkg);
 }
