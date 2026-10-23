@@ -3,9 +3,9 @@
   "version": "2.0.41",
   "description": "A VT/STAR application.",
   "keywords": [
-    "ui5",
     "openui5",
-    "sapui5"
+    "sapui5",
+    "ui5"
   ],
   "main": "webapp/index.html",
   "scripts": {

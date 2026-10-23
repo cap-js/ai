@@ -1,5 +1,8 @@
 {
   "name": "bookshop-mtx",
+  "scripts": {
+    "start": "cds-serve"
+  },
   "dependencies": {
     "@cap-js/ai": "file:../../../../",
     "@sap/cds": ">=9",
@@ -10,9 +13,6 @@
   },
   "engines": {
     "node": ">=20"
-  },
-  "scripts": {
-    "start": "cds-serve"
   },
   "cds": {
     "profile": "mtx-sidecar",
