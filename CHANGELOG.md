@@ -8,7 +8,7 @@
 
 ### Added
 
-- Opt into CAP's vector embedding defaults while keeping the HANA model configuration separate from the local SQLite embedding model.
+- Enable CAP's HANA embedding model configuration and document SQLite's independent query/document prompt behavior.
 
 ## Version 1.2.1 - 2026-10-14
 
