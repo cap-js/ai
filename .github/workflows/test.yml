@@ -2,30 +2,21 @@ name: CI
 
 on:
   workflow_dispatch:
-  push:
+  pull_request:
     branches: [main]
-  pull_request_target:
-    branches: [main]
-    types: [reopened, synchronize, opened]
+  merge_group:
 
 permissions:
   contents: read
 
 jobs:
-  requires-approval:
-    runs-on: ubuntu-latest
-    name: Waiting for PR approval as this workflow runs on pull_request_target
-    if: github.event_name == 'pull_request_target' && github.event.pull_request.head.repo.owner.login != 'cap-js'
-    environment: pr-approval
-    steps:
-      - name: Approval Step
-        run: echo "This job has been approved!"
-
+  # Fast, secret-free signal on every PR. On `pull_request` (not
+  # pull_request_target) fork PRs check out natively and safely — no privileged
+  # checkout of untrusted code — so forks run and the CodeQL cache-poisoning
+  # alerts disappear.
   test:
     name: Tests with Node.js ${{ matrix.node-version }} (CDS ${{ matrix.cds-version }})
     runs-on: ubuntu-latest
-    needs: requires-approval
-    if: always() && (needs.requires-approval.result == 'success' || needs.requires-approval.result == 'skipped')
     timeout-minutes: 3
     strategy:
       fail-fast: false
@@ -34,25 +25,26 @@ jobs:
         cds-version: [9, latest]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Use Node.js ${{ matrix.node-version }}
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: ${{ matrix.node-version }}
       - run: npm i -g @sap/cds-dk@${{ matrix.cds-version }}
       - run: npm i
+      # Force the CDS 9 stack over the locked (CDS-latest) install; -f tolerates the peer downgrade.
       - name: Pin CDS 9 compatible stack
         if: matrix.cds-version == '9'
         run: npm i -f @sap/cds@9 @cap-js/sqlite@2 @sap/cds-mtxs@3 @cap-js/hana@2
       - run: cd tests/bookshop && cds v -i
       - run: npm run test
 
+  # Secret-backed hybrid tests (HANA + AI Core). Runs ONLY in the merge queue —
+  # after review — so untrusted PR code never executes with BTP credentials and
+  # fork PRs never see the secrets.
   integration-tests:
     name: Integration Tests with Node.js ${{ matrix.node-version }} (CDS ${{ matrix.cds-version }})
+    if: github.event_name == 'merge_group'
     runs-on: ubuntu-latest
-    needs: requires-approval
-    if: always() && (needs.requires-approval.result == 'success' || needs.requires-approval.result == 'skipped')
     strategy:
       fail-fast: false
       matrix:
@@ -69,3 +61,15 @@ jobs:
           CF_SPACE: ${{ secrets.CF_SPACE }}
           NODE_VERSION: ${{ matrix.node-version }}
           CDS_VERSION: ${{ matrix.cds-version }}
+
+  # Single required status check. Passes when every job that ran succeeded and
+  # treats `skipped` (integration on a PR) as OK — so it is satisfied on PR/fork
+  # runs and is the real unit+integration gate at merge-queue time.
+  summary:
+    name: Summary
+    if: always()
+    needs: [test, integration-tests]
+    runs-on: ubuntu-latest
+    steps:
+      - if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1
