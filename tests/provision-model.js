@@ -17,6 +17,6 @@ if (formatVersion !== MODEL_LOCK_VERSION) {
   throw new Error(`Unsupported test model lock version ${formatVersion}`);
 }
 
-const modelDir = getModelDirectory(getModelRoot(undefined, process.cwd()), model.repository);
+const modelDir = getModelDirectory(getModelRoot('.cds/models', process.cwd()), model.repository);
 await provisionModel(model, { directory: modelDir, validate: validateEmbeddingModel });
 console.log(`Installed ${model.repository} in ${modelDir}`);

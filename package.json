@@ -17,6 +17,7 @@
     "CHANGELOG.md",
     "bin",
     "lib",
+    "models.js",
     "srv"
   ],
   "type": "module",
