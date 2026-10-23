@@ -1,11 +1,19 @@
 {
   "name": "intelligent-cap-app",
   "version": "1.0.0",
-  "description": "A simple CAP project.",
-  "repository": "https://github.tools.sap/I538919/intelligent-cap-app",
-  "license": "UNLICENSED",
   "private": true,
+  "description": "A simple CAP project.",
+  "license": "UNLICENSED",
+  "repository": "https://github.tools.sap/I538919/intelligent-cap-app",
+  "workspaces": [
+    "app/*"
+  ],
   "type": "module",
+  "scripts": {
+    "start": "cds-serve",
+    "undeploy": "cf undeploy intelligent-cap-app --delete-services --delete-service-keys --delete-service-brokers",
+    "deploy": "cf deploy mta_archives/archive.mtar --retries 1"
+  },
   "dependencies": {
     "@cap-js/ai": "file:../../",
     "@cap-js/hana": ">=2",
@@ -24,23 +32,12 @@
     "@cap-js/cds-types": "^0.19.0",
     "@cap-js/sqlite": ">=2",
     "@huggingface/hub": "^2.15.0",
-    "@huggingface/tokenizers": "0.1.3",
-    "onnxruntime-node": "1.20.1"
+    "@huggingface/tokenizers": "^0.2.0",
+    "onnxruntime-node": "^1.20.1"
   },
   "engines": {
     "node": "^22.11.0"
   },
-  "scripts": {
-    "start": "cds-serve",
-    "undeploy": "cf undeploy intelligent-cap-app --delete-services --delete-service-keys --delete-service-brokers",
-    "deploy": "cf deploy mta_archives/archive.mtar --retries 1"
-  },
-  "workspaces": [
-    "app/*"
-  ],
-  "sapux": [
-    "app/ai-bookshop"
-  ],
   "cds": {
     "launchpad": {
       "version": "https://sapui5nightly.int.sap.eu2.hana.ondemand.com"
@@ -93,5 +90,8 @@
       "application-logging": true
     },
     "profile": "with-mtx-sidecar"
-  }
+  },
+  "sapux": [
+    "app/ai-bookshop"
+  ]
 }

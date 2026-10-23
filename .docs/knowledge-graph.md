@@ -3,7 +3,7 @@
 > [!WARNING]
 > The local knowledge graph is experimental and intended only for local development. Its API and storage model may change incompatibly.
 
-Install the optional peer dependency:
+Install the local development dependency:
 
 ```sh
 npm add -D oxigraph

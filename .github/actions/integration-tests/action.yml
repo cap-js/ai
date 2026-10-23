@@ -68,21 +68,13 @@ runs:
     - name: Install global CDS
       shell: bash
       run: npm i -g @sap/cds-dk@${{ inputs.CDS_VERSION }}
-
-    - name: Pin CDS 9 compatible stack
-      if: inputs.CDS_VERSION == '9'
-      shell: bash
-      run: |
-        npm pkg set "devDependencies.@cap-js/sqlite=^2"
-        npm pkg set "overrides.@cap-js/hana=^2"
-        npm pkg set "overrides.@sap/cds-mtxs=^3"
-        npm pkg set "devDependencies.@sap/cds=^9"
-        npm pkg set --workspace=tests/bookshop "dependencies.@sap/cds=^9"
-
     - name: Install all dependencies
       shell: bash
       run: npm install
-
+    - name: Pin CDS 9 compatible stack
+      if: inputs.CDS_VERSION == '9'
+      shell: bash
+      run: npm i -f @sap/cds@9 @cap-js/sqlite@2 @sap/cds-mtxs@3 @cap-js/hana@2
     - name: Set node env for HANA
       run: echo "NODE_VERSION_HANA=$(echo ${{ inputs.NODE_VERSION }} | tr . _)" >> $GITHUB_ENV
       shell: bash
@@ -97,7 +89,8 @@ runs:
     - name: Create HDI Container
       shell: bash
       run: cf create-service hana hdi-shared cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
-    - run: cd tests/bookshop/ && cds deploy --to hana:cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
+    - name: Deploy bookshop model to HDI
+      run: cd tests/bookshop/ && cds deploy --to hana:cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA
       shell: bash
 
     # Bind against BTP services
@@ -109,8 +102,14 @@ runs:
       shell: bash
 
     # Run tests in hybrid mode
-    - run: npm run test:hybrid
+    - name: Run hybrid integration tests
+      run: npm run test:hybrid
       shell: bash
+
+    - name: Report failed HDI service state
+      if: ${{ failure() }}
+      shell: bash
+      run: cf service cap-js-ai-hana-${{ github.run_id }}-${{ github.run_number }}-${{ github.run_attempt }}-$NODE_VERSION_HANA-$CDS_VERSION_HANA || true
 
     # Cleanup AI Core test resource groups
     - name: Cleanup AI Core test resource groups

@@ -16,14 +16,15 @@ The redirect and synchronous embedding function require `@sap/cds` `^10.1` and `
 
 This applies to every SQLite service in an application that installs `@cap-js/ai`. Its embedding model is provisioned and initialized when the service starts, even if the application does not call `VECTOR_EMBEDDING`. SAP HANA services are unaffected.
 
-Install the optional peers as development dependencies:
+Install the local development dependencies:
 
 ```sh
-npm add -D @cap-js/sqlite@^3.1 @huggingface/hub@^2.15.0 \
-  @huggingface/tokenizers@0.1.3 onnxruntime-node@1.20.1
+npm add -D @cap-js/sqlite@^3.1.0 @huggingface/hub \
+  @huggingface/tokenizers onnxruntime-node
 ```
 
-`@huggingface/hub` is needed for model discovery and provisioning. `@huggingface/tokenizers` and `onnxruntime-node` are needed for inference. The exact ONNX Runtime version is currently required because synchronous SQLite functions use a version-specific native runtime interface.
+`@huggingface/hub` is needed for model discovery and provisioning.
+`@huggingface/tokenizers` and `onnxruntime-node` are needed for inference.
 
 ## Configuration
 
