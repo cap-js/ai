@@ -4,6 +4,17 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- Add per-service `embedding.root` for model lookup without changing the CAP project root, and `embedding.offline` for read-only local-then-home model lookup.
+- Export `installModel` from `@cap-js/ai/models.js` for validated programmatic provisioning without CAP plugin hooks on import; existing package entrypoints and deep paths remain available.
+
+### Changed
+
+- Download local embedding models into `~/.cds/models` by default on macOS and Windows, shared across projects. Runtime lookup still prefers project-local `.cds/models`; explicit directories remain offline and project-local overrides require explicit repair.
+
 ## Version 1.2.1 - 2026-10-14
 
 ### Fixed
