@@ -94,6 +94,8 @@ Use `sqlite:memory` when the application data itself need not survive a restart:
 
 ## Explicit provisioning
 
+Only use models from repositories you trust. Provisioning verifies artifact sizes and checksums, but these checks establish integrity, not whether a model is safe or appropriate for your application.
+
 Provision the shared home model before startup:
 
 ```sh

@@ -795,7 +795,7 @@ describe('explicit model provisioning', () => {
     assert.equal(discoveries, 1);
     assert.equal(warnings.length, 1);
     assert.match(warnings[0], /Downloading it now; startup is blocked until it finishes/);
-    assert.match(warnings[0], /repositories you trust/);
+    assert.doesNotMatch(warnings[0], /repositories you trust|install-model/);
     assert.ok(warnings[0].includes(expectedDirectory));
     assert.equal(requestedUrls.length, model.files.length);
     assert.deepEqual(await readModelLock(expectedDirectory), model);
@@ -812,6 +812,41 @@ describe('explicit model provisioning', () => {
     assert.equal(warnings.length, 1);
     assert.equal(requestedUrls.length, model.files.length);
     await assert.rejects(fs.access(path.join(otherRoot, '.cds', 'models')), /ENOENT/);
+  });
+
+  test('keeps pre-provisioning guidance in startup failures, not download announcements', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const model = fixtureModel(Buffer.from('startup failure fixture'));
+    const failure = new Error('Fixture download failed');
+    const warnings = [];
+
+    await assert.rejects(
+      resolveEmbeddingModel(
+        { model: model.repository },
+        {
+          root,
+          home,
+          discover: () => model,
+          fetchImpl: async () => {
+            throw failure;
+          },
+          validate: async () => {},
+          warn: (message) => warnings.push(message)
+        }
+      ),
+      (error) => {
+        assert.equal(error.cause, failure);
+        assert.match(error.message, /Failed to provision embedding model/);
+        assert.match(error.message, /Provision it ahead of time/);
+        assert.ok(
+          error.message.includes(`Run 'npx @cap-js/ai install-model ${model.repository}'.`)
+        );
+        return true;
+      }
+    );
+    assert.equal(warnings.length, 1);
+    assert.doesNotMatch(warnings[0], /repositories you trust|install-model/);
   });
 
   test('waits for concurrent ad-hoc provisioning and reuses the completed download', async () => {
