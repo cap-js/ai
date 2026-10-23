@@ -15,6 +15,10 @@
 
 - Download local embedding models into `~/.cds/models` by default on macOS and Windows, shared across projects. Runtime lookup still prefers project-local `.cds/models`; explicit directories remain offline and project-local overrides require explicit repair.
 
+### Fixed
+
+- Register recommendation handlers only on application services. A `READ` handler on the messaging service creates an Event Mesh subscription for the topic `READ`.
+
 ## Version 1.2.1 - 2026-10-14
 
 ### Fixed
