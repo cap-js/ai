@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
+import { runModelCommand } from '../lib/vector_embedding/cli.js';
 import {
   createCliProgressReporter,
   createLogProgressReporter,
@@ -39,6 +40,29 @@ describe('progress formatters', () => {
 });
 
 describe('CLI progress reporter', () => {
+  test('closing clears an open TTY line only once', () => {
+    const chunks = [];
+    const report = createCliProgressReporter({
+      stdout: { isTTY: true, write: (value) => chunks.push(value) }
+    });
+
+    report.close();
+    assert.deepEqual(chunks, []);
+    report({
+      phase: 'progress',
+      name: 'model.onnx',
+      downloadedBytes: 512,
+      totalBytes: 1024,
+      elapsedMs: 1000
+    });
+    report.close();
+    report.close();
+    report({ phase: 'done' });
+
+    assert.equal(chunks.length, 2);
+    assert.equal(chunks[1], '\r\x1b[K');
+  });
+
   test('updates a single status line on a TTY', () => {
     const chunks = [];
     const stdout = { isTTY: true, write: (value) => chunks.push(value) };
@@ -84,6 +108,113 @@ describe('CLI progress reporter', () => {
     assert.match(out, /Downloading 1 file\(s\).*1 already present/);
     assert.match(out, /skip tokenizer\.json/);
     assert.match(out, /done model\.onnx/);
+  });
+});
+
+describe('CLI progress cleanup', () => {
+  const progress = {
+    phase: 'progress',
+    name: 'model.onnx',
+    downloadedBytes: 512,
+    totalBytes: 1024,
+    elapsedMs: 1000
+  };
+
+  for (const isTTY of [true, false]) {
+    test(`cleans up before reporting an installation failure (TTY: ${isTTY})`, async () => {
+      const chunks = [];
+      const stdout = { isTTY, write: (value) => chunks.push(value) };
+      const stderr = { write: (value) => chunks.push(value) };
+      const failure = new Error('Download failed');
+
+      await assert.rejects(
+        runModelCommand(['install-model', 'example/model'], {
+          root: '/project',
+          stdout,
+          install: async (_model, { onProgress }) => {
+            onProgress({ phase: 'plan', totalFiles: 1, pendingFiles: 1, totalBytes: 1024 });
+            onProgress(progress);
+            throw failure;
+          }
+        }),
+        (error) => error === failure
+      );
+      stderr.write(`${failure.message}\n`);
+
+      const output = chunks.join('');
+      assert.doesNotMatch(output, /Installed/);
+      if (isTTY) {
+        assert.match(output, /50%/);
+        assert.equal(chunks.at(-2), '\r\x1b[K');
+        assert.ok(output.endsWith('\r\x1b[KDownload failed\n'));
+      } else {
+        assert.doesNotMatch(output, /\r/);
+        assert.ok(!output.includes('\x1b'));
+        assert.ok(output.endsWith('\nDownload failed\n'));
+      }
+    });
+
+    test(`cleans up before the success message without a done event (TTY: ${isTTY})`, async () => {
+      const chunks = [];
+      await runModelCommand(['install-model', 'example/model'], {
+        root: '/project',
+        stdout: { isTTY, write: (value) => chunks.push(value) },
+        install: async (_model, { onProgress }) => {
+          onProgress(progress);
+          return { modelDir: '/project/model' };
+        }
+      });
+
+      if (isTTY) {
+        assert.equal(chunks.at(-2), '\r\x1b[K');
+      } else {
+        assert.doesNotMatch(chunks.join(''), /\r/);
+        assert.ok(!chunks.join('').includes('\x1b'));
+      }
+      assert.equal(chunks.at(-1), 'Installed example/model in /project/model\n');
+    });
+  }
+
+  test('a terminal cleanup write failure does not replace the installation failure', async () => {
+    const failure = new Error('Download failed');
+    await assert.rejects(
+      runModelCommand(['install-model', 'example/model'], {
+        root: '/project',
+        stdout: {
+          isTTY: true,
+          write: (value) => {
+            if (value === '\r\x1b[K') throw new Error('Terminal closed');
+          }
+        },
+        install: async (_model, { onProgress }) => {
+          onProgress(progress);
+          throw failure;
+        }
+      }),
+      (error) => error === failure
+    );
+  });
+
+  test('custom callbacks receive only installer events and keep their own lifecycle', async () => {
+    const events = [];
+    const failure = new Error('Download failed');
+    const onProgress = (event) => events.push(event);
+    onProgress.close = () => assert.fail('A custom reporter owns its cleanup');
+
+    await assert.rejects(
+      runModelCommand(['install-model', 'example/model'], {
+        root: '/project',
+        stdout: { isTTY: true, write: () => assert.fail('Custom reporter emits no CLI progress') },
+        onProgress,
+        install: async (_model, options) => {
+          assert.equal(options.onProgress, onProgress);
+          options.onProgress(progress);
+          throw failure;
+        }
+      }),
+      (error) => error === failure
+    );
+    assert.deepEqual(events, [progress]);
   });
 });
 

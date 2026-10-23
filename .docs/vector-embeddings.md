@@ -144,6 +144,8 @@ const { model, modelDir, modelRoot } = await installModel('owner/model');
 
 `installModel(repository, options?)` installs into the home cache by default, validates the lock, checksums, and ONNX runtime (including a probe inference), and returns the descriptor and absolute installation/cache-root paths. It reuses an existing valid lock and waits for concurrent provisioning of the same model. Invalid or mismatched locks require explicit recovery. Importing this entrypoint does not load CAP or inference dependencies; invoking the installer requires the provisioning and inference dependencies listed above.
 
+`options.idleTimeoutMs` defaults to 60 seconds without receiving a chunk, and `options.downloadTimeoutMs` defaults to a 60-minute absolute ceiling per file. `options.onProgress` receives download progress events. `options.timeoutMs` separately limits waiting for another installer; it does not limit this installer's own downloads. The default wait budget covers every serial file's absolute ceiling plus 15 minutes for validation and publication. A non-positive `downloadTimeoutMs` disables the absolute download ceiling and the default wait deadline; an explicit `timeoutMs` still bounds waiting.
+
 To provision a tool-local cache explicitly, use `await installModel('owner/model', { root: toolRoot, directory: '.cds/models' })`. `options.directory` is a cache root with the same absolute and home-relative path support as the CLI; `options.root` anchors relative directories and defaults to the current working directory. Without `directory`, `root` does not change the home destination. The `modelDir` return value identifies the model's directory, not the cache root, so do not pass it as `embedding.directory`.
 
 ## Compatibility check
