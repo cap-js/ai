@@ -1282,6 +1282,47 @@ describe('download progress and timeouts', () => {
     assert.equal(plan.skippedFiles, model.files.length);
     assert.equal(events.filter((event) => event.phase === 'file:skip').length, model.files.length);
   });
+
+  test('transfer timing excludes cached-file scanning and plan rendering', async (t) => {
+    const content = Buffer.from('partially cached timing fixture');
+    const model = fixtureModel(content);
+    const directory = await createTemporaryDirectory();
+    const cachedFile = path.join(directory, model.files[0].name);
+    await fs.writeFile(cachedFile, content);
+    let clock = 1000;
+    let scanSimulated = false;
+    const lstat = fs.lstat;
+    t.mock.method(Date, 'now', () => clock);
+    t.mock.method(fs, 'lstat', async (...args) => {
+      if (args[0] === cachedFile && !scanSimulated) {
+        // Cached-file verification can be expensive without transferring any bytes.
+        clock += 10_000;
+        scanSimulated = true;
+      }
+      return lstat(...args);
+    });
+    const events = [];
+    await downloadModelIfNeeded(directory, model, {
+      idleTimeoutMs: 0,
+      downloadTimeoutMs: 0,
+      fetchImpl: async () => {
+        clock += 1000;
+        return new Response(content);
+      },
+      onProgress: (event) => {
+        events.push(event);
+        if (event.phase === 'plan') clock += 5000;
+      }
+    });
+    assert.equal(scanSimulated, true);
+    assert.equal(events[0].pendingFiles, 2);
+    assert.equal(events[0].skippedFiles, 1);
+    assert.deepEqual(
+      events.filter(({ phase }) => phase === 'progress').map(({ elapsedMs }) => elapsedMs),
+      [1000, 2000]
+    );
+    assert.equal(events.at(-1).elapsedMs, 2000);
+  });
 });
 
 describe('concurrent provisioning wait budgets', () => {

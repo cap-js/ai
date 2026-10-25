@@ -324,6 +324,42 @@ describe('model command errors', () => {
   });
 });
 
+describe('bidi-safe presentation', () => {
+  for (const [name, isTTY, env] of [
+    ['plain', false, {}],
+    ['TTY', true, {}],
+    ['NO_COLOR', true, { NO_COLOR: '' }],
+    ['dumb terminal', true, { TERM: 'dumb' }]
+  ]) {
+    test(`escapes prompt and error bidi controls in ${name} output without changing prompts`, async () => {
+      const query = 'query: \u202eمَرْحَبًا\u202c';
+      const document = 'document: \u2066日本語\u2069';
+      const candidate = { ...model, prompts: { query, document } };
+      const stdout = capture(isTTY);
+      const checked = await runModelCommand(['check-model', model.repository], {
+        root: '/project',
+        stdout,
+        env,
+        check: async () => candidate
+      });
+      const text = stripVTControlCharacters(stdout.text());
+      assert.doesNotMatch(text, /\p{Bidi_Control}/u);
+      assert.ok(text.includes('"query: \\u202eمَرْحَبًا\\u202c"'));
+      assert.ok(text.includes('"document: \\u2066日本語\\u2069"'));
+      assert.equal(checked, candidate);
+      assert.deepEqual(checked.prompts, { query, document });
+
+      for (const code of [undefined, MODEL_TASK_UNSUPPORTED, MODEL_INSPECTION_INCOMPLETE]) {
+        const failure = Object.assign(new Error('metadata \u202e日本語\u202c'), { code });
+        const formatted = formatModelCommandError(failure, { stderr: capture(isTTY), env });
+        assert.doesNotMatch(formatted, /\p{Bidi_Control}/u);
+        assert.ok(formatted.includes('metadata \\u202e日本語\\u202c'));
+        assert.equal(failure.message, 'metadata \u202e日本語\u202c');
+      }
+    });
+  }
+});
+
 async function inspectionFailure(options = {}) {
   const { task = 'sentence-similarity' } = options;
   const dimensions = Object.hasOwn(options, 'dimensions') ? options.dimensions : 384;

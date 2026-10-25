@@ -50,4 +50,14 @@ describe('CLI style', () => {
       assert.equal(formatElapsed(input), output);
     }
   });
+
+  test('escapes all Unicode bidi controls without changing ordinary multilingual text', () => {
+    const controls = '\u061c\u200e\u200f\u202a\u202b\u202c\u202d\u202e\u2066\u2067\u2068\u2069';
+    assert.equal(
+      displayText(controls),
+      '\\u061c\\u200e\\u200f\\u202a\\u202b\\u202c\\u202d\\u202e\\u2066\\u2067\\u2068\\u2069'
+    );
+    assert.equal(displayText('مَرْحَبًا 日本語 café 👋'), 'مَرْحَبًا 日本語 café 👋');
+    assert.equal(displayText('literal \\u202e'), 'literal \\u202e');
+  });
 });

@@ -162,7 +162,7 @@ npx @cap-js/ai check-model owner/model
 
 This reports likely compatibility. `install-model` is definitive because it also downloads the artifacts, loads the ONNX model, verifies its inputs and output, and runs a probe inference.
 
-The summary groups model metadata, embedding settings, and query/document prompts, and displays the full inspected revision. Green “Likely compatible” is a positive metadata result, not proof of runtime compatibility; the output explicitly states that no weights were downloaded and ONNX Runtime was not validated. Unsupported tasks are definite rejections. Missing metadata is shown as an amber incomplete inspection, not proven incompatibility. Both failures exit nonzero.
+The summary groups model metadata, embedding settings, and query/document prompts, and displays the full inspected revision. Green “Likely compatible” is a positive metadata result, not proof of runtime compatibility; the output explicitly states that no weights were downloaded and ONNX Runtime was not validated. Unsupported tasks and missing required tokenizer artifacts are definite rejections. Missing inspection metadata, such as `config.json` or dimension fields, is shown as an amber incomplete inspection, not proven incompatibility. Both failures exit nonzero. Terminal control characters and Unicode bidirectional controls are escaped in displayed metadata and errors; the model's prompt values are not changed.
 
 Prompt metadata is part of `embedding.lock.json`. Locks from earlier experimental versions that do not describe prompt semantics are rejected. Remove the affected model directory, then run `install-model` again to regenerate it.
 
