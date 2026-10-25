@@ -8,7 +8,7 @@
 
 ### Added
 
-- Enable CAP's HANA embedding model configuration and document SQLite's independent query/document prompt behavior.
+- Opt into CAP's embedding configuration and document SQLite query defaults and query/document prompts.
 
 ## Version 1.2.1 - 2026-10-14
 

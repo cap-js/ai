@@ -83,17 +83,17 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
      this.on('searchBooks', ({ data: { phrase } }) =>
        SELECT.from('sap.capire.bookshop.Books')
          .columns`title, cosine_similarity(
-           vector_embedding(descr, 'DOCUMENT', 'SAP_GXY.20250407'),
-           vector_embedding(${phrase}, 'QUERY', 'SAP_GXY.20250407')) as relevance`
+           vector_embedding(descr, 'DOCUMENT'),
+           vector_embedding(${phrase}, 'QUERY')) as relevance`
          .orderBy`relevance desc`
      )
      return super.init()
    }}
    ```
 
-   With the upcoming SQLite adapter release containing CQN text-type defaults, `vector_embedding(text)` defaults to `QUERY`. Keep `DOCUMENT` explicit for document embeddings. This requires no HANA model configuration and uses the SQLite dependencies above; until that adapter release is available, supply the text type explicitly, for example `vector_embedding(text, 'QUERY')`. Plain SQL must also supply the text type explicitly to apply the corresponding prompt.
+   With the upcoming SQLite adapter release containing CQN text-type defaults, `vector_embedding(text)` defaults to `QUERY`. Keep `DOCUMENT` explicit for document embeddings. Until that adapter release is available, supply the text type explicitly as shown above. Plain SQL must also supply the text type explicitly to apply the corresponding prompt.
 
-   `@cap-js/ai` enables CAP's embeddings configuration for HANA model selection through `cds.requires.embeddings.model` and `@cds.embeddings.model`. HANA defaults require `@sap/cds` 10.2 or later and the upcoming HANA adapter release containing them. SQLite ignores those HANA model settings and uses its locally configured Hugging Face model. Query/document prompts affect local inference only when the model provides or is configured with them; the default MiniLM model has no prompts. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
+   `@cap-js/ai` opts into CAP's `cds.requires.embeddings` configuration. The SQLite runtime uses its own locally configured Hugging Face model; optional model/version arguments are accepted for HANA compatibility and ignored locally. Query/document prompts affect local inference only when the model provides or is configured with them; the default MiniLM model has no prompts. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
 
 3. Run the app and call the function:
 

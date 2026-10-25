@@ -129,15 +129,15 @@ See [Choosing a model](model-selection.md) for discovery filters and the support
 
 ## SQL function
 
-Use the HANA-shaped function from CQL or SQL:
+Use `vector_embedding` from CQL or SQL:
 
 ```js
 SELECT.from('Books').columns`
-  VECTOR_EMBEDDING(title, 'DOCUMENT', 'SAP_GXY.20250407') as embedding
+  VECTOR_EMBEDDING(title, 'DOCUMENT') as embedding
 `;
 ```
 
-With the upcoming SQLite adapter release containing CQN text-type defaults, a one-argument `vector_embedding(text)` call defaults to `QUERY`. Two-argument calls preserve their explicit text type; keep `DOCUMENT` explicit for runtime document embeddings. These defaults require no `cds.requires.embeddings.model` configuration and use the SQLite dependencies described above. Until that adapter release is available, supply the text type explicitly, for example `vector_embedding(text, 'QUERY')`. The default applies only to CQN; plain SQL must also supply the text type explicitly to apply the corresponding prompt.
+With the upcoming SQLite adapter release containing CQN text-type defaults, a one-argument `vector_embedding(text)` call defaults to `QUERY`. Two-argument calls preserve their explicit text type; keep `DOCUMENT` explicit for runtime document embeddings. These defaults use the SQLite dependencies described above. Until that adapter release is available, supply the text type explicitly, for example `vector_embedding(text, 'QUERY')`. The default applies only to CQN; plain SQL must also supply the text type explicitly to apply the corresponding prompt.
 
 The local service accepts a two-argument form and HANA-compatible three- and four-argument forms:
 
@@ -166,35 +166,9 @@ If required prompts are not available in model metadata, configure them explicit
 Configured `embedding.prompts` entries override the corresponding discovered entry; omitted entries continue using discovered metadata. For models with `include_prompt=false`, this runtime cannot apply discovered or configured prompts; For models that were not trained with prompts, prompt-free use is supported.
 The default `sentence-transformers/all-MiniLM-L6-v2` model has no query/document prompts, so either text type embeds the same unprefixed text unless prompts are configured explicitly.
 `model_and_version` and `remote_source` preserve the SQL shape for development compatibility but do not affect local inference.
+`@cap-js/ai` opts into CAP's `cds.requires.embeddings` configuration, which CDS and the HANA adapter use for technical model defaults. The local SQLite model remains configured independently through `cds.requires.db.embedding.model`.
 SQL `NULL` returns `NULL`, and empty or whitespace-only text is treated as no value and returns a zero vector.
 The result is a JSON string containing the model's vector dimensions.
-
-### HANA embedding model configuration
-
-`@cap-js/ai` enables CAP's embeddings configuration. Technical model selection through `cds.requires.embeddings.model` and `@cds.embeddings.model` applies to SAP HANA only. SQLite always uses the local Hugging Face model configured through `cds.requires.db.embedding.model`; neither HANA configuration nor an element annotation replaces it.
-
-HANA defaults additionally require `@sap/cds` 10.2 or later and the upcoming HANA adapter release containing vector embedding defaults. Until the matching adapter release is available, continue supplying all three arguments explicitly. For CQN, a direct incomplete `vector_embedding` call uses `cds.requires.embeddings.model`. In a cosine-similarity or L2-distance expression, the compared vector element's `@cds.embeddings.model` configuration selects the query model, falling back to the global `embeddings` configuration. A one-argument call also defaults to `QUERY`; keep `DOCUMENT` explicit for runtime document embeddings. Plain SQL calls must provide their arguments explicitly.
-
-For a stored vector element, `@cds.embeddings.model` selects a named `cds.requires` configuration of kind `embeddings`; its value is the configuration name, not a technical model name. For HANA, CDS resolves that configuration's model and fills a missing `DOCUMENT` text type while compiling the element's `vector_embedding` expression. Without the annotation, it uses the global `cds.requires.embeddings` configuration:
-
-```json
-{
-  "cds": {
-    "requires": {
-      "embeddings": true,
-      "semantic-embeddings": {
-        "kind": "embeddings",
-        "model": "SAP_GXY.20250407"
-      }
-    }
-  }
-}
-```
-
-```cds
-@cds.embeddings.model: 'semantic-embeddings'
-embedding : Vector = vector_embedding(descr) stored;
-```
 
 ## Runtime behavior
 
