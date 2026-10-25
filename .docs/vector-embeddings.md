@@ -59,9 +59,24 @@ The current default model is `sentence-transformers/all-MiniLM-L6-v2`. It was se
 }
 ```
 
-The built-in runtime reads `model` and the optional `directory`; additional properties are allowed for extensions.
+The built-in runtime reads `model`, `directory`, `root`, `offline`, and `prompts`; additional properties are allowed for extensions.
 
-Without `directory`, the configured or default model is stored below `<cds.root>/.cds/models/<owner>/<model>`. If a valid installation is absent, startup prints a warning, downloads the model, generates `embedding.lock.json`, and reuses it on later starts.
+Without `directory`, the runtime looks for the configured or default model below `<cds.root>/.cds/models/<owner>/<model>` first, then `~/.cds/models/<owner>/<model>`. When neither installation exists, startup prints a warning, downloads the model into the home cache, generates `embedding.lock.json`, and reuses it across projects. Automatic downloads and repairs never modify the project cache.
+
+An existing project model with missing or invalid metadata or artifacts causes an error instead of falling back to a different installation. Repair it explicitly with `install-model --directory .cds/models`. Invalid home artifacts can be repaired automatically using their valid lock; malformed or mismatched locks require explicit recovery.
+
+The home cache uses Node.js's `os.homedir()`: typically `/Users/<user>/.cds/models` on macOS and `C:\Users\<user>\.cds\models` on Windows. No shell expansion of `~` is required for the default.
+
+For a tool-owned SQLite service, set `embedding.root` to its model lookup root. It defaults to `cds.root`; an absolute path is used unchanged, and a relative path resolves from `cds.root`. This setting only selects the project-local model cache and anchors relative `embedding.directory` paths. It never changes `cds.root`, the application's database, or other services' configuration:
+
+```js
+const db = await cds.connect.to('tool-db', {
+  kind: 'sqlite:memory',
+  embedding: { root: toolRoot, model: 'owner/model' }
+});
+```
+
+Set `embedding.offline: true` to preserve local-then-home lookup while forbidding model discovery, downloads, and repairs during startup. Missing or corrupt models cause an error with a provisioning command; an incomplete local override is not bypassed. Provision the model beforehand using the CLI or the API below. `offline` must be a boolean, and `root` must be a non-empty string. This policy concerns embedding-model I/O only; it does not disable other CAP services' network access.
 
 Use `sqlite:memory` when the application data itself need not survive a restart:
 
@@ -79,19 +94,23 @@ Use `sqlite:memory` when the application data itself need not survive a restart:
 
 ## Explicit provisioning
 
-Provision the project-local model before startup:
+Provision the shared home model before startup:
 
 ```sh
 npx @cap-js/ai install-model owner/model
 ```
 
-The command finds the enclosing CAP project even when run from a subdirectory. It installs into `.cds/models` at the project root.
+The command installs into `~/.cds/models` by default. The same model can be reused across projects without additional configuration.
 
-To reuse a model across projects, select a shared cache root:
+To provision a project-local override, select its cache root explicitly:
 
 ```sh
-npx @cap-js/ai install-model owner/model --directory ~/.cds/models
+npx @cap-js/ai install-model owner/model --directory .cds/models
 ```
+
+Relative directories resolve from the enclosing CAP project root, including when the command runs from a subdirectory. Absolute directories and quoted home-relative paths such as `--directory "~/.cds/models"` are also supported.
+
+To restrict runtime lookup to a pre-installed cache, configure `directory`:
 
 ```json
 {
@@ -109,9 +128,23 @@ npx @cap-js/ai install-model owner/model --directory ~/.cds/models
 }
 ```
 
-`directory` is the cache root, so this example installs the artifacts below `~/.cds/models/owner/model`. Relative paths resolve from `cds.root`, absolute paths remain absolute, and `~/` resolves from the user's home directory.
+`directory` is the cache root, so this example reads the artifacts below `~/.cds/models/owner/model`. Relative paths resolve from `embedding.root` (defaulting to `cds.root`), absolute paths remain absolute, and `~/` resolves from the user's home directory on macOS and Windows.
 
 When `directory` is configured, startup treats it as a pre-installed cache. It validates the lock and files but does not download or modify them. Provision shared models in a controlled environment and consider making the directory read-only at runtime.
+
+### Programmatic provisioning
+
+Import the dedicated entrypoint to provision a model without registering CAP plugin hooks:
+
+```js
+import { installModel } from '@cap-js/ai/models.js';
+
+const { model, modelDir, modelRoot } = await installModel('owner/model');
+```
+
+`installModel(repository, options?)` installs into the home cache by default, validates the lock, checksums, and ONNX runtime (including a probe inference), and returns the descriptor and absolute installation/cache-root paths. It reuses an existing valid lock and waits for concurrent provisioning of the same model. Invalid or mismatched locks require explicit recovery. Importing this entrypoint does not load CAP or inference dependencies; invoking the installer requires the provisioning and inference dependencies listed above.
+
+To provision a tool-local cache explicitly, use `await installModel('owner/model', { root: toolRoot, directory: '.cds/models' })`. `options.directory` is a cache root with the same absolute and home-relative path support as the CLI; `options.root` anchors relative directories and defaults to the current working directory. Without `directory`, `root` does not change the home destination. The `modelDir` return value identifies the model's directory, not the cache root, so do not pass it as `embedding.directory`.
 
 ## Compatibility check
 

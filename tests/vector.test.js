@@ -2,6 +2,11 @@ import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
 import { loadSQLiteService } from '../lib/sqlite/load-sqlite.js';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { installModel } from '@cap-js/ai/models.js';
 import {
   DEFAULT_EMBEDDING_MODEL,
   createEmbeddingRuntime,
@@ -27,6 +32,43 @@ after(async () => {
 });
 
 describe('Vector embedding function (standalone)', () => {
+  test('validates an installed model through the public provisioning API by default', async () => {
+    const { model, modelDir, modelRoot } = await installModel(MINILM_MODEL, {
+      directory: '.cds/models',
+      root: process.cwd(),
+      discover: () => assert.fail('an installed lock must not trigger discovery'),
+      fetchImpl: () => assert.fail('a valid installation must not download')
+    });
+    assert.strictEqual(model.repository, MINILM_MODEL);
+    assert.strictEqual(modelRoot, path.join(process.cwd(), '.cds', 'models'));
+    assert.strictEqual(modelDir, path.join(modelRoot, ...MINILM_MODEL.split('/')));
+
+    // Valid integrity metadata must not let an unusable ONNX graph become an installation.
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cap-ai-invalid-onnx-'));
+    const content = Buffer.from('not an ONNX graph');
+    const sha256 = createHash('sha256').update(content).digest('hex');
+    const invalidModel = {
+      ...model,
+      files: model.files.map((file) => ({ ...file, size: content.length, sha256 }))
+    };
+    try {
+      await assert.rejects(
+        installModel(MINILM_MODEL, {
+          directory: '.cds/models',
+          root,
+          discover: () => invalidModel,
+          fetchImpl: async () => new Response(content)
+        })
+      );
+      await assert.rejects(
+        fs.access(path.join(root, '.cds', 'models', ...MINILM_MODEL.split('/'))),
+        /ENOENT/
+      );
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+
   describe('vector_embedding', () => {
     test('computes embedding with ONNX model', async () => {
       const result = runtime.vectorEmbedding('Hello world');
