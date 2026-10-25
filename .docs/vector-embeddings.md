@@ -112,6 +112,8 @@ npx @cap-js/ai install-model owner/model --directory .cds/models
 
 Relative directories resolve from the enclosing CAP project root, including when the command runs from a subdirectory. Absolute directories and quoted home-relative paths such as `--directory "~/.cds/models"` are also supported.
 
+In an interactive terminal, the CLI shows a growing ASCII download bar with transferred bytes, rate, and ETA. Download completion is separate from ONNX Runtime validation; only a successful installation prints the final green status. Model identities are bold and cache paths are dim. `NO_COLOR` disables colors and emphasis. Piped output and `TERM=dumb` use plain milestone lines, and application startup logs stay plain and throttled.
+
 To restrict runtime lookup to a pre-installed cache, configure `directory`:
 
 ```json
@@ -146,7 +148,7 @@ const { model, modelDir, modelRoot } = await installModel('owner/model');
 
 `installModel(repository, options?)` installs into the home cache by default, validates the lock, checksums, and ONNX runtime (including a probe inference), and returns the descriptor and absolute installation/cache-root paths. It reuses an existing valid lock and waits for concurrent provisioning of the same model. Invalid or mismatched locks require explicit recovery. Importing this entrypoint does not load CAP or inference dependencies; invoking the installer requires the provisioning and inference dependencies listed above.
 
-`options.idleTimeoutMs` defaults to 60 seconds without receiving a chunk, and `options.downloadTimeoutMs` defaults to a 60-minute absolute ceiling per file. `options.onProgress` receives download progress events. `options.timeoutMs` separately limits waiting for another installer; it does not limit this installer's own downloads. The default wait budget covers every serial file's absolute ceiling plus 15 minutes for validation and publication. A non-positive `downloadTimeoutMs` disables the absolute download ceiling and the default wait deadline; an explicit `timeoutMs` still bounds waiting.
+`options.idleTimeoutMs` defaults to 60 seconds without receiving a chunk, and `options.downloadTimeoutMs` defaults to a 60-minute absolute ceiling per file. `options.onProgress` receives download progress events, a single `waiting` event when another installer owns the cache, and `validate:start`/`validate:done` events around the validation callback. Download `done` reports transfer completion, not runtime readiness; `validate:done` includes validation `elapsedMs` and model `dimensions`. Installation is complete only when the installer resolves after publication. `options.timeoutMs` separately limits waiting for another installer; it does not limit this installer's own downloads. The default wait budget covers every serial file's absolute ceiling plus 15 minutes for validation and publication. A non-positive `downloadTimeoutMs` disables the absolute download ceiling and the default wait deadline; an explicit `timeoutMs` still bounds waiting.
 
 To provision a tool-local cache explicitly, use `await installModel('owner/model', { root: toolRoot, directory: '.cds/models' })`. `options.directory` is a cache root with the same absolute and home-relative path support as the CLI; `options.root` anchors relative directories and defaults to the current working directory. Without `directory`, `root` does not change the home destination. The `modelDir` return value identifies the model's directory, not the cache root, so do not pass it as `embedding.directory`.
 
@@ -159,6 +161,8 @@ npx @cap-js/ai check-model owner/model
 ```
 
 This reports likely compatibility. `install-model` is definitive because it also downloads the artifacts, loads the ONNX model, verifies its inputs and output, and runs a probe inference.
+
+The summary groups model metadata, embedding settings, and query/document prompts, and displays the full inspected revision. Green “Likely compatible” is a positive metadata result, not proof of runtime compatibility; the output explicitly states that no weights were downloaded and ONNX Runtime was not validated. Unsupported tasks are definite rejections. Missing metadata is shown as an amber incomplete inspection, not proven incompatibility. Both failures exit nonzero.
 
 Prompt metadata is part of `embedding.lock.json`. Locks from earlier experimental versions that do not describe prompt semantics are rejected. Remove the affected model directory, then run `install-model` again to regenerate it.
 

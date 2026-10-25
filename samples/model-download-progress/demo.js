@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { runModelCommand } from '../../lib/vector_embedding/cli.js';
+import { formatModelCommandError, runModelCommand } from '../../lib/vector_embedding/cli.js';
 import { resolveEmbeddingModel } from '../../lib/vector_embedding/embedding.js';
 import { installModel } from '../../lib/vector_embedding/model-install.js';
 import { downloadFile } from '../../lib/vector_embedding/model-utils.js';
@@ -21,6 +21,9 @@ Scenarios:
   deadline    Bytes keep arriving: absolute download timeout (~2.5s, exit 1)
   legacy      Same deadline using low-level timeoutMs (~2.5s, exit 1)
   concurrent  Two installers share one cache and one download (~8s)
+  check       CLI metadata summary without downloading weights
+  unsupported A non-embedding task is rejected (exit 1)
+  incomplete  Missing dimension metadata leaves compatibility unknown (exit 1)
 
 Pipe healthy output to see plain milestone lines instead of a live TTY line:
   node samples/model-download-progress/demo.js healthy | tee /tmp/model-progress.log
@@ -84,6 +87,38 @@ function fixtureTransport(scenario) {
   };
 }
 
+function fixtureMetadata(scenario) {
+  const metadata = {
+    'tokenizer.json': {},
+    'tokenizer_config.json': { model_max_length: model.maxLength },
+    'config.json': {
+      ...(scenario === 'incomplete' ? {} : { hidden_size: model.dimensions }),
+      max_position_embeddings: model.maxLength
+    },
+    'modules.json': [
+      { idx: 0, path: '', type: 'sentence_transformers.models.Transformer' },
+      { idx: 1, path: '1_Pooling', type: 'sentence_transformers.models.Pooling' },
+      { idx: 2, path: '2_Normalize', type: 'sentence_transformers.models.Normalize' }
+    ],
+    '1_Pooling/config.json': { pooling_mode_mean_tokens: true, include_prompt: true }
+  };
+  return {
+    getModelInfo: async () => ({
+      sha: model.revision,
+      task: scenario === 'unsupported' ? 'text-generation' : 'sentence-similarity'
+    }),
+    getFiles: async () => [
+      { path: 'model.onnx' },
+      ...Object.keys(metadata).map((path) => ({ path }))
+    ],
+    getFile: async (_repository, _revision, remotePath) => {
+      assert.ok(Object.hasOwn(metadata, remotePath), `Not a metadata file: ${remotePath}`);
+      await delay(75);
+      return Buffer.from(JSON.stringify(metadata[remotePath]));
+    }
+  };
+}
+
 async function main() {
   const [scenario = 'healthy', ...extra] = process.argv.slice(2);
   if (scenario === '--help' || scenario === '-h') {
@@ -92,9 +127,18 @@ async function main() {
   }
   assert.ok(
     !extra.length &&
-      ['healthy', 'startup', 'stall', 'headers', 'deadline', 'legacy', 'concurrent'].includes(
-        scenario
-      ),
+      [
+        'healthy',
+        'startup',
+        'stall',
+        'headers',
+        'deadline',
+        'legacy',
+        'concurrent',
+        'check',
+        'unsupported',
+        'incomplete'
+      ].includes(scenario),
     `Unknown scenario or extra arguments.\n${HELP}`
   );
 
@@ -107,7 +151,9 @@ async function main() {
     fetchImpl: transport.fetchImpl,
     discover: async () => model,
     // Synthetic bytes exercise provisioning, not inference; they are not a usable ONNX model.
-    validate: async () => {},
+    validate: async () => {
+      await delay(500);
+    },
     idleTimeoutMs: 2000,
     downloadTimeoutMs: 30_000
   };
@@ -117,7 +163,13 @@ async function main() {
   );
 
   try {
-    if (scenario === 'startup') {
+    if (['check', 'unsupported', 'incomplete'].includes(scenario)) {
+      await runModelCommand(['check-model', repository], {
+        root: options.root,
+        hubClient: fixtureMetadata(scenario)
+      });
+      assert.equal(transport.requests, 0);
+    } else if (scenario === 'startup') {
       const result = await resolveEmbeddingModel(
         { model: repository },
         {
@@ -183,6 +235,6 @@ async function main() {
 try {
   await main();
 } catch (error) {
-  process.stderr.write(`ERROR: ${error.message}\n`);
+  process.stderr.write(formatModelCommandError(error));
   process.exitCode = 1;
 }

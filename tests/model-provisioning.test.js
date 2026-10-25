@@ -1091,10 +1091,12 @@ describe('explicit model provisioning', () => {
     });
 
     assert.match(output.join(''), /Likely compatible/i);
-    assert.match(output.join(''), /Prompt tokens in pooling: included/);
-    assert.match(output.join(''), /QUERY: "query: "/);
-    assert.match(output.join(''), /DOCUMENT: "document: "/);
-    assert.match(output.join(''), /install-model.*definitive/i);
+    assert.match(output.join(''), /Prompt pooling\s+included/);
+    assert.match(output.join(''), /Query\s+"query: "/);
+    assert.match(output.join(''), /Document\s+"document: "/);
+    assert.match(output.join(''), /ONNX Runtime not validated/);
+    assert.match(output.join(''), /Next: install and validate with ONNX Runtime/);
+    assert.match(output.join(''), /npx @cap-js\/ai install-model example\/model/);
     await assert.rejects(fs.access(path.join(root, '.cds', 'models')), /ENOENT/);
     await assert.rejects(fs.access(path.join(home, '.cds', 'models')), /ENOENT/);
   });
@@ -1257,8 +1259,10 @@ describe('download progress and timeouts', () => {
     assert.equal(events[0].totalBytes, content.length * model.files.length);
     assert.ok(phases.includes('progress'));
     assert.equal(phases.filter((phase) => phase === 'file:done').length, model.files.length);
-    assert.equal(phases.at(-1), 'done');
-    assert.equal(events.at(-1).totalBytes, content.length * model.files.length);
+    const downloaded = events.find((event) => event.phase === 'done');
+    assert.equal(downloaded.totalBytes, content.length * model.files.length);
+    assert.deepEqual(phases.slice(-3), ['done', 'validate:start', 'validate:done']);
+    assert.equal(events.at(-1).dimensions, model.dimensions);
   });
 
   test('reports files that are already present as skipped', async () => {
