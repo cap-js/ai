@@ -3,15 +3,20 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 import { afterEach, describe, test } from 'node:test';
 import { runModelCommand } from '../lib/vector_embedding/cli.js';
+import { installModel } from '../lib/vector_embedding/model-install.js';
 import {
   DEFAULT_EMBEDDING_MODEL,
   resolveEmbeddingModel
 } from '../lib/vector_embedding/embedding.js';
 import {
+  DOWNLOAD_TIMEOUT_MS,
   MODEL_LOCK_FILE,
   MODEL_LOCK_VERSION,
+  downloadFile,
+  downloadModelIfNeeded,
   getModelDirectory,
   getModelRoot,
   provisionModel,
@@ -789,8 +794,8 @@ describe('explicit model provisioning', () => {
     assert.equal(first.modelDir, expectedDirectory);
     assert.equal(discoveries, 1);
     assert.equal(warnings.length, 1);
-    assert.match(warnings[0], /Downloading it now; application startup may be delayed/);
-    assert.match(warnings[0], /repositories you trust/);
+    assert.match(warnings[0], /Downloading it now; startup is blocked until it finishes/);
+    assert.doesNotMatch(warnings[0], /repositories you trust|install-model/);
     assert.ok(warnings[0].includes(expectedDirectory));
     assert.equal(requestedUrls.length, model.files.length);
     assert.deepEqual(await readModelLock(expectedDirectory), model);
@@ -807,6 +812,41 @@ describe('explicit model provisioning', () => {
     assert.equal(warnings.length, 1);
     assert.equal(requestedUrls.length, model.files.length);
     await assert.rejects(fs.access(path.join(otherRoot, '.cds', 'models')), /ENOENT/);
+  });
+
+  test('keeps pre-provisioning guidance in startup failures, not download announcements', async () => {
+    const root = await createTemporaryDirectory();
+    const home = await createTemporaryDirectory();
+    const model = fixtureModel(Buffer.from('startup failure fixture'));
+    const failure = new Error('Fixture download failed');
+    const warnings = [];
+
+    await assert.rejects(
+      resolveEmbeddingModel(
+        { model: model.repository },
+        {
+          root,
+          home,
+          discover: () => model,
+          fetchImpl: async () => {
+            throw failure;
+          },
+          validate: async () => {},
+          warn: (message) => warnings.push(message)
+        }
+      ),
+      (error) => {
+        assert.equal(error.cause, failure);
+        assert.match(error.message, /Failed to provision embedding model/);
+        assert.match(error.message, /Provision it ahead of time/);
+        assert.ok(
+          error.message.includes(`Run 'npx @cap-js/ai install-model ${model.repository}'.`)
+        );
+        return true;
+      }
+    );
+    assert.equal(warnings.length, 1);
+    assert.doesNotMatch(warnings[0], /repositories you trust|install-model/);
   });
 
   test('waits for concurrent ad-hoc provisioning and reuses the completed download', async () => {
@@ -1051,10 +1091,12 @@ describe('explicit model provisioning', () => {
     });
 
     assert.match(output.join(''), /Likely compatible/i);
-    assert.match(output.join(''), /Prompt tokens in pooling: included/);
-    assert.match(output.join(''), /QUERY: "query: "/);
-    assert.match(output.join(''), /DOCUMENT: "document: "/);
-    assert.match(output.join(''), /install-model.*definitive/i);
+    assert.match(output.join(''), /Prompt pooling\s+included/);
+    assert.match(output.join(''), /Query\s+"query: "/);
+    assert.match(output.join(''), /Document\s+"document: "/);
+    assert.match(output.join(''), /ONNX Runtime not validated/);
+    assert.match(output.join(''), /Next: install and validate with ONNX Runtime/);
+    assert.match(output.join(''), /npx @cap-js\/ai install-model example\/model/);
     await assert.rejects(fs.access(path.join(root, '.cds', 'models')), /ENOENT/);
     await assert.rejects(fs.access(path.join(home, '.cds', 'models')), /ENOENT/);
   });
@@ -1074,6 +1116,325 @@ describe('explicit model provisioning', () => {
     );
   });
 });
+
+describe('download progress and timeouts', () => {
+  test('honors the timeoutMs alias through low-level provisioning and cleans up', async () => {
+    const directory = await createTemporaryDirectory();
+    const content = Buffer.from('legacy deadline fixture');
+    const model = fixtureModel(content);
+
+    await assert.rejects(
+      provisionModel(model, {
+        directory: path.join(directory, 'model'),
+        fetchImpl: createPacedFetch(content),
+        timeoutMs: 30,
+        idleTimeoutMs: 1000
+      }),
+      /Timed out after 30 ms while downloading/
+    );
+    assert.deepEqual(await fs.readdir(directory), []);
+  });
+
+  test('an explicit downloadTimeoutMs takes precedence over the timeoutMs alias', async () => {
+    const directory = await createTemporaryDirectory();
+    const content = Buffer.from('precedence');
+    const file = fixtureModel(content).files[0];
+    const outputPath = path.join(directory, file.name);
+
+    await downloadFile('https://hub.test/model', outputPath, file, {
+      fetchImpl: createPacedFetch(content),
+      timeoutMs: 1,
+      downloadTimeoutMs: 1000,
+      idleTimeoutMs: 1000
+    });
+    assert.deepEqual(await fs.readFile(outputPath), content);
+    assert.deepEqual(await fs.readdir(directory), [file.name]);
+  });
+
+  test('resets the idle timeout while a healthy download outlasts it', async () => {
+    const directory = await createTemporaryDirectory();
+    const content = Buffer.from('a healthy paced download');
+    const file = fixtureModel(content).files[0];
+    const outputPath = path.join(directory, file.name);
+
+    await downloadFile('https://hub.test/model', outputPath, file, {
+      fetchImpl: createPacedFetch(content),
+      idleTimeoutMs: 100,
+      downloadTimeoutMs: 2000
+    });
+    assert.deepEqual(await fs.readFile(outputPath), content);
+  });
+
+  test('the idle timeout also bounds waiting for response headers', async () => {
+    const directory = await createTemporaryDirectory();
+    const file = fixtureModel(Buffer.from('headers')).files[0];
+    await assert.rejects(
+      downloadFile('https://hub.test/model', path.join(directory, file.name), file, {
+        fetchImpl: async (_url, { signal }) => {
+          await delay(1000, undefined, { signal });
+          return new Response('headers');
+        },
+        idleTimeoutMs: 20
+      }),
+      /Stalled while downloading/
+    );
+    assert.deepEqual(await fs.readdir(directory), []);
+  });
+
+  test('aborts a stalled download after the idle timeout', async () => {
+    const directory = await createTemporaryDirectory();
+    const outputPath = path.join(directory, 'model.onnx');
+    // A body that never emits and only errors when the download aborts, so the idle
+    // timer is the sole thing that can end the read.
+    const fetchImpl = async (url, { signal }) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            signal.addEventListener('abort', () =>
+              controller.error(Object.assign(new Error('aborted'), { name: 'AbortError' }))
+            );
+          }
+        })
+      );
+
+    await assert.rejects(
+      downloadFile(
+        'https://hub.test/example/model/resolve/rev/onnx/model.onnx',
+        outputPath,
+        { name: 'model.onnx', size: 10, sha256: '0'.repeat(64) },
+        { fetchImpl, idleTimeoutMs: 20 }
+      ),
+      /Stalled while downloading .* no data received for 0s/
+    );
+    assert.deepEqual(await fs.readdir(directory), []);
+  });
+
+  test('enforces the absolute per-file ceiling even while data trickles in', async () => {
+    const directory = await createTemporaryDirectory();
+    const outputPath = path.join(directory, 'model.onnx');
+    // Drip one byte forever: the idle timer keeps resetting, so only the absolute
+    // ceiling can stop it.
+    const fetchImpl = async (url, { signal }) =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            const timer = setInterval(() => controller.enqueue(new Uint8Array([0])), 5);
+            signal.addEventListener('abort', () => {
+              clearInterval(timer);
+              controller.error(Object.assign(new Error('aborted'), { name: 'AbortError' }));
+            });
+          }
+        })
+      );
+
+    await assert.rejects(
+      downloadFile(
+        'https://hub.test/example/model/resolve/rev/onnx/model.onnx',
+        outputPath,
+        { name: 'model.onnx', size: 1_000_000, sha256: '0'.repeat(64) },
+        { fetchImpl, idleTimeoutMs: 10_000, downloadTimeoutMs: 60 }
+      ),
+      /Timed out after 60 ms while downloading/
+    );
+    assert.deepEqual(await fs.readdir(directory), []);
+  });
+
+  test('reports plan, per-file, and completion progress events', async () => {
+    const content = Buffer.from('progress fixture content');
+    const model = fixtureModel(content);
+    const directory = await createTemporaryDirectory();
+    const modelDir = getModelDirectory(directory, model.repository);
+    const events = [];
+
+    await provisionModel(model, {
+      directory: modelDir,
+      fetchImpl: createFetch(content),
+      validate: async () => {},
+      onProgress: (event) => events.push(event)
+    });
+
+    const phases = events.map((event) => event.phase);
+    assert.equal(phases[0], 'plan');
+    assert.equal(events[0].pendingFiles, model.files.length);
+    assert.equal(events[0].totalBytes, content.length * model.files.length);
+    assert.ok(phases.includes('progress'));
+    assert.equal(phases.filter((phase) => phase === 'file:done').length, model.files.length);
+    const downloaded = events.find((event) => event.phase === 'done');
+    assert.equal(downloaded.totalBytes, content.length * model.files.length);
+    assert.deepEqual(phases.slice(-3), ['done', 'validate:start', 'validate:done']);
+    assert.equal(events.at(-1).dimensions, model.dimensions);
+  });
+
+  test('reports files that are already present as skipped', async () => {
+    const content = Buffer.from('skip fixture content');
+    const model = fixtureModel(content);
+    const directory = await createTemporaryDirectory();
+    const events = [];
+
+    await downloadModelIfNeeded(directory, model, { fetchImpl: createFetch(content) });
+    await downloadModelIfNeeded(directory, model, {
+      fetchImpl: createFetch(content),
+      onProgress: (event) => events.push(event)
+    });
+
+    const plan = events.find((event) => event.phase === 'plan');
+    assert.equal(plan.pendingFiles, 0);
+    assert.equal(plan.skippedFiles, model.files.length);
+    assert.equal(events.filter((event) => event.phase === 'file:skip').length, model.files.length);
+  });
+
+  test('transfer timing excludes cached-file scanning and plan rendering', async (t) => {
+    const content = Buffer.from('partially cached timing fixture');
+    const model = fixtureModel(content);
+    const directory = await createTemporaryDirectory();
+    const cachedFile = path.join(directory, model.files[0].name);
+    await fs.writeFile(cachedFile, content);
+    let clock = 1000;
+    let scanSimulated = false;
+    const lstat = fs.lstat;
+    t.mock.method(Date, 'now', () => clock);
+    t.mock.method(fs, 'lstat', async (...args) => {
+      if (args[0] === cachedFile && !scanSimulated) {
+        // Cached-file verification can be expensive without transferring any bytes.
+        clock += 10_000;
+        scanSimulated = true;
+      }
+      return lstat(...args);
+    });
+    const events = [];
+    await downloadModelIfNeeded(directory, model, {
+      idleTimeoutMs: 0,
+      downloadTimeoutMs: 0,
+      fetchImpl: async () => {
+        clock += 1000;
+        return new Response(content);
+      },
+      onProgress: (event) => {
+        events.push(event);
+        if (event.phase === 'plan') clock += 5000;
+      }
+    });
+    assert.equal(scanSimulated, true);
+    assert.equal(events[0].pendingFiles, 2);
+    assert.equal(events[0].skippedFiles, 1);
+    assert.deepEqual(
+      events.filter(({ phase }) => phase === 'progress').map(({ elapsedMs }) => elapsedMs),
+      [1000, 2000]
+    );
+    assert.equal(events.at(-1).elapsedMs, 2000);
+  });
+});
+
+describe('concurrent provisioning wait budgets', () => {
+  const minute = 60 * 1000;
+  test('timeoutMs does not cap the installer owning the download', async () => {
+    const directory = await createTemporaryDirectory();
+    const content = Buffer.from('wait cap');
+    const model = fixtureModel(content);
+    const installed = await installModel(model.repository, {
+      directory,
+      discover: () => model,
+      fetchImpl: createPacedFetch(content),
+      timeoutMs: 1,
+      idleTimeoutMs: 1000
+    });
+    await verifyModelDirectory(installed.modelDir, model);
+  });
+
+  for (const [name, options, elapsedMs, expires] of [
+    ['all serial file ceilings', {}, 2 * DOWNLOAD_TIMEOUT_MS + 16 * minute, false],
+    ['the default wait deadline', {}, 3 * DOWNLOAD_TIMEOUT_MS + 15 * minute + 1, true],
+    ['a configured download ceiling', { downloadTimeoutMs: 10_000 }, 15 * minute + 20_001, false],
+    ['a disabled download ceiling', { downloadTimeoutMs: 0 }, 30 * 24 * 60 * minute, false],
+    ['a null download ceiling', { downloadTimeoutMs: null }, 30 * 24 * 60 * minute, false],
+    ['an explicit contention limit', { timeoutMs: 100, downloadTimeoutMs: 0 }, 101, true]
+  ]) {
+    test(`respects ${name}`, async (t) => {
+      const directory = await createTemporaryDirectory();
+      const content = Buffer.from('shared cache wait fixture');
+      const model = fixtureModel(content);
+      let wallClock = Date.now();
+      let discoveries = 0;
+      let waiterClockReads = 0;
+      let signalValidation;
+      let releaseValidation;
+      let signalWaiterDeadline;
+      let signalWaiterBudget;
+      const validationStarted = new Promise((resolve) => {
+        signalValidation = resolve;
+      });
+      const validationReleased = new Promise((resolve) => {
+        releaseValidation = resolve;
+      });
+      const waiterDeadline = new Promise((resolve) => {
+        signalWaiterDeadline = resolve;
+      });
+      const waiterBudget = new Promise((resolve) => {
+        signalWaiterBudget = resolve;
+      });
+      // Only the waiter's wall-clock budget advances; the owner remains held in
+      // validation so a real lock conflict is guaranteed without hours of waiting.
+      t.mock.method(Date, 'now', () => {
+        if (discoveries === 2) {
+          waiterClockReads++;
+          if (waiterClockReads === 1) signalWaiterDeadline();
+          if (waiterClockReads === 2) signalWaiterBudget();
+        }
+        return wallClock;
+      });
+      const requestedUrls = [];
+      const installOptions = {
+        ...options,
+        directory,
+        retryMs: 1,
+        discover: () => {
+          discoveries++;
+          return model;
+        },
+        fetchImpl: createFetch(content, requestedUrls),
+        validate: async () => {
+          signalValidation();
+          await validationReleased;
+        }
+      };
+      const owner = installModel(model.repository, installOptions);
+      await validationStarted;
+      const waiter = installModel(model.repository, installOptions);
+      // Attach rejection handling before advancing the deadline.
+      const settled = Promise.allSettled([owner, waiter]);
+      try {
+        await waiterDeadline;
+        wallClock += elapsedMs;
+        await waiterBudget;
+        if (expires) await assert.rejects(waiter, /Timed out waiting for embedding model/);
+        releaseValidation();
+        const installed = await owner;
+        if (!expires) assert.equal((await waiter).modelDir, installed.modelDir);
+        assert.equal(requestedUrls.length, model.files.length);
+        await verifyModelDirectory(installed.modelDir, model);
+        assert.deepEqual(await fs.readdir(path.dirname(installed.modelDir)), ['model']);
+      } finally {
+        releaseValidation();
+        await settled;
+      }
+    });
+  }
+});
+
+function createPacedFetch(content) {
+  return async (_url, { signal }) => {
+    let offset = 0;
+    return new Response(
+      new ReadableStream({
+        async pull(controller) {
+          if (offset === content.length) return controller.close();
+          await delay(10, undefined, { signal });
+          controller.enqueue(content.subarray(offset, ++offset));
+        }
+      })
+    );
+  };
+}
 
 function createFetch(content, requestedUrls = []) {
   return async (url) => {
