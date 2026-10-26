@@ -83,17 +83,17 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
      this.on('searchBooks', ({ data: { phrase } }) =>
        SELECT.from('sap.capire.bookshop.Books')
          .columns`title, cosine_similarity(
-           vector_embedding(descr, 'DOCUMENT'),
-           vector_embedding(${phrase}, 'QUERY')) as relevance`
+           vector_embedding(descr, 'DOCUMENT', 'SAP_GXY.20250407'),
+           vector_embedding(${phrase}, 'QUERY', 'SAP_GXY.20250407')) as relevance`
          .orderBy`relevance desc`
      )
      return super.init()
    }}
    ```
 
-   The AI SQLite adapter defaults one-argument CQN calls to `QUERY`. Keep `DOCUMENT` explicit for document embeddings. Plain SQL must supply the text type explicitly to apply the corresponding prompt. The default MiniLM model has no query/document prompts; text types select configured or discovered prefixes for models that use them.
+   On SQLite, `vector_embedding(text)` defaults to `QUERY` in CQN; use `vector_embedding(text, 'DOCUMENT')` for document embeddings.
 
-   The SQLite runtime uses its own locally configured Hugging Face model; optional model/version arguments are accepted for HANA compatibility and ignored locally. Query/document prompts affect local inference only when the model provides or is configured with them; the default MiniLM model has no prompts. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
+   The model name is ignored on SQLite — the locally configured model is used — and honored on SAP HANA, so the same query runs unchanged on both. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
 
 3. Run the app and call the function:
 
