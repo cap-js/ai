@@ -76,7 +76,7 @@
           }
         }
       },
-      "[hybrid]": {
+      "[hybrid!]": {
         "db": {
           "kind": "hana"
         },
