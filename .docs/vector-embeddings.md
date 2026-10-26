@@ -42,15 +42,14 @@ Use the standard SQLite configuration:
 }
 ```
 
-The current default model is `sentence-transformers/all-MiniLM-L6-v2`. It was selected only because, at the time of selection, it was the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license filters used for the sample. This is not a model recommendation. The default may change at any time while the feature is experimental, so configure `embedding.model` explicitly when the model choice must remain stable:
+The development profile supplies `sentence-transformers/all-MiniLM-L6-v2` through `cds.requires.embeddings.model`. It was selected only because, at the time of selection, it was the most-downloaded reasonably small model matching the sentence-similarity task, ONNX format, and Apache-2.0 license filters used for the sample. This is not a model recommendation. The default may change at any time while the feature is experimental, so configure the shared model explicitly when the model choice must remain stable:
 
 ```json
 {
   "cds": {
     "requires": {
-      "db": {
-        "kind": "sqlite",
-        "embedding": {
+      "[development]": {
+        "embeddings": {
           "model": "owner/model"
         }
       }
@@ -59,7 +58,7 @@ The current default model is `sentence-transformers/all-MiniLM-L6-v2`. It was se
 }
 ```
 
-The built-in runtime reads `model`, `directory`, `root`, `offline`, and `prompts`; additional properties are allowed for extensions.
+The built-in SQLite runtime reads `model`, `directory`, `root`, `offline`, and `prompts` from `cds.requires.embeddings`; additional properties are allowed for extensions. Explicit `embedding` options passed to a SQLite service override the shared configuration.
 
 Without `directory`, the runtime looks for the configured or default model below `<cds.root>/.cds/models/<owner>/<model>` first, then `~/.cds/models/<owner>/<model>`. When neither installation exists, startup prints a warning, downloads the model into the home cache while logging progress (percentage, downloaded/total, and an ETA), generates `embedding.lock.json`, and reuses it across projects. Automatic downloads and repairs never modify the project cache. Startup is blocked until the download finishes. Downloads use a stall timeout (no data received for a while) plus a generous absolute ceiling; if a download cannot finish, startup fails with guidance to provision the model ahead of time. For large models, prefer [explicit provisioning](#explicit-provisioning) so the download does not block startup.
 
@@ -120,9 +119,8 @@ To restrict runtime lookup to a pre-installed cache, configure `directory`:
 {
   "cds": {
     "requires": {
-      "db": {
-        "kind": "sqlite",
-        "embedding": {
+      "[development]": {
+        "embeddings": {
           "model": "owner/model",
           "directory": "~/.cds/models"
         }

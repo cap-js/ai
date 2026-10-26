@@ -20,7 +20,7 @@ export default class CatalogService extends cds.ApplicationService {
       } else return req.error(409, `${quantity} exceeds stock for book #${book}`);
     });
 
-    if (cds.env.requires.db.embedding?.model) {
+    if (cds.requires.embeddings?.model) {
       this.on('embedding', async (req) => {
         const [row] = await cds.db.run(
           `SELECT VECTOR_EMBEDDING(?, 'DOCUMENT', 'local') AS embedding`,

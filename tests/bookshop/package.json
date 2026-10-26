@@ -48,10 +48,10 @@
           "kind": "sqlite",
           "credentials": {
             "url": ":memory:"
-          },
-          "embedding": {
-            "directory": "../../.cds/models"
           }
+        },
+        "embeddings": {
+          "directory": "../../.cds/models"
         }
       },
       "[test]": {
@@ -59,10 +59,10 @@
           "kind": "sqlite",
           "credentials": {
             "url": ":memory:"
-          },
-          "embedding": {
-            "directory": "../../.cds/models"
           }
+        },
+        "embeddings": {
+          "directory": "../../.cds/models"
         }
       },
       "[production]": {
@@ -78,9 +78,9 @@
       },
       "[hybrid]": {
         "db": {
-          "kind": "hana",
-          "embedding": null
-        }
+          "kind": "hana"
+        },
+        "embeddings": false
       },
       "[with-mtx]": {
         "multitenancy": true
