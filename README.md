@@ -93,7 +93,7 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
 
    The AI SQLite adapter defaults one-argument CQN calls to `QUERY`. Keep `DOCUMENT` explicit for document embeddings. Plain SQL must supply the text type explicitly to apply the corresponding prompt. The default MiniLM model has no query/document prompts; text types select configured or discovered prefixes for models that use them.
 
-   `@cap-js/ai` opts into CAP's `cds.requires.embeddings` configuration. The SQLite runtime uses its own locally configured Hugging Face model; optional model/version arguments are accepted for HANA compatibility and ignored locally. Query/document prompts affect local inference only when the model provides or is configured with them; the default MiniLM model has no prompts. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
+   The SQLite runtime uses its own locally configured Hugging Face model; optional model/version arguments are accepted for HANA compatibility and ignored locally. Query/document prompts affect local inference only when the model provides or is configured with them; the default MiniLM model has no prompts. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
 
 3. Run the app and call the function:
 

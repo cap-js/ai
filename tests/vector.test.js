@@ -15,8 +15,6 @@ import {
 
 const MINILM_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 const AI_SQLITE_IMPL = '@cap-js/ai/lib/sqlite/AISQLiteService.js';
-const [CDS_MAJOR, CDS_MINOR] = cds.version.split('.').map(Number);
-const HAS_HANA_EMBEDDING_CONFIG = CDS_MAJOR > 10 || (CDS_MAJOR === 10 && CDS_MINOR >= 2);
 
 let runtime;
 
@@ -247,17 +245,6 @@ describe('text-type prompts via configured prompts', () => {
 
 describe('SQLite integration', () => {
   let db;
-
-  test('enables the embeddings configuration independently of the local model', () => {
-    const { embeddings } = cds.env.requires;
-    if (!HAS_HANA_EMBEDDING_CONFIG) {
-      assert.strictEqual(embeddings, true);
-    } else {
-      assert.strictEqual(embeddings.model, 'SAP_GXY.20250407');
-      assert.strictEqual(embeddings.model_kind, 'embeddings');
-      assert.notStrictEqual(embeddings.model, cds.env.requires.kinds.sqlite.embedding.model);
-    }
-  });
 
   test('uses the default embedding model', () => {
     assert.strictEqual(DEFAULT_EMBEDDING_MODEL, MINILM_MODEL);

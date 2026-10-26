@@ -49,7 +49,6 @@
   },
   "cds": {
     "requires": {
-      "embeddings": true,
       "AICore": "AICore-mocked",
       "[production]": {
         "AICore": "AICore-btp"

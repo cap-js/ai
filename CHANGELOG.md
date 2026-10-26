@@ -8,7 +8,7 @@
 
 ### Added
 
-- Opt into CAP's embedding configuration and default one-argument SQLite CQN `vector_embedding` calls to `QUERY` in the AI adapter. Document query/document prompts and the independent local model configuration.
+- Default one-argument SQLite CQN `vector_embedding` calls to `QUERY` in the AI adapter. Document query/document prompts and the independent local model configuration.
 - Add per-service `embedding.root` for model lookup without changing the CAP project root, and `embedding.offline` for read-only local-then-home model lookup.
 - Export `installModel` from `@cap-js/ai/models.js` for validated programmatic provisioning without CAP plugin hooks on import; existing package entrypoints and deep paths remain available.
 

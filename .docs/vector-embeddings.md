@@ -199,7 +199,7 @@ If required prompts are not available in model metadata, configure them explicit
 Configured `embedding.prompts` entries override the corresponding discovered entry; omitted entries continue using discovered metadata. For models with `include_prompt=false`, this runtime cannot apply discovered or configured prompts; For models that were not trained with prompts, prompt-free use is supported.
 The default `sentence-transformers/all-MiniLM-L6-v2` model has no query/document prompts, so either text type embeds the same unprefixed text unless prompts are configured explicitly.
 `model_and_version` and `remote_source` preserve the SQL shape for development compatibility but do not affect local inference.
-`@cap-js/ai` opts into CAP's `cds.requires.embeddings` configuration, which CDS and the HANA adapter use for technical model defaults. The local SQLite model remains configured independently through `cds.requires.db.embedding.model`.
+The local SQLite model is configured through `cds.requires.db.embedding.model`.
 SQL `NULL` returns `NULL`, and empty or whitespace-only text is treated as no value and returns a zero vector.
 The result is a JSON string containing the model's vector dimensions.
 
