@@ -1,7 +1,6 @@
 import { after, before, describe, test } from 'node:test';
 import assert from 'node:assert';
 import cds from '@sap/cds';
-import { loadSQLiteService } from '../lib/sqlite/load-sqlite.js';
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -18,8 +17,6 @@ const MINILM_MODEL = 'sentence-transformers/all-MiniLM-L6-v2';
 const AI_SQLITE_IMPL = '@cap-js/ai/lib/sqlite/AISQLiteService.js';
 const [CDS_MAJOR, CDS_MINOR] = cds.version.split('.').map(Number);
 const HAS_HANA_EMBEDDING_CONFIG = CDS_MAJOR > 10 || (CDS_MAJOR === 10 && CDS_MINOR >= 2);
-const HAS_VECTOR_ADAPTER =
-  typeof loadSQLiteService().CQN2SQL.Functions.vector_embedding === 'function';
 
 let runtime;
 
@@ -335,28 +332,23 @@ describe('SQLite integration', () => {
   });
 });
 
-describe(
-  'CQN embedding defaults with the local SQLite runtime',
-  {
-    skip: !HAS_VECTOR_ADAPTER && 'CQN defaults require the upcoming SQLite vector adapter release'
-  },
-  () => {
-    const TEXT = 'a small cat';
-    const PROMPTS = { query: 'query: ', document: 'document: ' };
-    let db;
-    let embeddings;
-    let selectedEmbeddings;
+describe('CQN embedding defaults with the local SQLite runtime', () => {
+  const TEXT = 'a small cat';
+  const PROMPTS = { query: 'query: ', document: 'document: ' };
+  let db;
+  let embeddings;
+  let selectedEmbeddings;
 
-    before(async () => {
-      embeddings = cds.env.requires.embeddings;
-      selectedEmbeddings = cds.env.requires['selected-embeddings'];
-      cds.env.requires.embeddings = {};
-      cds.env.requires['selected-embeddings'] = {
-        model: 'SELECTED.HANA.MODEL',
-        model_kind: 'embeddings'
-      };
-      const model = cds.linked(
-        cds.compile.to.csn(`
+  before(async () => {
+    embeddings = cds.env.requires.embeddings;
+    selectedEmbeddings = cds.env.requires['selected-embeddings'];
+    cds.env.requires.embeddings = {};
+    cds.env.requires['selected-embeddings'] = {
+      model: 'SELECTED.HANA.MODEL',
+      model_kind: 'embeddings'
+    };
+    const model = cds.linked(
+      cds.compile.to.csn(`
         entity EmbeddingDocuments {
           key ID : Integer;
           @cds.embeddings.model: 'selected-embeddings'
@@ -364,110 +356,138 @@ describe(
           fallback : Vector;
         }
       `)
-      );
-      db = await cds.connect.to('cqn-vector-db', {
-        kind: 'sqlite',
-        credentials: { url: ':memory:' },
-        model,
-        embedding: { model: MINILM_MODEL, prompts: PROMPTS }
-      });
-      await db.run('CREATE TABLE EmbeddingDocuments (ID INTEGER, selected TEXT, fallback TEXT)');
-      const embedding = runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`);
-      await db.run(
-        cds.ql.INSERT.into('EmbeddingDocuments').entries({
-          ID: 1,
-          selected: embedding,
-          fallback: embedding
-        })
-      );
+    );
+    db = await cds.connect.to('cqn-vector-db', {
+      kind: 'sqlite',
+      credentials: { url: ':memory:' },
+      model,
+      embedding: { model: MINILM_MODEL, prompts: PROMPTS }
     });
+    await db.run('CREATE TABLE EmbeddingDocuments (ID INTEGER, selected TEXT, fallback TEXT)');
+    const embedding = runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`);
+    await db.run(
+      cds.ql.INSERT.into('EmbeddingDocuments').entries({
+        ID: 1,
+        selected: embedding,
+        fallback: embedding
+      })
+    );
+  });
 
-    after(async () => {
-      try {
-        await db?.disconnect();
-      } finally {
-        cds.env.requires.embeddings = embeddings;
-        if (selectedEmbeddings === undefined) delete cds.env.requires['selected-embeddings'];
-        else cds.env.requires['selected-embeddings'] = selectedEmbeddings;
-      }
-    });
+  after(async () => {
+    try {
+      await db?.disconnect();
+    } finally {
+      cds.env.requires.embeddings = embeddings;
+      if (selectedEmbeddings === undefined) delete cds.env.requires['selected-embeddings'];
+      else cds.env.requires['selected-embeddings'] = selectedEmbeddings;
+    }
+  });
 
-    test('defaults to QUERY without HANA configuration and keeps an explicit DOCUMENT prompt', async () => {
-      assert.strictEqual(cds.env.requires.embeddings.model, undefined);
-      const query = cds.ql.SELECT.from('EmbeddingDocuments').columns`
+  test('defaults to QUERY without HANA configuration and keeps an explicit DOCUMENT prompt', async () => {
+    assert.strictEqual(cds.env.requires.embeddings.model, undefined);
+    const query = cds.ql.SELECT.from('EmbeddingDocuments').columns`
         vector_embedding(${TEXT}) as queryEmbedding,
         vector_embedding(${TEXT}, 'DOCUMENT') as documentEmbedding
       `;
-      const { sql } = db.cqn2sql(query);
+    const { sql } = db.cqn2sql(query);
+    assert.match(sql, /vector_embedding\(\?,'QUERY'\)/);
+    assert.match(sql, /vector_embedding\(\?,\?\)/);
+
+    const [row] = await db.run(query);
+    assert.strictEqual(row.queryEmbedding, runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`));
+    assert.strictEqual(
+      row.documentEmbedding,
+      runtime.vectorEmbedding(`${PROMPTS.document}${TEXT}`)
+    );
+    assert.notStrictEqual(row.queryEmbedding, row.documentEmbedding);
+    assert.notStrictEqual(row.queryEmbedding, runtime.vectorEmbedding(TEXT));
+    assert.strictEqual(JSON.parse(row.queryEmbedding).length, 384);
+  });
+
+  test('preserves arity, casts, metadata and reusable CQN for both function spellings', () => {
+    for (const func of ['vector_embedding', 'VECTOR_EMBEDDING']) {
+      for (let arity = 0; arity <= 4; arity++) {
+        const args = [
+          { val: TEXT, cast: { type: 'cds.String' } },
+          { val: 'DOCUMENT' },
+          { val: 'EXPLICIT.HANA.MODEL' },
+          { val: 'remote' }
+        ].slice(0, arity);
+        const column = { func, args, as: 'embedding', cast: { type: 'cds.String' } };
+        const query = { SELECT: { from: { ref: ['EmbeddingDocuments'] }, columns: [column] } };
+        const original = JSON.stringify(query);
+        const first = db.cqn2sql(query);
+        const second = db.cqn2sql(query);
+
+        assert.strictEqual(second.sql, first.sql);
+        assert.deepStrictEqual(second.values, first.values);
+        assert.strictEqual(JSON.stringify(query), original);
+        assert.deepStrictEqual(
+          first.values,
+          args.map((arg) => arg.val)
+        );
+        assert.match(first.sql, /vector_embedding\(/);
+        assert.strictEqual(first.sql.includes(",'QUERY'"), arity === 1);
+        if (arity > 0) assert.match(first.sql, /cast\(\? as (?:NVARCHAR|TEXT)/i);
+      }
+    }
+  });
+
+  for (const expression of [
+    "cosine_similarity(selected, vector_embedding('a small cat'))",
+    "cosine_similarity(vector_embedding('a small cat'), selected)",
+    "l2distance(selected, vector_embedding('a small cat'))",
+    "l2distance(vector_embedding('a small cat'), selected)"
+  ]) {
+    test(`keeps the local query prompt regardless of model annotation for ${expression}`, async () => {
+      const query = cds.parse.cql(`SELECT from EmbeddingDocuments { ${expression} as score }`);
+      const { sql, values } = db.cqn2sql(query);
       assert.match(sql, /vector_embedding\(\?,'QUERY'\)/);
-      assert.match(sql, /vector_embedding\(\?,\?\)/);
+      assert.deepStrictEqual(values, [TEXT]);
 
       const [row] = await db.run(query);
-      assert.strictEqual(row.queryEmbedding, runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`));
-      assert.strictEqual(
-        row.documentEmbedding,
-        runtime.vectorEmbedding(`${PROMPTS.document}${TEXT}`)
-      );
-      assert.notStrictEqual(row.queryEmbedding, row.documentEmbedding);
-      assert.notStrictEqual(row.queryEmbedding, runtime.vectorEmbedding(TEXT));
-      assert.strictEqual(JSON.parse(row.queryEmbedding).length, 384);
+      const expected = expression.startsWith('cosine_similarity') ? 1 : 0;
+      assert.ok(Math.abs(row.score - expected) < 1e-6, `${expression}: ${row.score}`);
+      assert.strictEqual(db.options.embedding.model, MINILM_MODEL);
     });
+  }
 
-    for (const expression of [
-      "cosine_similarity(selected, vector_embedding('a small cat'))",
-      "cosine_similarity(vector_embedding('a small cat'), selected)",
-      "l2distance(selected, vector_embedding('a small cat'))",
-      "l2distance(vector_embedding('a small cat'), selected)"
-    ]) {
-      test(`keeps the local query prompt regardless of model annotation for ${expression}`, async () => {
-        const query = cds.parse.cql(`SELECT from EmbeddingDocuments { ${expression} as score }`);
-        const { sql, values } = db.cqn2sql(query);
-        assert.match(sql, /vector_embedding\(\?,'QUERY'\)/);
-        assert.deepStrictEqual(values, [TEXT]);
-
-        const [row] = await db.run(query);
-        const expected = expression.startsWith('cosine_similarity') ? 1 : 0;
-        assert.ok(Math.abs(row.score - expected) < 1e-6, `${expression}: ${row.score}`);
-        assert.strictEqual(db.options.embedding.model, MINILM_MODEL);
-      });
-    }
-
-    test('ignores global HANA configuration and preserves explicit model and remote-source arguments', async () => {
-      const embeddings = cds.env.requires.embeddings;
-      cds.env.requires.embeddings = { model: 'GLOBAL.HANA.MODEL', model_kind: 'embeddings' };
-      try {
-        const query = cds.ql.SELECT.from('EmbeddingDocuments').columns`
+  test('ignores global HANA configuration and preserves explicit model and remote-source arguments', async () => {
+    const embeddings = cds.env.requires.embeddings;
+    cds.env.requires.embeddings = { model: 'GLOBAL.HANA.MODEL', model_kind: 'embeddings' };
+    try {
+      const query = cds.ql.SELECT.from('EmbeddingDocuments').columns`
           cosine_similarity(fallback, vector_embedding(${TEXT})) as score,
           vector_embedding(${TEXT}, 'DOCUMENT', 'EXPLICIT.HANA.MODEL') as documentEmbedding,
           vector_embedding(${TEXT}, 'QUERY', 'EXPLICIT.HANA.MODEL', 'remote') as remoteEmbedding
         `;
-        const { sql, values } = db.cqn2sql(query);
-        assert.match(sql, /vector_embedding\(\?,'QUERY'\)/);
-        assert.deepStrictEqual(values, [
-          TEXT,
-          TEXT,
-          'DOCUMENT',
-          'EXPLICIT.HANA.MODEL',
-          TEXT,
-          'QUERY',
-          'EXPLICIT.HANA.MODEL',
-          'remote'
-        ]);
+      const { sql, values } = db.cqn2sql(query);
+      assert.match(sql, /vector_embedding\(\?,'QUERY'\)/);
+      assert.deepStrictEqual(values, [
+        TEXT,
+        TEXT,
+        'DOCUMENT',
+        'EXPLICIT.HANA.MODEL',
+        TEXT,
+        'QUERY',
+        'EXPLICIT.HANA.MODEL',
+        'remote'
+      ]);
 
-        const [row] = await db.run(query);
-        assert.ok(Math.abs(row.score - 1) < 1e-6);
-        assert.strictEqual(
-          row.documentEmbedding,
-          runtime.vectorEmbedding(`${PROMPTS.document}${TEXT}`)
-        );
-        assert.strictEqual(row.remoteEmbedding, runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`));
-        assert.strictEqual(db.options.embedding.model, MINILM_MODEL);
-      } finally {
-        cds.env.requires.embeddings = embeddings;
-      }
-    });
-  }
-);
+      const [row] = await db.run(query);
+      assert.ok(Math.abs(row.score - 1) < 1e-6);
+      assert.strictEqual(
+        row.documentEmbedding,
+        runtime.vectorEmbedding(`${PROMPTS.document}${TEXT}`)
+      );
+      assert.strictEqual(row.remoteEmbedding, runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`));
+      assert.strictEqual(db.options.embedding.model, MINILM_MODEL);
+    } finally {
+      cds.env.requires.embeddings = embeddings;
+    }
+  });
+});
 
 // Helper function to calculate cosine similarity between two vectors
 function cosineSimilarity(a, b) {

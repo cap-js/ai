@@ -170,7 +170,7 @@ SELECT.from('Books').columns`
 `;
 ```
 
-With the upcoming SQLite adapter release containing CQN text-type defaults, a one-argument `vector_embedding(text)` call defaults to `QUERY`. Two-argument calls preserve their explicit text type; keep `DOCUMENT` explicit for runtime document embeddings. These defaults use the SQLite dependencies described above. Until that adapter release is available, supply the text type explicitly, for example `vector_embedding(text, 'QUERY')`. The default applies only to CQN; plain SQL must also supply the text type explicitly to apply the corresponding prompt.
+The AI SQLite adapter defaults a one-argument CQN `vector_embedding(text)` call to `QUERY`. Calls with additional arguments preserve them; keep `DOCUMENT` explicit for runtime document embeddings. The default applies only to CQN; plain SQL must supply the text type explicitly to apply the corresponding prompt.
 
 The local service accepts a two-argument form and HANA-compatible three- and four-argument forms:
 
