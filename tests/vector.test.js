@@ -284,7 +284,7 @@ describe('SQLite integration', () => {
       [
         '--input-type=module',
         '--eval',
-        "import cds from '@sap/cds'; console.log(JSON.stringify(cds.requires.embeddings))"
+        "import cds from '@sap/cds'; console.log(JSON.stringify({ kind: cds.requires.db.kind, model: cds.requires.embeddings?.model }))"
       ],
       {
         cwd: new URL('./bookshop', import.meta.url),
@@ -293,7 +293,7 @@ describe('SQLite integration', () => {
       }
     );
     assert.strictEqual(result.status, 0, result.stderr);
-    assert.strictEqual(JSON.parse(result.stdout), false);
+    assert.deepStrictEqual(JSON.parse(result.stdout), { kind: 'hana' });
   });
 
   const memoryKind = cds.env.requires.kinds['sqlite:memory'];
