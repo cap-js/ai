@@ -335,6 +335,7 @@ describe('SQLite integration', () => {
 describe('CQN embedding defaults with the local SQLite runtime', () => {
   const TEXT = 'a small cat';
   const PROMPTS = { query: 'query: ', document: 'document: ' };
+  const distanceFunctions = new Set();
   let db;
   let embeddings;
   let selectedEmbeddings;
@@ -370,6 +371,16 @@ describe('CQN embedding defaults with the local SQLite runtime', () => {
         ID: 1,
         selected: embedding,
         fallback: embedding
+      })
+    );
+    await Promise.all(
+      ['cosine_similarity', 'l2distance'].map(async (func) => {
+        try {
+          await db.run(`SELECT ${func}('[1]', '[1]')`);
+          distanceFunctions.add(func);
+        } catch (error) {
+          if (!error.message.includes(`no such function: ${func}`)) throw error;
+        }
       })
     );
   });
@@ -440,12 +451,19 @@ describe('CQN embedding defaults with the local SQLite runtime', () => {
     "l2distance(selected, vector_embedding('a small cat'))",
     "l2distance(vector_embedding('a small cat'), selected)"
   ]) {
-    test(`keeps the local query prompt regardless of model annotation for ${expression}`, async () => {
+    test(`renders the local query default regardless of model annotation for ${expression}`, () => {
       const query = cds.parse.cql(`SELECT from EmbeddingDocuments { ${expression} as score }`);
       const { sql, values } = db.cqn2sql(query);
       assert.match(sql, /vector_embedding\(\?,'QUERY'\)/);
       assert.deepStrictEqual(values, [TEXT]);
+    });
 
+    test(`executes the local query prompt for ${expression}`, async (t) => {
+      const func = expression.slice(0, expression.indexOf('('));
+      if (!distanceFunctions.has(func)) {
+        return t.skip(`The installed SQLite adapter does not provide ${func}`);
+      }
+      const query = cds.parse.cql(`SELECT from EmbeddingDocuments { ${expression} as score }`);
       const [row] = await db.run(query);
       const expected = expression.startsWith('cosine_similarity') ? 1 : 0;
       assert.ok(Math.abs(row.score - expected) < 1e-6, `${expression}: ${row.score}`);
@@ -458,7 +476,7 @@ describe('CQN embedding defaults with the local SQLite runtime', () => {
     cds.env.requires.embeddings = { model: 'GLOBAL.HANA.MODEL', model_kind: 'embeddings' };
     try {
       const query = cds.ql.SELECT.from('EmbeddingDocuments').columns`
-          cosine_similarity(fallback, vector_embedding(${TEXT})) as score,
+          vector_embedding(${TEXT}) as queryEmbedding,
           vector_embedding(${TEXT}, 'DOCUMENT', 'EXPLICIT.HANA.MODEL') as documentEmbedding,
           vector_embedding(${TEXT}, 'QUERY', 'EXPLICIT.HANA.MODEL', 'remote') as remoteEmbedding
         `;
@@ -476,7 +494,7 @@ describe('CQN embedding defaults with the local SQLite runtime', () => {
       ]);
 
       const [row] = await db.run(query);
-      assert.ok(Math.abs(row.score - 1) < 1e-6);
+      assert.strictEqual(row.queryEmbedding, runtime.vectorEmbedding(`${PROMPTS.query}${TEXT}`));
       assert.strictEqual(
         row.documentEmbedding,
         runtime.vectorEmbedding(`${PROMPTS.document}${TEXT}`)
