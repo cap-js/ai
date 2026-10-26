@@ -4,6 +4,12 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Changed
+
+- Configure the default local embedding model through `cds.requires.embeddings` in the development profile. SQLite services use this shared configuration unless explicit service embedding options are supplied.
+
 ## Version 1.3.0 - 2026-10-26
 
 ### Added

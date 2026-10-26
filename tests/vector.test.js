@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { spawnSync } from 'node:child_process';
 import { installModel } from '@cap-js/ai/models.js';
 import {
   DEFAULT_EMBEDDING_MODEL,
@@ -250,7 +251,49 @@ describe('SQLite integration', () => {
     assert.strictEqual(DEFAULT_EMBEDDING_MODEL, MINILM_MODEL);
     const kind = cds.env.requires.kinds.sqlite;
     assert.strictEqual(kind.impl, AI_SQLITE_IMPL);
-    assert.strictEqual(kind.embedding.model, DEFAULT_EMBEDDING_MODEL);
+    assert.strictEqual(cds.requires.embeddings.model, DEFAULT_EMBEDDING_MODEL);
+    assert.strictEqual(kind.embedding, undefined);
+    assert.strictEqual(cds.requires.db?.embedding, undefined);
+  });
+
+  test('limits the shared model default to the development profile', () => {
+    for (const profile of ['development', 'test', 'production']) {
+      const result = spawnSync(
+        process.execPath,
+        [
+          '--input-type=module',
+          '--eval',
+          "import cds from '@sap/cds'; console.log(JSON.stringify(cds.requires.embeddings ?? null))"
+        ],
+        {
+          cwd: process.cwd(),
+          env: { ...process.env, NODE_ENV: profile, CDS_ENV: '' },
+          encoding: 'utf8'
+        }
+      );
+      assert.strictEqual(result.status, 0, result.stderr);
+      const configuration = JSON.parse(result.stdout);
+      if (profile === 'production') assert.strictEqual(configuration, null);
+      else assert.strictEqual(configuration.model, DEFAULT_EMBEDDING_MODEL);
+    }
+  });
+
+  test('disables the shared local model in the Bookshop hybrid profile', () => {
+    const result = spawnSync(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        "import cds from '@sap/cds'; console.log(JSON.stringify({ kind: cds.requires.db.kind, model: cds.requires.embeddings?.model }))"
+      ],
+      {
+        cwd: new URL('./bookshop', import.meta.url),
+        env: { ...process.env, NODE_ENV: 'development', CDS_ENV: 'hybrid' },
+        encoding: 'utf8'
+      }
+    );
+    assert.strictEqual(result.status, 0, result.stderr);
+    assert.deepStrictEqual(JSON.parse(result.stdout), { kind: 'hana' });
   });
 
   const memoryKind = cds.env.requires.kinds['sqlite:memory'];
@@ -261,7 +304,7 @@ describe('SQLite integration', () => {
     },
     () => {
       assert.strictEqual(memoryKind.impl, AI_SQLITE_IMPL);
-      assert.strictEqual(memoryKind.embedding.model, DEFAULT_EMBEDDING_MODEL);
+      assert.strictEqual(memoryKind.embedding, undefined);
       assert.strictEqual(memoryKind.credentials.url, ':memory:');
       assert.strictEqual(memoryKind.pool.evictionRunIntervalMillis, 0);
       assert.strictEqual(memoryKind.pool.min, 1);

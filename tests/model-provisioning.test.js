@@ -110,15 +110,15 @@ describe('runtime model configuration', () => {
     const model = fixtureModel(content);
     await assert.rejects(
       resolveEmbeddingModel({ model: '' }),
-      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+      /cds\.requires\.embeddings\.model must be a non-empty string/
     );
     await assert.rejects(
       resolveEmbeddingModel({ model: 42 }),
-      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+      /cds\.requires\.embeddings\.model must be a non-empty string/
     );
     await assert.rejects(
       resolveEmbeddingModel({ model: null }),
-      /cds\.env\.requires\.db\.embedding\.model must be a non-empty string/
+      /cds\.requires\.embeddings\.model must be a non-empty string/
     );
     await assert.rejects(resolveEmbeddingModel(model.repository), /embedding must be an object/);
     await assert.rejects(

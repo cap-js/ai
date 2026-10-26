@@ -17,6 +17,31 @@ afterEach(async () => {
 });
 
 describe('SQLite model lookup configuration', () => {
+  test('uses the shared embedding configuration during service startup', async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cap-ai-shared-model-'));
+    temporaryDirectories.push(root);
+    const directory = path.join(root, '.cds', 'models', 'example', 'shared-model');
+    await fs.mkdir(directory, { recursive: true });
+    await fs.writeFile(path.join(directory, 'embedding.lock.json'), '{}');
+    const originalEmbedding = cds.requires.embeddings;
+    const configuration = { model: 'example/shared-model', root, offline: true };
+    cds.requires.embeddings = configuration;
+    const db = new AISQLiteService('shared-model-db', undefined, {
+      kind: 'sqlite',
+      credentials: { url: ':memory:' }
+    });
+    try {
+      await assert.rejects(db.init(), (error) => {
+        assert.ok(error.message.includes(directory), error.message);
+        return true;
+      });
+      assert.deepEqual(configuration, { model: 'example/shared-model', root, offline: true });
+    } finally {
+      await db.disconnect();
+      cds.requires.embeddings = originalEmbedding;
+    }
+  });
+
   test('uses a service-specific root without changing global CAP configuration', async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'cap-ai-service-root-'));
     temporaryDirectories.push(root);
@@ -26,22 +51,28 @@ describe('SQLite model lookup configuration', () => {
     const originalRoot = cds.root;
     const originalDb = cds.db;
     const originalEmbedding = structuredClone(cds.env.requires.db?.embedding);
+    const sharedEmbedding = cds.requires.embeddings;
+    cds.requires.embeddings = { model: 'example/shared-model', root, offline: true };
     const db = new AISQLiteService('model-root-db', undefined, {
       kind: 'sqlite',
       credentials: { url: ':memory:' },
       embedding: { model: 'example/service-model', root, offline: true }
     });
 
-    await assert.rejects(db.init(), (error) => {
-      assert.ok(error.message.includes(directory), error.message);
-      assert.ok(
-        error.message.includes(
-          `--directory ${JSON.stringify(path.join(root, '.cds', 'models'))}`
-        ) || error.message.includes(`--directory ${path.join(root, '.cds', 'models')}`),
-        error.message
-      );
-      return true;
-    });
+    try {
+      await assert.rejects(db.init(), (error) => {
+        assert.ok(error.message.includes(directory), error.message);
+        assert.ok(
+          error.message.includes(
+            `--directory ${JSON.stringify(path.join(root, '.cds', 'models'))}`
+          ) || error.message.includes(`--directory ${path.join(root, '.cds', 'models')}`),
+          error.message
+        );
+        return true;
+      });
+    } finally {
+      cds.requires.embeddings = sharedEmbedding;
+    }
     assert.equal(cds.root, originalRoot);
     assert.equal(cds.db, originalDb);
     assert.deepEqual(cds.env.requires.db?.embedding, originalEmbedding);
