@@ -3,7 +3,11 @@ import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { describe, test } from 'node:test';
 
-import { checkModel, discoverModel } from '../lib/vector_embedding/model-discovery.js';
+import {
+  checkModel,
+  discoverModel,
+  MODEL_INSPECTION_INCOMPLETE
+} from '../lib/vector_embedding/model-discovery.js';
 
 const REVISION = '1'.repeat(40);
 const BASE_REVISION = '2'.repeat(40);
@@ -143,6 +147,117 @@ describe('Hugging Face model discovery', () => {
         .filter(({ role }) => role !== 'model')
         .every(({ path }) => path.startsWith('exports/encoder/'))
     );
+  });
+
+  for (const [modelPath, assetDirectory] of [
+    ['onnx/model.onnx', ''],
+    ['exports/encoder/model.onnx', 'exports/encoder']
+  ]) {
+    for (const filename of ['config.json', 'tokenizer.json', 'tokenizer_config.json']) {
+      test(`classifies missing ${filename} for ${modelPath} by its inspection role`, async () => {
+        await Promise.all(
+          [checkModel, discoverModel].map(async (inspect) => {
+            const hub = hubFor({
+              modelPath,
+              assetDirectory,
+              modelMetadata: false,
+              externalData: true
+            });
+            const remotePath = assetDirectory ? `${assetDirectory}/${filename}` : filename;
+            delete hub.files[REPOSITORY][remotePath];
+            hub.files[REPOSITORY][`unrelated/${filename}`] = json({});
+
+            await assert.rejects(inspect(REPOSITORY, { hubClient: hub.client }), (error) => {
+              assert.equal(
+                error.message,
+                `Hugging Face model '${REPOSITORY}' must contain '${filename}' at the repository root or next to '${modelPath}'`
+              );
+              if (filename === 'config.json') {
+                assert.equal(error.code, MODEL_INSPECTION_INCOMPLETE);
+                assert.deepEqual(error.details, { repository: REPOSITORY, file: filename });
+              } else {
+                assert.equal(error.code, undefined);
+                assert.equal(error.details, undefined);
+              }
+              return true;
+            });
+            assert.deepEqual(
+              hub.fileRequests,
+              [],
+              'missing companion files need no artifact download'
+            );
+          })
+        );
+      });
+    }
+  }
+
+  test('keeps missing ONNX and external data as definite structural errors', async () => {
+    await Promise.all(
+      ['model', 'externalData'].map(async (missing) => {
+        const hub = hubFor({ externalData: true, modelMetadata: false });
+        delete hub.files[REPOSITORY][
+          missing === 'model' ? 'onnx/model.onnx' : 'onnx/model.onnx_data'
+        ];
+
+        await assert.rejects(checkModel(REPOSITORY, { hubClient: hub.client }), (error) => {
+          assert.equal(error.code, undefined);
+          assert.match(
+            error.message,
+            missing === 'model'
+              ? /does not contain an ONNX model/
+              : /declares external ONNX data but no data file exists/
+          );
+          return true;
+        });
+        assert.ok(
+          hub.fileRequests.every(([, , remotePath]) => !remotePath.startsWith('onnx/')),
+          'a metadata check must not download model weights'
+        );
+      })
+    );
+  });
+
+  test('preserves metadata transport errors and JSON parse causes without reclassification', async () => {
+    const failure = new Error('Hub metadata unavailable');
+    failure.code = 'ECONNRESET';
+    failure.details = { operation: 'getModelInfo' };
+    const infoHub = hubFor();
+    infoHub.client.getModelInfo = async () => {
+      throw failure;
+    };
+    await assert.rejects(
+      checkModel(REPOSITORY, { hubClient: infoHub.client }),
+      (error) => error === failure
+    );
+
+    const fetchHub = hubFor();
+    const getFile = fetchHub.client.getFile;
+    fetchHub.client.getFile = async (...args) => {
+      if (args[2] === 'config.json') throw failure;
+      return getFile(...args);
+    };
+    await assert.rejects(checkModel(REPOSITORY, { hubClient: fetchHub.client }), (error) => {
+      assert.equal(error.code, undefined);
+      assert.equal(error.cause, failure);
+      assert.equal(
+        error.message,
+        `Cannot fetch Hugging Face file '${REPOSITORY}/config.json' at ${REVISION}: ${failure.message}`
+      );
+      return true;
+    });
+
+    const invalidJsonHub = hubFor();
+    invalidJsonHub.files[REPOSITORY]['config.json'] = Buffer.from('{');
+    await assert.rejects(checkModel(REPOSITORY, { hubClient: invalidJsonHub.client }), (error) => {
+      assert.equal(error.code, undefined);
+      assert.ok(error.cause instanceof SyntaxError);
+      assert.equal(
+        error.message,
+        `Invalid JSON returned for '${REPOSITORY}/config.json' at ${REVISION}: ${error.cause.message}`
+      );
+      return true;
+    });
   });
 
   test('recognizes common Transformers dimension and sequence-limit aliases', async () => {
