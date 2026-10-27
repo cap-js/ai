@@ -4,11 +4,25 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
-## Unreleased
+## Version 1.4.0 - tbd
 
 ### Added
 
 - Default one-argument SQLite CQN `vector_embedding` calls to `QUERY` in the AI adapter. Document query/document prompts and the independent local model configuration.
+
+### Changed
+
+### Fixed
+
+### Removed
+
+- Default one-argument SQLite CQN `vector_embedding` calls to `QUERY` in the AI adapter. Document query/document prompts and the independent local model configuration.
+
+## Version 1.3.0 - 2026-10-26
+
+### Added
+
+- **Experimental:** Report model-download progress and replace the fixed per-file timeout with a stall-based one. `install-model` shows a live percentage/rate/ETA line (plain milestone lines when output is piped), and ad-hoc provisioning at startup logs throttled progress. Downloads now abort only after stalling (no data received for a while) plus a generous absolute ceiling, so large models on slow links finish; a stalled startup download fails with guidance to pre-provision via `install-model`.
 - Add per-service `embedding.root` for model lookup without changing the CAP project root, and `embedding.offline` for read-only local-then-home model lookup.
 - Export `installModel` from `@cap-js/ai/models.js` for validated programmatic provisioning without CAP plugin hooks on import; existing package entrypoints and deep paths remain available.
 
