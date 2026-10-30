@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 import cds from '@sap/cds';
 
 const require = createRequire(import.meta.url);
+// Hybrid test runs carry HANA credentials; this suite needs its own local SQLite configuration.
+process.env.CDS_REQUIRES_DB = JSON.stringify(
+  require('./fixtures/vector-shorthand/package.json').cds.requires.db
+);
 const [major, minor] = require('@cap-js/sqlite/package.json').version.split('.').map(Number);
 // The CDS 9 CI stack uses SQLite 2, which predates the distance functions.
 const distanceExecution = { skip: major < 3 || (major === 3 && minor < 1) };
