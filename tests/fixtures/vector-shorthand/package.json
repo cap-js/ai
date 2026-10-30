@@ -1,0 +1,24 @@
+{
+  "name": "vector-shorthand-tests",
+  "private": true,
+  "dependencies": {
+    "@cap-js/ai": "file:../../.."
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "sqlite",
+        "credentials": {
+          "url": ":memory:"
+        },
+        "embedding": {
+          "directory": "../../../.cds/models",
+          "prompts": {
+            "query": "query: ",
+            "document": "document: "
+          }
+        }
+      }
+    }
+  }
+}

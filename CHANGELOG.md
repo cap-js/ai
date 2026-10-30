@@ -4,6 +4,12 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Version 1.4.0 - tbd
+
+### Added
+
+- SQLite CQN query-embedding shorthand: `vector_embedding(text)` defaults to `QUERY`, and `cosine_similarity`/`l2distance` embed plain-text right operands using the local model.
+
 ## Version 1.3.0 - 2026-10-26
 
 ### Added
