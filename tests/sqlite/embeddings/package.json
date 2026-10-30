@@ -1,15 +1,19 @@
 {
+  "dependencies": {
+    "@cap-js/ai": "*"
+  },
   "cds": {
-    "features": {
-      "vcaps": false
-    },
     "requires": {
+      "kinds": {
+        "sqlite:memory": {
+          "kind": "sqlite",
+          "credentials": {
+            "url": ":memory:"
+          }
+        }
+      },
       "db": {
-        "kind": "sqlite",
-        "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
-        "credentials": {
-          "url": ":memory:"
-        },
+        "kind": "sqlite:memory",
         "embedding": {
           "directory": "../../../.cds/models",
           "prompts": {

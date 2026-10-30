@@ -11,7 +11,7 @@ const distanceExecution = { skip: major < 3 || (major === 3 && minor < 1) };
 const text = 'a small cat';
 
 describe('SQLite vector embedding shorthand', () => {
-  cds.test(fileURLToPath(new URL('./fixtures/vector-shorthand', import.meta.url)));
+  cds.test(fileURLToPath(new URL('.', import.meta.url)), 'embeddings.cds');
   let queryEmbedding, documentEmbedding, cosine, distance;
 
   before(async () => {
