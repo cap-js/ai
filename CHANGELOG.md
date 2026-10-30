@@ -4,6 +4,16 @@
 - The format is based on [Keep a Changelog](https://keepachangelog.com/).
 - This project adheres to [Semantic Versioning](https://semver.org/).
 
+## Version 1.4.0 - tbd
+
+### Added
+
+### Changed
+
+### Fixed
+
+### Removed
+
 ## Version 1.3.0 - 2026-10-26
 
 ### Added
