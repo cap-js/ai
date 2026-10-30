@@ -5,6 +5,9 @@
     "@cap-js/ai": "file:../../.."
   },
   "cds": {
+    "features": {
+      "vcaps": false
+    },
     "requires": {
       "db": {
         "kind": "sqlite",
