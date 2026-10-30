@@ -5,25 +5,13 @@ import { fileURLToPath } from 'node:url';
 import cds from '@sap/cds';
 
 const require = createRequire(import.meta.url);
-// Hybrid test runs carry HANA credentials; this suite needs its own local SQLite configuration.
-process.env.CDS_FEATURES_VCAPS = 'false';
-process.env.CDS_REQUIRES_DB = JSON.stringify({
-  kind: 'sqlite',
-  embedding: { prompts: { query: 'query: ', document: 'document: ' } }
-});
 const [major, minor] = require('@cap-js/sqlite/package.json').version.split('.').map(Number);
 // The CDS 9 CI stack uses SQLite 2, which predates the distance functions.
 const distanceExecution = { skip: major < 3 || (major === 3 && minor < 1) };
 const text = 'a small cat';
 
 describe('SQLite vector embedding shorthand', () => {
-  cds.test(
-    'serve',
-    'all',
-    '--from',
-    fileURLToPath(new URL('./fixtures/vector-shorthand/schema.cds', import.meta.url)),
-    '--in-memory'
-  );
+  cds.test(fileURLToPath(new URL('./fixtures/vector-shorthand', import.meta.url)));
   let queryEmbedding, documentEmbedding, cosine, distance;
 
   before(async () => {

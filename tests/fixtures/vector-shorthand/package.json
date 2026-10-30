@@ -1,0 +1,23 @@
+{
+  "cds": {
+    "features": {
+      "vcaps": false
+    },
+    "requires": {
+      "db": {
+        "kind": "sqlite",
+        "impl": "@cap-js/ai/lib/sqlite/AISQLiteService.js",
+        "credentials": {
+          "url": ":memory:"
+        },
+        "embedding": {
+          "directory": "../../../.cds/models",
+          "prompts": {
+            "query": "query: ",
+            "document": "document: "
+          }
+        }
+      }
+    }
+  }
+}
