@@ -178,7 +178,7 @@ SELECT.from('Books').columns`
 `;
 ```
 
-The AI SQLite adapter supports these CQN query-embedding forms:
+SQLite CQN supports these query-embedding forms:
 
 ```cql
 vector_embedding('string')
@@ -188,7 +188,7 @@ cosine_similarity(embedding, vector_embedding('string'))
 l2distance(embedding, vector_embedding('string'))
 ```
 
-One-argument embeddings default to `QUERY`, and plain-text right operands are wrapped in `vector_embedding`. All use the locally configured model. Cast vectors and explicit embedding arguments are preserved; `l2normalize` can wrap either vector operand. Use `vector_embedding(text, 'DOCUMENT')` for document embeddings.
+One-argument embeddings and plain-text right operands use `QUERY` with the local model. Keep `DOCUMENT` explicit for document embeddings. Cast vectors and explicit embeddings are preserved, including inside `l2normalize`.
 
 These defaults apply only to CQN. Plain SQL must supply the text type explicitly to apply its prompt. The local service accepts two arguments and HANA-compatible three- and four-argument forms:
 

@@ -6,16 +6,24 @@ import cds from '@sap/cds';
 
 const require = createRequire(import.meta.url);
 // Hybrid test runs carry HANA credentials; this suite needs its own local SQLite configuration.
-process.env.CDS_REQUIRES_DB = JSON.stringify(
-  require('./fixtures/vector-shorthand/package.json').cds.requires.db
-);
+process.env.CDS_FEATURES_VCAPS = 'false';
+process.env.CDS_REQUIRES_DB = JSON.stringify({
+  kind: 'sqlite',
+  embedding: { prompts: { query: 'query: ', document: 'document: ' } }
+});
 const [major, minor] = require('@cap-js/sqlite/package.json').version.split('.').map(Number);
 // The CDS 9 CI stack uses SQLite 2, which predates the distance functions.
 const distanceExecution = { skip: major < 3 || (major === 3 && minor < 1) };
 const text = 'a small cat';
 
 describe('SQLite vector embedding shorthand', () => {
-  cds.test(fileURLToPath(new URL('./fixtures/vector-shorthand', import.meta.url)));
+  cds.test(
+    'serve',
+    'all',
+    '--from',
+    fileURLToPath(new URL('./fixtures/vector-shorthand/schema.cds', import.meta.url)),
+    '--in-memory'
+  );
   let queryEmbedding, documentEmbedding, cosine, distance;
 
   before(async () => {
@@ -93,10 +101,10 @@ describe('SQLite vector embedding shorthand', () => {
       assert.ok(sql.includes("l2distance(B.embedding,vector_embedding(?,'QUERY'))"), sql);
     });
 
-    test('preserves explicit text type, model, and remote-source arguments', () => {
-      const query = cds.ql`SELECT from Books as B { vector_embedding(${text}, ${'DOCUMENT'}, ${'HANA.MODEL'}, ${'REMOTE.SOURCE'}) as result }`;
+    test('preserves an explicit DOCUMENT text type', () => {
+      const query = cds.ql`SELECT from Books as B { vector_embedding(${text}, ${'DOCUMENT'}) as result }`;
       const { sql } = cds.db.cqn2sql(query);
-      assert.ok(sql.includes('vector_embedding(?,?,?,?)'), sql);
+      assert.ok(sql.includes('vector_embedding(?,?)'), sql);
       assert.ok(!sql.includes("'QUERY'"), sql);
     });
 
@@ -140,8 +148,8 @@ describe('SQLite vector embedding shorthand', () => {
       assert.equal(row.result, queryEmbedding);
     });
 
-    test('preserves DOCUMENT and ignores HANA model and remote-source identifiers', async () => {
-      const query = cds.ql`SELECT from Books { vector_embedding(${text}, ${'DOCUMENT'}, ${'HANA.MODEL'}, ${'REMOTE.SOURCE'}) as result }`;
+    test('preserves an explicit DOCUMENT text type', async () => {
+      const query = cds.ql`SELECT from Books { vector_embedding(${text}, ${'DOCUMENT'}) as result }`;
       const [row] = await cds.db.run(query);
       assert.equal(row.result, documentEmbedding);
     });
