@@ -46,7 +46,7 @@ jobs:
         if: matrix.cds-version == '9'
         run: npm i -f @sap/cds@9 @cap-js/sqlite@2 @sap/cds-mtxs@3 @cap-js/hana@2
       - run: cd tests/bookshop && cds v -i
-      - run: npm run ${{ matrix.cds-version == '9' && 'test:cds9' || 'test' }}
+      - run: npm run test
 
   integration-tests:
     name: Integration Tests with Node.js ${{ matrix.node-version }} (CDS ${{ matrix.cds-version }})
