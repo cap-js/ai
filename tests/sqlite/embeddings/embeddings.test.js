@@ -1,13 +1,8 @@
 import { before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import cds from '@sap/cds';
 
-const require = createRequire(import.meta.url);
-const [major, minor] = require('@cap-js/sqlite/package.json').version.split('.').map(Number);
-// The CDS 9 CI stack uses SQLite 2, which predates the distance functions.
-const distanceExecution = { skip: major < 3 || (major === 3 && minor < 1) };
 const text = 'a small cat';
 
 describe('SQLite vector embedding shorthand', () => {
@@ -21,12 +16,10 @@ describe('SQLite vector embedding shorthand', () => {
     );
     assert.notEqual(queryEmbedding, documentEmbedding);
     await cds.db.run(cds.ql.INSERT.into('Books').entries({ ID: 1, embedding: documentEmbedding }));
-    if (!distanceExecution.skip) {
-      [{ cosine, distance }] = await cds.db.run(
-        'SELECT cosine_similarity(?,?) AS cosine, l2distance(?,?) AS distance',
-        [documentEmbedding, queryEmbedding, documentEmbedding, queryEmbedding]
-      );
-    }
+    [{ cosine, distance }] = await cds.db.run(
+      'SELECT cosine_similarity(?,?) AS cosine, l2distance(?,?) AS distance',
+      [documentEmbedding, queryEmbedding, documentEmbedding, queryEmbedding]
+    );
   });
 
   describe('CQN rendering', () => {
@@ -142,29 +135,25 @@ describe('SQLite vector embedding shorthand', () => {
       assert.equal(row.result, documentEmbedding);
     });
 
-    test("cosine_similarity(embedding, 'string')", distanceExecution, async () => {
+    test("cosine_similarity(embedding, 'string')", async () => {
       const query = cds.ql`SELECT from Books { cosine_similarity(embedding, ${text}) as result }`;
       const [row] = await cds.db.run(query);
       assert.ok(Math.abs(row.result - cosine) < 1e-6);
     });
 
-    test("l2distance(embedding, 'string')", distanceExecution, async () => {
+    test("l2distance(embedding, 'string')", async () => {
       const query = cds.ql`SELECT from Books { l2distance(embedding, ${text}) as result }`;
       const [row] = await cds.db.run(query);
       assert.ok(Math.abs(row.result - distance) < 1e-6);
     });
 
-    test(
-      "cosine_similarity(embedding, vector_embedding('string'))",
-      distanceExecution,
-      async () => {
-        const query = cds.ql`SELECT from Books { cosine_similarity(embedding, vector_embedding(${text})) as result }`;
-        const [row] = await cds.db.run(query);
-        assert.ok(Math.abs(row.result - cosine) < 1e-6);
-      }
-    );
+    test("cosine_similarity(embedding, vector_embedding('string'))", async () => {
+      const query = cds.ql`SELECT from Books { cosine_similarity(embedding, vector_embedding(${text})) as result }`;
+      const [row] = await cds.db.run(query);
+      assert.ok(Math.abs(row.result - cosine) < 1e-6);
+    });
 
-    test("l2distance(embedding, vector_embedding('string'))", distanceExecution, async () => {
+    test("l2distance(embedding, vector_embedding('string'))", async () => {
       const query = cds.ql`SELECT from Books { l2distance(embedding, vector_embedding(${text})) as result }`;
       const [row] = await cds.db.run(query);
       assert.ok(Math.abs(row.result - distance) < 1e-6);

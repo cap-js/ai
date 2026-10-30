@@ -5,14 +5,6 @@
   },
   "cds": {
     "requires": {
-      "kinds": {
-        "sqlite:memory": {
-          "kind": "sqlite",
-          "credentials": {
-            "url": ":memory:"
-          }
-        }
-      },
       "db": {
         "kind": "sqlite:memory",
         "embedding": {
