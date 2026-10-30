@@ -1,6 +1,6 @@
 {
   "name": "@cap-js/ai",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "CAP cds-plugin for AI capabilities",
   "homepage": "https://cap.cloud.sap/",
   "license": "Apache-2.0",
