@@ -8,6 +8,8 @@
 
 ### Added
 
+- SQLite CQN query-embedding shorthand: `vector_embedding(text)` defaults to `QUERY`, and `cosine_similarity`/`l2distance` embed plain-text right operands using the local model.
+
 ### Changed
 
 ### Fixed
