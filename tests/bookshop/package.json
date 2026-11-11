@@ -25,7 +25,7 @@
     "@sap/cds": ">=9",
     "@sap/cds-common-content": "^3.1.0",
     "@sap/cds-mtxs": ">=3",
-    "@sap/xssec": "^4",
+    "@sap/xssec": "^4.16.0",
     "express": "^5"
   },
   "devDependencies": {
