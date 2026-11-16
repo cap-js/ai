@@ -91,6 +91,8 @@ See [SAP AI Core integration](.docs/ai-core.md) for setup, supported queries, he
    }}
    ```
 
+   On SQLite, CQN `vector_embedding(text)` and plain-text right operands of `cosine_similarity`/`l2distance` use `QUERY`; keep `DOCUMENT` explicit for document embeddings.
+
    The model name is ignored on SQLite — the locally configured model is used — and honored on SAP HANA, so the same query runs unchanged on both. This embeds every book's description on each request; for repeated searches, persist the embeddings instead (see [Local vector embeddings](.docs/vector-embeddings.md)).
 
 3. Run the app and call the function:

@@ -1,0 +1,20 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@cap-js/ai": "*"
+  },
+  "cds": {
+    "requires": {
+      "db": {
+        "kind": "sqlite:memory",
+        "embedding": {
+          "directory": "../../../.cds/models",
+          "prompts": {
+            "query": "query: ",
+            "document": "document: "
+          }
+        }
+      }
+    }
+  }
+}

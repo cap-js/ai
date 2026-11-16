@@ -25,7 +25,7 @@
   "scripts": {
     "lint": "npx -y eslint@10 .",
     "test:model:provision": "node tests/provision-model.js",
-    "test": "npm run test:model:provision && node --test tests/*.test.js",
+    "test": "npm run test:model:provision && node tests/run.js",
     "test:hybrid": "npm run test:model:provision && cds bind --exec -- node --test tests/*.test.js tests/integration/*.test.js",
     "format": "oxfmt && format-cds -f",
     "format:check": "oxfmt --check && format-cds --check"

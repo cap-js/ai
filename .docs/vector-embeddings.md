@@ -170,17 +170,30 @@ See [Choosing a model](model-selection.md) for discovery filters and the support
 
 ## SQL function
 
-Use the HANA-shaped function from CQL or SQL:
+Use `vector_embedding` from CQL or SQL:
 
 ```js
 SELECT.from('Books').columns`
-  VECTOR_EMBEDDING(title, 'DOCUMENT', 'SAP_GXY.20250407') as embedding
+  VECTOR_EMBEDDING(title, 'DOCUMENT') as embedding
 `;
 ```
 
-The service accepts both the three-argument form and a four-argument form with `remote_source`:
+SQLite CQN supports these query-embedding forms:
+
+```cql
+vector_embedding('string')
+cosine_similarity(embedding, 'string')
+l2distance(embedding, 'string')
+cosine_similarity(embedding, vector_embedding('string'))
+l2distance(embedding, vector_embedding('string'))
+```
+
+One-argument embeddings and plain-text right operands use `QUERY` with the local model. Keep `DOCUMENT` explicit for document embeddings. Cast vectors and explicit embeddings are preserved, including inside `l2normalize`.
+
+These defaults apply only to CQN. Plain SQL must supply the text type explicitly to apply its prompt. The local service accepts two arguments and HANA-compatible three- and four-argument forms:
 
 ```sql
+VECTOR_EMBEDDING(text, text_type)
 VECTOR_EMBEDDING(text, text_type, model_and_version)
 VECTOR_EMBEDDING(text, text_type, model_and_version, remote_source)
 ```
