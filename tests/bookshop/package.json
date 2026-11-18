@@ -17,7 +17,7 @@
   "dependencies": {
     "@cap-js/ai": "file:../../",
     "@cap-js/hana": ">=2",
-    "@sap-ai-sdk/orchestration": "^2.5.0",
+    "@sap-ai-sdk/orchestration": "^2.18.0",
     "@sap-ai-sdk/prompt-registry": "^2.5.0",
     "@sap-cloud-sdk/connectivity": "^4",
     "@sap-cloud-sdk/http-client": "^4",
