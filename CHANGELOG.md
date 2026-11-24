@@ -12,6 +12,8 @@
 
 ### Fixed
 
+- A draft READ on an entity with `@UI.Recommendations` and no `SELECT.columns` no longer fails with `Cannot read properties of undefined (reading 'findIndex')`; a missing column list is treated as all columns.
+
 ### Removed
 
 ## Version 1.3.0 - 2026-10-26
